@@ -15,5 +15,6 @@ export { resolveSedeId, SEDE_PRINCIPAL_ID } from './lib/resolve-sede';
 export { resolveTenantId, TENANT_DEMO_ID } from './lib/resolve-tenant';
 export { TenantActual, UsuarioActual } from './lib/tenant.decorator';
 export { JwtPayload } from './lib/jwt.strategy';
+export { Public, IS_PUBLIC_KEY } from './lib/public.decorator';
 export { CSRF_COOKIE_NAME } from './lib/csrf';
 

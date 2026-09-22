@@ -3,17 +3,32 @@ import {
   Injectable,
   ExecutionContext,
   UnauthorizedException,
+  Optional,
 } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { AuthGuard } from '@nestjs/passport';
 import { timingSafeEqual } from 'node:crypto';
 import type { Request } from 'express';
 import { CSRF_COOKIE_NAME } from './csrf';
+import { IS_PUBLIC_KEY } from './public.decorator';
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
+  constructor(@Optional() private reflector?: Reflector) {
+    super();
+  }
+
   override async canActivate(context: ExecutionContext): Promise<boolean> {
+    const isPublic = this.reflector?.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (isPublic) {
+      return true;
+    }
+
     const request = context.switchToHttp().getRequest<Request & { cookies?: Record<string, string> }>();
     if (
       request.path === '/api/telemetry/metrics' ||
@@ -22,7 +37,8 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
       request.path === '/api/health' ||
       request.path.startsWith('/api/health/') ||
       request.path === '/health' ||
-      request.path.startsWith('/health/')
+      request.path.startsWith('/health/') ||
+      request.path.includes('/carta-publica')
     ) {
       return true;
     }

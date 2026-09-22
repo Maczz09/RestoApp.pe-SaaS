@@ -131,6 +131,28 @@ describe('JwtAuthGuard compartido', () => {
     ).resolves.toBe(true);
   });
 
+  it('permite /api/carta-publica sin autenticación', async () => {
+    await expect(
+      guard.canActivate(contextFor({ path: '/api/carta-publica', method: 'GET', headers: {}, cookies: {} }))
+    ).resolves.toBe(true);
+  });
+
+  it('permite ruta marcada con @Public() vía Reflector', async () => {
+    const reflector = {
+      getAllAndOverride: vi.fn().mockReturnValue(true),
+    } as any;
+    const publicGuard = new JwtAuthGuard(reflector);
+    await expect(
+      publicGuard.canActivate({
+        getHandler: () => ({}),
+        getClass: () => ({}),
+        switchToHttp: () => ({
+          getRequest: () => ({ path: '/api/privado', method: 'GET', headers: {}, cookies: {} }),
+        }),
+      } as any)
+    ).resolves.toBe(true);
+  });
+
   it('handleRequest devuelve el user si no hay error', () => {
     const user = { sub: 'u1', rol: 'ADMIN' };
     expect(guard.handleRequest(null, user)).toBe(user);

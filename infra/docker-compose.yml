@@ -253,6 +253,11 @@ services:
   # MICROSERVICIOS
   # ═══════════════════════════════════════════════════
   servicio-identidad:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        APP_NAME: servicio-identidad
     image: restoapp-servicio-identidad
     container_name: restoapp-servicio-identidad
     # host 3001 choca con otro stack Docker de este host (medicitas_grafana);
@@ -326,6 +331,11 @@ services:
         condition: service_healthy
 
   servicio-mesas:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        APP_NAME: servicio-mesas
     image: restoapp-servicio-mesas
     container_name: restoapp-servicio-mesas
     ports: ['3002:3000']
@@ -390,6 +400,11 @@ services:
         condition: service_healthy
 
   servicio-pedidos:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        APP_NAME: servicio-pedidos
     image: restoapp-servicio-pedidos
     container_name: restoapp-servicio-pedidos
     ports: ['3004:3000']
@@ -456,6 +471,11 @@ services:
         condition: service_healthy
 
   servicio-cuentas:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        APP_NAME: servicio-cuentas
     image: restoapp-servicio-cuentas
     container_name: restoapp-servicio-cuentas
     ports: ['3005:3000']
@@ -521,6 +541,11 @@ services:
         condition: service_healthy
 
   servicio-reservas:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        APP_NAME: servicio-reservas
     image: restoapp-servicio-reservas
     container_name: restoapp-servicio-reservas
     ports: ['3006:3000']
@@ -585,6 +610,11 @@ services:
         condition: service_healthy
 
   servicio-inventario:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        APP_NAME: servicio-inventario
     image: restoapp-servicio-inventario
     container_name: restoapp-servicio-inventario
     ports: ['3007:3000']
@@ -649,6 +679,11 @@ services:
         condition: service_healthy
 
   servicio-notificaciones:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        APP_NAME: servicio-notificaciones
     image: restoapp-servicio-notificaciones
     container_name: restoapp-servicio-notificaciones
     ports: ['3008:3000']
@@ -713,6 +748,11 @@ services:
         condition: service_healthy
 
   servicio-caja:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        APP_NAME: servicio-caja
     image: restoapp-servicio-caja
     container_name: restoapp-servicio-caja
     ports: ['3009:3000']
@@ -781,6 +821,11 @@ services:
         condition: service_healthy
 
   servicio-reportes:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        APP_NAME: servicio-reportes
     image: restoapp-servicio-reportes
     container_name: restoapp-servicio-reportes
     ports: ['3010:3000']
@@ -845,6 +890,11 @@ services:
         condition: service_healthy
 
   servicio-facturacion:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        APP_NAME: servicio-facturacion
     image: restoapp-servicio-facturacion
     container_name: restoapp-servicio-facturacion
     ports: ['3011:3000']
@@ -884,6 +934,11 @@ services:
         condition: service_healthy
 
   servicio-compras:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        APP_NAME: servicio-compras
     image: restoapp-servicio-compras
     container_name: restoapp-servicio-compras
     ports: ['3012:3000']

@@ -126,7 +126,7 @@ foreach ($svc in $services) {
     $dbName = "$svc-db"
     $dbName = $dbName -replace "servicio-", ""
     Write-Host "    $svc..." -NoNewline
-    $env:DATABASE_URL = "postgresql://nachopps:secret@localhost:$port/$($dbName)_db?schema=public"
+    $env:DATABASE_URL = "postgresql://restoapp:secret@localhost:$port/$($dbName)_db?schema=public"
     Push-Location apps/$svc
     npx prisma db push --accept-data-loss 2>&1 | Out-Null
     if ($LASTEXITCODE -eq 0) { Write-Host " OK" -ForegroundColor Green }
@@ -136,7 +136,7 @@ foreach ($svc in $services) {
 
 # Seed del usuario admin
 Write-Host "`n   Sembrando usuario admin..." -ForegroundColor Yellow
-$env:DATABASE_URL = "postgresql://nachopps:secret@localhost:5439/identidad_db?schema=public"
+$env:DATABASE_URL = "postgresql://restoapp:secret@localhost:5439/identidad_db?schema=public"
 Push-Location apps/servicio-identidad
 node "..\..\scripts\seed-admin.js" 2>&1
 if ($LASTEXITCODE -ne 0) { Write-Host "   Seed admin falló" -ForegroundColor Red }
