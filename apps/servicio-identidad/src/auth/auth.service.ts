@@ -22,6 +22,11 @@ import {
   SedeDto,
   CrearSedeCommand,
   ActualizarSedeCommand,
+  OnboardingCommand,
+  SelectTenantCommand,
+  TenantDto,
+  UserTenantSummaryDto,
+  UsuarioDto,
 } from '@org/contracts';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '../generated/prisma';
@@ -92,16 +97,6 @@ export class AuthService {
       throw new UnauthorizedException('Credenciales inválidas');
     }
 
-    const payload = {
-      sub: usuario.id,
-      email: usuario.email,
-      rol: usuario.rol,
-      nombre: usuario.nombre,
-      sedeId: usuario.sedeId,
-    };
-
-    const access_token = this.jwt.sign(payload);
-
     // T-05: re-hash perezoso si el costo almacenado es menor al actual.
     // Debe re-hashear el texto plano recién verificado, NO el hash almacenado
     // (hashear el hash deja una credencial que ya no coincide con la contraseña).
@@ -125,10 +120,71 @@ export class AuthService {
       }),
     ]);
 
+    // Multi-tenant memberships resolution
+    let tenantSummaries: UserTenantSummaryDto[] = [];
+    let activeTenantId: string | null = null;
+    let activeSedeId: string | null = usuario.sedeId;
+    let tokenRol = usuario.rol;
+    let membershipId: string | null = null;
+    let allowedSedeIds: string[] = usuario.sedeId ? [usuario.sedeId] : [];
+    let tenantSlug: string | null = null;
+
+    if (this.prisma.membresia) {
+      const membresias = await this.prisma.membresia.findMany({
+        where: { usuarioId: usuario.id, activo: true, tenant: { activo: true } },
+        include: {
+          tenant: true,
+          sedes: { include: { sede: true } },
+        },
+      });
+
+      if (membresias.length > 0) {
+        tenantSummaries = membresias.map((m) => ({
+          tenant: {
+            id: m.tenant.id,
+            nombre: m.tenant.nombre,
+            slug: m.tenant.slug,
+            ruc: m.tenant.ruc,
+            activo: m.tenant.activo,
+            plan: m.tenant.plan,
+            createdAt: m.tenant.createdAt.toISOString(),
+          },
+          membershipId: m.id,
+          rol: m.rol,
+          sedes: m.sedes.map((s) => this.toSedeDto(s.sede)),
+        }));
+
+        const primaryMembership = membresias[0];
+        activeTenantId = primaryMembership.tenantId;
+        tenantSlug = primaryMembership.tenant.slug;
+        membershipId = primaryMembership.id;
+        tokenRol = usuario.rol === 'PLATFORM_ADMIN' ? 'PLATFORM_ADMIN' : primaryMembership.rol;
+        allowedSedeIds = primaryMembership.sedes.map((s) => s.sedeId);
+        if (allowedSedeIds.length > 0) {
+          activeSedeId = usuario.sedeId && allowedSedeIds.includes(usuario.sedeId)
+            ? usuario.sedeId
+            : allowedSedeIds[0];
+        }
+      }
+    }
+
+    const access_token = this.signAccessToken({
+      id: usuario.id,
+      email: usuario.email,
+      rol: tokenRol,
+      nombre: usuario.nombre,
+      sedeId: activeSedeId,
+      tenantId: activeTenantId,
+      tenantSlug,
+      membershipId,
+      allowedSedeIds,
+      activeSedeId,
+    });
+
     this.logger.log({
       operation: 'login',
       aggregateId: usuario.id,
-      message: `Login exitoso (rol ${usuario.rol}).`,
+      message: `Login exitoso (rol ${tokenRol}).`,
     } satisfies OperableLog);
 
     return {
@@ -137,9 +193,12 @@ export class AuthService {
         id: usuario.id,
         nombre: usuario.nombre,
         email: usuario.email,
-        rol: usuario.rol as RolUsuario,
-        sedeId: usuario.sedeId,
+        rol: tokenRol as RolUsuario,
+        sedeId: activeSedeId,
       },
+      tenants: tenantSummaries,
+      activeTenantId,
+      activeSedeId,
     };
   }
 
@@ -159,8 +218,30 @@ export class AuthService {
     };
   }
 
-  private signAccessToken(usuario: { id: string; email: string; rol: string; nombre: string; sedeId: string | null }): string {
-    return this.jwt.sign({ sub: usuario.id, email: usuario.email, rol: usuario.rol, nombre: usuario.nombre, sedeId: usuario.sedeId });
+  private signAccessToken(usuario: {
+    id: string;
+    email: string;
+    rol: string;
+    nombre: string;
+    sedeId: string | null;
+    tenantId?: string | null;
+    tenantSlug?: string | null;
+    membershipId?: string | null;
+    allowedSedeIds?: string[];
+    activeSedeId?: string | null;
+  }): string {
+    return this.jwt.sign({
+      sub: usuario.id,
+      email: usuario.email,
+      rol: usuario.rol,
+      nombre: usuario.nombre,
+      sedeId: usuario.activeSedeId ?? usuario.sedeId,
+      tenantId: usuario.tenantId ?? null,
+      tenantSlug: usuario.tenantSlug ?? null,
+      membershipId: usuario.membershipId ?? null,
+      allowedSedeIds: usuario.allowedSedeIds ?? (usuario.sedeId ? [usuario.sedeId] : []),
+      activeSedeId: usuario.activeSedeId ?? usuario.sedeId,
+    });
   }
 
   /** Crea un refresh token opaco, guarda su hash y devuelve el valor en claro. */
@@ -195,6 +276,9 @@ export class AuthService {
     access_token: string;
     refresh: { token: string; expiresAt: Date };
     usuario: { id: string; nombre: string; email: string; rol: RolUsuario; sedeId: string | null };
+    tenants?: UserTenantSummaryDto[];
+    activeTenantId?: string | null;
+    activeSedeId?: string | null;
   }> {
     const tokenHash = this.hashToken(rawToken);
     const existing = await this.prisma.refreshToken.findUnique({ where: { tokenHash } });
@@ -264,10 +348,256 @@ export class AuthService {
       throw new UnauthorizedException('Refresh token ya utilizado');
     }
 
+    let tenantSummaries: UserTenantSummaryDto[] = [];
+    let activeTenantId: string | null = null;
+    let activeSedeId: string | null = usuario.sedeId;
+    let tokenRol = usuario.rol;
+    let membershipId: string | null = null;
+    let allowedSedeIds: string[] = usuario.sedeId ? [usuario.sedeId] : [];
+    let tenantSlug: string | null = null;
+
+    if (this.prisma.membresia) {
+      const membresias = await this.prisma.membresia.findMany({
+        where: { usuarioId: usuario.id, activo: true, tenant: { activo: true } },
+        include: {
+          tenant: true,
+          sedes: { include: { sede: true } },
+        },
+      });
+
+      if (membresias.length > 0) {
+        tenantSummaries = membresias.map((m) => ({
+          tenant: {
+            id: m.tenant.id,
+            nombre: m.tenant.nombre,
+            slug: m.tenant.slug,
+            ruc: m.tenant.ruc,
+            activo: m.tenant.activo,
+            plan: m.tenant.plan,
+            createdAt: m.tenant.createdAt.toISOString(),
+          },
+          membershipId: m.id,
+          rol: m.rol,
+          sedes: m.sedes.map((s) => this.toSedeDto(s.sede)),
+        }));
+
+        const primary = membresias[0];
+        activeTenantId = primary.tenantId;
+        tenantSlug = primary.tenant.slug;
+        membershipId = primary.id;
+        tokenRol = usuario.rol === 'PLATFORM_ADMIN' ? 'PLATFORM_ADMIN' : primary.rol;
+        allowedSedeIds = primary.sedes.map((s) => s.sedeId);
+        if (allowedSedeIds.length > 0) {
+          activeSedeId = usuario.sedeId && allowedSedeIds.includes(usuario.sedeId)
+            ? usuario.sedeId
+            : allowedSedeIds[0];
+        }
+      }
+    }
+
     return {
-      access_token: this.signAccessToken(usuario),
+      access_token: this.signAccessToken({
+        id: usuario.id,
+        email: usuario.email,
+        rol: tokenRol,
+        nombre: usuario.nombre,
+        sedeId: activeSedeId,
+        tenantId: activeTenantId,
+        tenantSlug,
+        membershipId,
+        allowedSedeIds,
+        activeSedeId,
+      }),
       refresh: { token: nuevo.token, expiresAt: nuevo.expiresAt },
-      usuario: { id: usuario.id, nombre: usuario.nombre, email: usuario.email, rol: usuario.rol as RolUsuario, sedeId: usuario.sedeId },
+      usuario: { id: usuario.id, nombre: usuario.nombre, email: usuario.email, rol: tokenRol as RolUsuario, sedeId: activeSedeId },
+      tenants: tenantSummaries,
+      activeTenantId,
+      activeSedeId,
+    };
+  }
+
+  /* ── Multi-tenant SaaS: Selección y Onboarding ────── */
+
+  async selectTenant(usuarioId: string, command: SelectTenantCommand): Promise<{
+    access_token: string;
+    usuario: Omit<UsuarioDto, 'activo' | 'createdAt'>;
+    activeTenantId: string;
+    activeSedeId: string | null;
+  }> {
+    const usuario = await this.prisma.usuario.findUnique({ where: { id: usuarioId } });
+    if (!usuario || !usuario.activo) {
+      throw new UnauthorizedException('Usuario no válido');
+    }
+
+    const membership = await this.prisma.membresia.findUnique({
+      where: {
+        tenantId_usuarioId: {
+          tenantId: command.tenantId,
+          usuarioId,
+        },
+      },
+      include: {
+        tenant: true,
+        sedes: { include: { sede: true } },
+      },
+    });
+
+    if (!membership || !membership.activo || !membership.tenant.activo) {
+      throw new UnauthorizedException('No tienes acceso al restaurante seleccionado');
+    }
+
+    const allowedSedeIds = membership.sedes.map((s) => s.sedeId);
+    let activeSedeId: string | null = command.sedeId ?? null;
+    if (activeSedeId && !allowedSedeIds.includes(activeSedeId)) {
+      throw new BadRequestException('No tienes acceso a la sede seleccionada');
+    }
+    if (!activeSedeId && allowedSedeIds.length > 0) {
+      activeSedeId = allowedSedeIds[0];
+    }
+
+    const tokenRol = usuario.rol === 'PLATFORM_ADMIN' ? 'PLATFORM_ADMIN' : membership.rol;
+    const access_token = this.signAccessToken({
+      id: usuario.id,
+      email: usuario.email,
+      rol: tokenRol,
+      nombre: usuario.nombre,
+      sedeId: activeSedeId,
+      tenantId: membership.tenantId,
+      tenantSlug: membership.tenant.slug,
+      membershipId: membership.id,
+      allowedSedeIds,
+      activeSedeId,
+    });
+
+    return {
+      access_token,
+      usuario: {
+        id: usuario.id,
+        nombre: usuario.nombre,
+        email: usuario.email,
+        rol: tokenRol as RolUsuario,
+        sedeId: activeSedeId,
+      },
+      activeTenantId: membership.tenantId,
+      activeSedeId,
+    };
+  }
+
+  async onboarding(command: OnboardingCommand): Promise<{
+    access_token: string;
+    tenant: TenantDto;
+    sede: SedeDto;
+    usuario: Omit<UsuarioDto, 'activo' | 'createdAt'>;
+  }> {
+    const slugLimpio = command.slugRestaurante.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-');
+    const existingTenant = await this.prisma.tenant.findUnique({ where: { slug: slugLimpio } });
+    if (existingTenant) {
+      throw new ConflictException(`El identificador "${slugLimpio}" ya está en uso.`);
+    }
+
+    let usuario = await this.prisma.usuario.findUnique({ where: { email: command.emailUsuario } });
+    if (usuario) {
+      const passOk = await bcrypt.compare(command.passwordUsuario, usuario.password);
+      if (!passOk) {
+        throw new ConflictException('Ya existe un usuario con este correo. Inicia sesión con la contraseña correcta para vincular el nuevo restaurante.');
+      }
+    } else {
+      const hashedPassword = await bcrypt.hash(command.passwordUsuario, SALT_ROUNDS);
+      usuario = await this.prisma.usuario.create({
+        data: {
+          nombre: command.nombreUsuario,
+          email: command.emailUsuario,
+          password: hashedPassword,
+          rol: 'ADMIN',
+        },
+      });
+    }
+
+    const { tenant, sede, membership } = await this.prisma.$transaction(async (tx) => {
+      const newTenant = await tx.tenant.create({
+        data: {
+          nombre: command.nombreRestaurante,
+          slug: slugLimpio,
+          ruc: command.rucRestaurante,
+        },
+      });
+
+      const newSede = await tx.sede.create({
+        data: {
+          nombre: command.nombreSede,
+          direccion: command.direccionSede,
+          ruc: command.rucRestaurante,
+          tenantId: newTenant.id,
+        },
+      });
+
+      const newMembership = await tx.membresia.create({
+        data: {
+          tenantId: newTenant.id,
+          usuarioId: usuario.id,
+          rol: 'ADMIN',
+          activo: true,
+        },
+      });
+
+      await tx.membresiaSede.create({
+        data: {
+          membresiaId: newMembership.id,
+          sedeId: newSede.id,
+        },
+      });
+
+      if (!usuario.sedeId) {
+        await tx.usuario.update({
+          where: { id: usuario.id },
+          data: { sedeId: newSede.id },
+        });
+      }
+
+      await tx.auditoriaLog.create({
+        data: {
+          accion: 'ONBOARDING_TENANT',
+          usuarioId: usuario.id,
+          servicio: 'servicio-identidad',
+          tenantId: newTenant.id,
+        },
+      });
+
+      return { tenant: newTenant, sede: newSede, membership: newMembership };
+    });
+
+    const access_token = this.signAccessToken({
+      id: usuario.id,
+      email: usuario.email,
+      rol: 'ADMIN',
+      nombre: usuario.nombre,
+      sedeId: sede.id,
+      tenantId: tenant.id,
+      tenantSlug: tenant.slug,
+      membershipId: membership.id,
+      allowedSedeIds: [sede.id],
+      activeSedeId: sede.id,
+    });
+
+    return {
+      access_token,
+      tenant: {
+        id: tenant.id,
+        nombre: tenant.nombre,
+        slug: tenant.slug,
+        ruc: tenant.ruc,
+        activo: tenant.activo,
+        plan: tenant.plan,
+        createdAt: tenant.createdAt.toISOString(),
+      },
+      sede: this.toSedeDto(sede),
+      usuario: {
+        id: usuario.id,
+        nombre: usuario.nombre,
+        email: usuario.email,
+        rol: 'ADMIN' as RolUsuario,
+        sedeId: sede.id,
+      },
     };
   }
 
@@ -291,7 +621,51 @@ export class AuthService {
       throw new NotFoundException('Usuario no encontrado');
     }
 
-    return toUsuarioDto(usuario);
+    const baseDto = toUsuarioDto(usuario);
+    let tenantSummaries: UserTenantSummaryDto[] = [];
+    let activeTenantId: string | null = null;
+    let activeSedeId: string | null = usuario.sedeId;
+
+    if (this.prisma.membresia) {
+      const membresias = await this.prisma.membresia.findMany({
+        where: { usuarioId: usuario.id, activo: true, tenant: { activo: true } },
+        include: {
+          tenant: true,
+          sedes: { include: { sede: true } },
+        },
+      });
+
+      if (membresias.length > 0) {
+        tenantSummaries = membresias.map((m) => ({
+          tenant: {
+            id: m.tenant.id,
+            nombre: m.tenant.nombre,
+            slug: m.tenant.slug,
+            ruc: m.tenant.ruc,
+            activo: m.tenant.activo,
+            plan: m.tenant.plan,
+            createdAt: m.tenant.createdAt.toISOString(),
+          },
+          membershipId: m.id,
+          rol: m.rol,
+          sedes: m.sedes.map((s) => this.toSedeDto(s.sede)),
+        }));
+        activeTenantId = membresias[0].tenantId;
+        const allowedSedeIds = membresias[0].sedes.map((s) => s.sedeId);
+        if (allowedSedeIds.length > 0) {
+          activeSedeId = usuario.sedeId && allowedSedeIds.includes(usuario.sedeId)
+            ? usuario.sedeId
+            : allowedSedeIds[0];
+        }
+      }
+    }
+
+    return {
+      ...baseDto,
+      tenants: tenantSummaries,
+      activeTenantId,
+      activeSedeId,
+    };
   }
 
   /* ── CRUD de usuarios (solo ADMIN) ─────────────────── */
@@ -530,8 +904,9 @@ export class AuthService {
     return { id: sede.id, nombre: sede.nombre, direccion: sede.direccion, ruc: sede.ruc, activa: sede.activa };
   }
 
-  async listarSedes(): Promise<{ sedes: SedeDto[] }> {
-    const sedes = await this.prisma.sede.findMany({ orderBy: { nombre: 'asc' } });
+  async listarSedes(tenantId?: string | null): Promise<{ sedes: SedeDto[] }> {
+    const where = tenantId ? { tenantId } : {};
+    const sedes = await this.prisma.sede.findMany({ where, orderBy: { nombre: 'asc' } });
     return { sedes: sedes.map((s) => this.toSedeDto(s)) };
   }
 
@@ -547,12 +922,24 @@ export class AuthService {
     return { sede: sede ? this.toSedeDto(sede) : null };
   }
 
-  async crearSede(command: CrearSedeCommand): Promise<{ message: string; sede: SedeDto }> {
-    const existe = await this.prisma.sede.findUnique({ where: { nombre: command.nombre } });
-    if (existe) throw new ConflictException(`Ya existe una sede llamada "${command.nombre}".`);
+  async crearSede(command: CrearSedeCommand, tenantId?: string | null): Promise<{ message: string; sede: SedeDto }> {
+    if (tenantId) {
+      const existe = await this.prisma.sede.findFirst({
+        where: { tenantId, nombre: command.nombre },
+      });
+      if (existe) throw new ConflictException(`Ya existe una sede llamada "${command.nombre}".`);
+    } else {
+      const existe = await this.prisma.sede.findFirst({ where: { nombre: command.nombre } });
+      if (existe) throw new ConflictException(`Ya existe una sede llamada "${command.nombre}".`);
+    }
 
     const sede = await this.prisma.sede.create({
-      data: { nombre: command.nombre, direccion: command.direccion, ruc: command.ruc },
+      data: {
+        nombre: command.nombre,
+        direccion: command.direccion,
+        ruc: command.ruc,
+        tenantId: tenantId ?? null,
+      },
     });
 
     this.logger.log({
@@ -568,7 +955,9 @@ export class AuthService {
     if (!existe) throw new NotFoundException('Sede no encontrada');
 
     if (command.nombre && command.nombre !== existe.nombre) {
-      const duplicada = await this.prisma.sede.findUnique({ where: { nombre: command.nombre } });
+      const duplicada = existe.tenantId
+        ? await this.prisma.sede.findFirst({ where: { tenantId: existe.tenantId, nombre: command.nombre } })
+        : await this.prisma.sede.findFirst({ where: { nombre: command.nombre } });
       if (duplicada) throw new ConflictException(`Ya existe una sede llamada "${command.nombre}".`);
     }
 

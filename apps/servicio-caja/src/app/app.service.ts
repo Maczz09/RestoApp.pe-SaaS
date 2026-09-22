@@ -73,10 +73,11 @@ export class AppService {
     usuarioId?: string | null,
     usuarioSedeId?: string | null,
     sedeIdSolicitado?: string,
+    tenantId?: string | null,
   ) {
     const sedeId = resolveSedeId(usuarioSedeId, sedeIdSolicitado);
     const abierto = await this.prisma.turnoCaja.findFirst({
-      where: { estado: 'ABIERTA', sedeId },
+      where: { estado: 'ABIERTA', sedeId, ...(tenantId ? { tenantId } : {}) },
       orderBy: { abiertoAt: 'desc' },
     });
 
@@ -95,6 +96,7 @@ export class AppService {
             cajeroNombre: command.cajeroNombre,
             fondoInicial,
             estado: 'ABIERTA',
+            ...(tenantId ? { tenantId } : {}),
           },
         });
 
@@ -105,6 +107,7 @@ export class AppService {
             donde: 'Fondo inicial',
             metodo: 'EFECTIVO',
             monto: fondoInicial,
+            ...(tenantId ? { tenantId } : {}),
           },
         });
 
@@ -114,6 +117,7 @@ export class AppService {
             routingKey: RoutingKeys.TurnoCajaAbierto,
             payload: JSON.stringify(payload),
             status: 'PENDING',
+            ...(tenantId ? { tenantId } : {}),
           },
         });
 
@@ -127,7 +131,7 @@ export class AppService {
       // entregaría a esta sede el turno abierto de otra.
       if (this.isUniqueConstraintViolation(error)) {
         const existente = await this.prisma.turnoCaja.findFirst({
-          where: { estado: 'ABIERTA', sedeId },
+          where: { estado: 'ABIERTA', sedeId, ...(tenantId ? { tenantId } : {}) },
           orderBy: { abiertoAt: 'desc' },
         });
         if (existente) return this.mapTurno(existente);
@@ -147,19 +151,19 @@ export class AppService {
     return typeof error === 'object' && error !== null && (error as { code?: string }).code === 'P2002';
   }
 
-  async obtenerTurnoActivo(usuarioSedeId?: string | null, sedeIdSolicitado?: string) {
+  async obtenerTurnoActivo(usuarioSedeId?: string | null, sedeIdSolicitado?: string, tenantId?: string | null) {
     const sedeId = resolveSedeId(usuarioSedeId, sedeIdSolicitado);
     const turno = await this.prisma.turnoCaja.findFirst({
-      where: { estado: 'ABIERTA', sedeId },
+      where: { estado: 'ABIERTA', sedeId, ...(tenantId ? { tenantId } : {}) },
       orderBy: { abiertoAt: 'desc' },
     });
     return turno ? this.mapTurno(turno) : null;
   }
 
-  async obtenerResumenTurnoActivo(usuarioSedeId?: string | null, sedeIdSolicitado?: string) {
+  async obtenerResumenTurnoActivo(usuarioSedeId?: string | null, sedeIdSolicitado?: string, tenantId?: string | null) {
     const sedeId = resolveSedeId(usuarioSedeId, sedeIdSolicitado);
     const turno = await this.prisma.turnoCaja.findFirst({
-      where: { estado: 'ABIERTA', sedeId },
+      where: { estado: 'ABIERTA', sedeId, ...(tenantId ? { tenantId } : {}) },
       orderBy: { abiertoAt: 'desc' },
     });
 
@@ -195,10 +199,10 @@ export class AppService {
   // ponytail: stopgap; el fix real (SUM en SQL o caché con invalidación) tiene tarea propia.
   private readonly resumenCache = new Map<string, { at: number; promise: Promise<unknown> }>();
 
-  async obtenerResumenTurno(id: string, usuarioSedeId?: string | null) {
+  async obtenerResumenTurno(id: string, usuarioSedeId?: string | null, tenantId?: string | null) {
     // GUARD antes del caché: una respuesta cacheada no debe servirse cruzando
     // el chequeo de sede.
-    await this.assertTurnoDeSede(id, usuarioSedeId);
+    await this.assertTurnoDeSede(id, usuarioSedeId, tenantId);
 
     const ttl = Number(process.env.CAJA_RESUMEN_TTL_MS ?? 0);
     if (ttl <= 0) return this.computeResumenTurno(id);
@@ -229,27 +233,32 @@ export class AppService {
     return this.buildResumen(turno);
   }
 
-  /** GUARD (T-23 Fase 2): 404 si el turno existe pero es de otra sede. */
-  private async assertTurnoDeSede(id: string, usuarioSedeId?: string | null) {
-    if (!usuarioSedeId) return;
-    const turno = await this.prisma.turnoCaja.findUnique({ where: { id }, select: { sedeId: true } });
-    if (!turno || turno.sedeId !== usuarioSedeId) {
+  /** GUARD (T-23 Fase 2): 404 si el turno existe pero es de otra sede o tenant. */
+  private async assertTurnoDeSede(id: string, usuarioSedeId?: string | null, tenantId?: string | null) {
+    if (!usuarioSedeId && !tenantId) return;
+    const turno = await this.prisma.turnoCaja.findUnique({ where: { id }, select: { sedeId: true, tenantId: true } });
+    if (!turno || (usuarioSedeId && turno.sedeId !== usuarioSedeId) || (tenantId && turno.tenantId && turno.tenantId !== tenantId)) {
       throw new NotFoundException(`Turno ${id} no encontrado`);
     }
   }
 
-  async listarMovimientosTurno(id: string, usuarioSedeId?: string | null) {
-    await this.assertTurnoDeSede(id, usuarioSedeId);
+  async listarMovimientosTurno(id: string, usuarioSedeId?: string | null, tenantId?: string | null) {
+    await this.assertTurnoDeSede(id, usuarioSedeId, tenantId);
     const movimientos = await this.prisma.movimientoCaja.findMany({
-      where: { turnoId: id },
+      where: { turnoId: id, ...(tenantId ? { tenantId } : {}) },
       orderBy: { createdAt: 'desc' },
     });
     return { data: movimientos.map((m) => this.mapMovimiento(m)) };
   }
 
-  async crearMovimiento(id: string, command: CrearMovimientoCajaCommand, usuarioSedeId?: string | null) {
+  async crearMovimiento(
+    id: string,
+    command: CrearMovimientoCajaCommand,
+    usuarioSedeId?: string | null,
+    tenantId?: string | null,
+  ) {
     const turno = await this.prisma.turnoCaja.findUnique({ where: { id } });
-    if (!turno || (usuarioSedeId && turno.sedeId !== usuarioSedeId)) {
+    if (!turno || (usuarioSedeId && turno.sedeId !== usuarioSedeId) || (tenantId && turno.tenantId && turno.tenantId !== tenantId)) {
       throw new NotFoundException(`Turno ${id} no encontrado`);
     }
     if (turno.estado !== 'ABIERTA') {
@@ -266,6 +275,7 @@ export class AppService {
         metodo: 'EFECTIVO',
         monto: this.money(monto),
         motivo: command.motivo,
+        ...(tenantId ? { tenantId } : {}),
       },
     });
 
@@ -277,12 +287,13 @@ export class AppService {
     command: RegistrarArqueoCajaCommand,
     usuarioId?: string | null,
     usuarioSedeId?: string | null,
+    tenantId?: string | null,
   ) {
     const turno = await this.prisma.turnoCaja.findUnique({
       where: { id },
       include: { movimientos: true },
     });
-    if (!turno || (usuarioSedeId && turno.sedeId !== usuarioSedeId)) {
+    if (!turno || (usuarioSedeId && turno.sedeId !== usuarioSedeId) || (tenantId && turno.tenantId && turno.tenantId !== tenantId)) {
       throw new NotFoundException(`Turno ${id} no encontrado`);
     }
 
@@ -298,6 +309,7 @@ export class AppService {
         efectivoContado,
         diferencia,
         usuarioId: this.usuario(usuarioId),
+        ...(tenantId ? { tenantId } : {}),
       },
     });
 
@@ -309,6 +321,7 @@ export class AppService {
     command: CerrarTurnoCajaCommand,
     usuarioId?: string | null,
     usuarioSedeId?: string | null,
+    tenantId?: string | null,
   ) {
     const cierre = await this.prisma.$transaction(async (prisma: import('../generated/prisma').Prisma.TransactionClient) => {
       const turno = await prisma.turnoCaja.findUnique({
@@ -321,7 +334,7 @@ export class AppService {
         },
       });
 
-      if (!turno || (usuarioSedeId && turno.sedeId !== usuarioSedeId)) {
+      if (!turno || (usuarioSedeId && turno.sedeId !== usuarioSedeId) || (tenantId && turno.tenantId && turno.tenantId !== tenantId)) {
         throw new NotFoundException(`Turno ${id} no encontrado`);
       }
       if (turno.estado !== 'ABIERTA') {
@@ -340,6 +353,7 @@ export class AppService {
           efectivoContado,
           diferencia,
           usuarioId: this.usuario(usuarioId),
+          ...(tenantId ? { tenantId } : {}),
         },
       });
 
@@ -360,6 +374,7 @@ export class AppService {
           // clase de @org/contracts) — Prisma tipa Json de forma más
           // estricta para instancias de clase que para objetos planos.
           resumen: resumen as unknown as Prisma.InputJsonValue,
+          ...(tenantId ? { tenantId } : {}),
         },
       });
 
@@ -374,6 +389,7 @@ export class AppService {
           routingKey: RoutingKeys.TurnoCajaCerrado,
           payload: JSON.stringify(payload),
           status: 'PENDING',
+          ...(tenantId ? { tenantId } : {}),
         },
       });
 
@@ -402,6 +418,7 @@ export class AppService {
     usuarioId?: string | null,
     cajeroNombre?: string | null,
     usuarioSedeId?: string | null,
+    tenantId?: string | null,
   ): Promise<{ message?: string; transaccion: TransaccionDto; ticket?: unknown; turno: unknown; pendiente: number }> {
     // T-23 Fase 2: la sede de la operación la determina LA CUENTA, no el
     // usuario — se necesita para encontrar el turno abierto correcto. Por
@@ -424,7 +441,7 @@ export class AppService {
     }
 
     const turno = await this.prisma.turnoCaja.findFirst({
-      where: { estado: 'ABIERTA', sedeId },
+      where: { estado: 'ABIERTA', sedeId, ...(tenantId ? { tenantId } : {}) },
       orderBy: { abiertoAt: 'desc' },
     });
     if (!turno) {
@@ -456,12 +473,14 @@ export class AppService {
           sedeId,
           total: cuentaRemota.total,
           estado: cuentaRemota.estado,
+          ...(tenantId ? { tenantId } : {}),
         },
         update: {
           total: cuentaRemota.total,
           estado: cuentaRemota.estado,
           mesaId: cuentaRemota.mesaId,
           sedeId,
+          ...(tenantId ? { tenantId } : {}),
         },
       });
 
@@ -470,7 +489,7 @@ export class AppService {
       }
 
       const pagosPrevios = await prisma.transaccion.aggregate({
-        where: { cuentaId: command.cuentaId },
+        where: { cuentaId: command.cuentaId, ...(tenantId ? { tenantId } : {}) },
         _sum: { monto: true },
       });
       const montoTotalPagado = this.money(pagosPrevios._sum.monto ?? 0);
@@ -510,6 +529,7 @@ export class AppService {
           mesaUnidaCon: command.mesaUnidaCon ?? undefined,
           tipoComprobante: command.tipoComprobante ?? 'BOLETA',
           clienteDocumento: command.clienteDocumento ?? undefined,
+          ...(tenantId ? { tenantId } : {}),
         },
       });
 
@@ -526,6 +546,7 @@ export class AppService {
           descuento,
           propina: this.money(command.propina ?? 0),
           motivo: command.notas,
+          ...(tenantId ? { tenantId } : {}),
         },
       });
 
@@ -545,6 +566,7 @@ export class AppService {
           routingKey: RoutingKeys.PagoRegistrado,
           payload: JSON.stringify(payload),
           status: 'PENDING',
+          ...(tenantId ? { tenantId } : {}),
         },
       });
 
@@ -599,11 +621,12 @@ export class AppService {
     };
   }
 
-  async listarTransacciones(query: ListarTransaccionesQuery = {}, usuarioSedeId?: string | null): Promise<TransaccionListResponse> {
+  async listarTransacciones(query: ListarTransaccionesQuery = {}, usuarioSedeId?: string | null, tenantId?: string | null): Promise<TransaccionListResponse> {
     const sedeId = resolveSedeId(usuarioSedeId, query.sedeId);
     const limit = this.normalizeLimit(query.limit);
     const where: Prisma.TransaccionWhereInput = {
       sedeId,
+      ...(tenantId ? { tenantId } : {}),
       ...(query.metodo ? { metodo: query.metodo } : {}),
       ...(query.updatedSince
         ? { createdAt: { gte: new Date(query.updatedSince) } }
@@ -626,9 +649,9 @@ export class AppService {
     };
   }
 
-  async obtenerTransaccion(id: string, usuarioSedeId?: string | null): Promise<TransaccionDto> {
+  async obtenerTransaccion(id: string, usuarioSedeId?: string | null, tenantId?: string | null): Promise<TransaccionDto> {
     const transaccion = await this.prisma.transaccion.findUnique({ where: { id } });
-    if (!transaccion || (usuarioSedeId && transaccion.sedeId !== usuarioSedeId)) {
+    if (!transaccion || (usuarioSedeId && transaccion.sedeId !== usuarioSedeId) || (tenantId && transaccion.tenantId && transaccion.tenantId !== tenantId)) {
       throw new NotFoundException(`Transacción ${id} no encontrada.`);
     }
     return this.mapTransaccion(transaccion);
@@ -646,9 +669,10 @@ export class AppService {
     id: string,
     command: ActualizarTransaccionCommand,
     usuarioSedeId?: string | null,
+    tenantId?: string | null,
   ): Promise<{ message: string; transaccion: TransaccionDto }> {
     const existente = await this.prisma.transaccion.findUnique({ where: { id } });
-    if (!existente || (usuarioSedeId && existente.sedeId !== usuarioSedeId)) {
+    if (!existente || (usuarioSedeId && existente.sedeId !== usuarioSedeId) || (tenantId && existente.tenantId && existente.tenantId !== tenantId)) {
       throw new NotFoundException(`Transacción ${id} no encontrada.`);
     }
 
@@ -677,11 +701,12 @@ export class AppService {
   }
 
   /** Historial de turnos (p.ej. cierres de caja pasados). Sin filtro de estado, lista todos. */
-  async listarTurnos(query: ListarTurnosQuery = {}, usuarioSedeId?: string | null): Promise<TurnoListResponse> {
+  async listarTurnos(query: ListarTurnosQuery = {}, usuarioSedeId?: string | null, tenantId?: string | null): Promise<TurnoListResponse> {
     const sedeId = resolveSedeId(usuarioSedeId, query.sedeId);
     const limit = this.normalizeLimit(query.limit);
     const where: Prisma.TurnoCajaWhereInput = {
       sedeId,
+      ...(tenantId ? { tenantId } : {}),
       ...(query.estado ? { estado: query.estado } : {}),
       ...(query.desde || query.hasta
         ? {

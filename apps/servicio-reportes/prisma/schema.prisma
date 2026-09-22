@@ -10,6 +10,7 @@ datasource db {
 
 model VentaDiaria {
   id           String   @id @default(uuid())
+  tenantId     String?
   cuentaId     String   @unique
   sedeId       String
   mesaId       String
@@ -19,6 +20,9 @@ model VentaDiaria {
   meseroNombre String?
   fecha        DateTime @default(now())
 
+  @@index([tenantId, fecha])
+  @@index([tenantId, sedeId, fecha])
+  @@index([tenantId, meseroId])
   @@index([fecha])
   @@index([meseroId])
   @@index([sedeId, fecha])
@@ -27,7 +31,9 @@ model VentaDiaria {
 
 model IdempotencyKey {
   key       String   @id
+  tenantId  String?
   createdAt DateTime @default(now())
 
+  @@index([tenantId])
   @@map("idempotency_keys")
 }

@@ -24,7 +24,46 @@ describe('JwtStrategy (shared-auth)', () => {
     const payload = { sub: 'u1', email: 'a@b.com', rol: 'ADMIN', nombre: 'Ana', extra: 'ignored' };
     expect(
       strategy.validate(payload),
-    ).toEqual({ sub: 'u1', email: 'a@b.com', rol: 'ADMIN', nombre: 'Ana', sedeId: null });
+    ).toEqual({
+      sub: 'u1',
+      email: 'a@b.com',
+      rol: 'ADMIN',
+      nombre: 'Ana',
+      sedeId: null,
+      tenantId: undefined,
+      membershipId: undefined,
+      permissions: [],
+      allowedSedeIds: [],
+      activeSedeId: null,
+      sessionVersion: undefined,
+    });
+
+    // SaaS multi-tenant payload projection test
+    const saasPayload = {
+      sub: 'u2',
+      email: 'owner@resto.pe',
+      rol: 'ADMIN',
+      nombre: 'Dueño',
+      tenantId: 'tenant-100',
+      membershipId: 'mem-100',
+      permissions: ['MESAS_ADMIN'],
+      allowedSedeIds: ['sede-1', 'sede-2'],
+      activeSedeId: 'sede-1',
+      sessionVersion: 1,
+    };
+    expect(strategy.validate(saasPayload)).toEqual({
+      sub: 'u2',
+      email: 'owner@resto.pe',
+      rol: 'ADMIN',
+      nombre: 'Dueño',
+      sedeId: 'sede-1',
+      tenantId: 'tenant-100',
+      membershipId: 'mem-100',
+      permissions: ['MESAS_ADMIN'],
+      allowedSedeIds: ['sede-1', 'sede-2'],
+      activeSedeId: 'sede-1',
+      sessionVersion: 1,
+    });
 
     process.env.JWT_PUBLIC_KEY = pub;
     process.env.SERVICE_JWT_SECRET = svc;

@@ -36,6 +36,36 @@ describe('JwtStrategy de identidad', () => {
       rol: 'ADMIN',
       nombre: 'Admin',
       sedeId: null,
+      tenantId: null,
+      tenantSlug: null,
+      membershipId: null,
+      allowedSedeIds: [],
+      activeSedeId: null,
+    });
+
+    expect(
+      strategy.validate({
+        sub: 'user-2',
+        email: 'mesero@test.com',
+        rol: 'MESERO',
+        nombre: 'Mesero 1',
+        tenantId: 'tenant-100',
+        tenantSlug: 'mi-restaurante',
+        membershipId: 'mem-1',
+        allowedSedeIds: ['sede-1', 'sede-2'],
+        activeSedeId: 'sede-1',
+      } as any),
+    ).toEqual({
+      sub: 'user-2',
+      email: 'mesero@test.com',
+      rol: 'MESERO',
+      nombre: 'Mesero 1',
+      sedeId: 'sede-1',
+      tenantId: 'tenant-100',
+      tenantSlug: 'mi-restaurante',
+      membershipId: 'mem-1',
+      allowedSedeIds: ['sede-1', 'sede-2'],
+      activeSedeId: 'sede-1',
     });
 
     process.env.JWT_PUBLIC_KEY = prevPub;

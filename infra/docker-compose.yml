@@ -1,7 +1,7 @@
 x-jwt-dev-env: &jwt_dev_env ./secrets/jwt-dev.env
 
 # SOLO DESARROLLO. Credenciales debiles a proposito (postgres `secret`,
-# admin `nachopps123`, `SERVICE_JWT_SECRET` fijo). NUNCA usar este archivo en
+# admin `restoapp123`, `SERVICE_JWT_SECRET` fijo). NUNCA usar este archivo en
 # un VPS/host publico; produccion usa docker-compose.prod.yml + .env real.
 services:
   # ═══════════════════════════════════════════════════
@@ -9,7 +9,7 @@ services:
   # ═══════════════════════════════════════════════════
   rabbitmq:
     image: rabbitmq:3-management
-    container_name: nachopps-rabbitmq
+    container_name: restoapp-rabbitmq
     # A-4: sin mem_limit el memory watermark del broker (40 % de la RAM) depende
     # del host → backpressure irreproducible en pruebas. 1g fija el umbral en ~400MB.
     mem_limit: 1g
@@ -23,8 +23,8 @@ services:
       - '15674:15672'
       - '15692:15692' # A-2: métricas Prometheus del broker
     environment:
-      RABBITMQ_DEFAULT_USER: nachopps
-      RABBITMQ_DEFAULT_PASS: nachopps_secret
+      RABBITMQ_DEFAULT_USER: restoapp
+      RABBITMQ_DEFAULT_PASS: restoapp_secret
     volumes:
       # A-2: habilita rabbitmq_prometheus (profundidad de colas/DLQ visible en Grafana)
       - ./rabbitmq/enabled_plugins:/etc/rabbitmq/enabled_plugins:ro
@@ -38,9 +38,9 @@ services:
   # BASES DE DATOS
   db-reservas:
     image: postgres:16-alpine
-    container_name: nachopps-db-reservas
+    container_name: restoapp-db-reservas
     environment:
-      POSTGRES_USER: nachopps
+      POSTGRES_USER: restoapp
       POSTGRES_PASSWORD: secret
       POSTGRES_DB: reservas_db
     ports: ['5441:5432']
@@ -52,18 +52,18 @@ services:
     restart: unless-stopped
     mem_limit: 512m
     volumes:
-      - nachopps-db-reservas:/var/lib/postgresql/data
+      - restoapp-db-reservas:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U nachopps -d reservas_db']
+      test: ['CMD-SHELL', 'pg_isready -U restoapp -d reservas_db']
       interval: 5s
       timeout: 3s
       retries: 5
 
   db-mesas:
     image: postgres:16-alpine
-    container_name: nachopps-db-mesas
+    container_name: restoapp-db-mesas
     environment:
-      POSTGRES_USER: nachopps
+      POSTGRES_USER: restoapp
       POSTGRES_PASSWORD: secret
       POSTGRES_DB: mesas_db
     ports: ['5433:5432']
@@ -71,18 +71,18 @@ services:
     restart: unless-stopped
     mem_limit: 512m
     volumes:
-      - nachopps-db-mesas:/var/lib/postgresql/data
+      - restoapp-db-mesas:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U nachopps -d mesas_db']
+      test: ['CMD-SHELL', 'pg_isready -U restoapp -d mesas_db']
       interval: 5s
       timeout: 3s
       retries: 5
 
   db-pedidos:
     image: postgres:16-alpine
-    container_name: nachopps-db-pedidos
+    container_name: restoapp-db-pedidos
     environment:
-      POSTGRES_USER: nachopps
+      POSTGRES_USER: restoapp
       POSTGRES_PASSWORD: secret
       POSTGRES_DB: pedidos_db
     ports: ['5434:5432']
@@ -90,18 +90,18 @@ services:
     restart: unless-stopped
     mem_limit: 512m
     volumes:
-      - nachopps-db-pedidos:/var/lib/postgresql/data
+      - restoapp-db-pedidos:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U nachopps -d pedidos_db']
+      test: ['CMD-SHELL', 'pg_isready -U restoapp -d pedidos_db']
       interval: 5s
       timeout: 3s
       retries: 5
 
   db-cuentas:
     image: postgres:16-alpine
-    container_name: nachopps-db-cuentas
+    container_name: restoapp-db-cuentas
     environment:
-      POSTGRES_USER: nachopps
+      POSTGRES_USER: restoapp
       POSTGRES_PASSWORD: secret
       POSTGRES_DB: cuentas_db
     ports: ['5435:5432']
@@ -109,18 +109,18 @@ services:
     restart: unless-stopped
     mem_limit: 512m
     volumes:
-      - nachopps-db-cuentas:/var/lib/postgresql/data
+      - restoapp-db-cuentas:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U nachopps -d cuentas_db']
+      test: ['CMD-SHELL', 'pg_isready -U restoapp -d cuentas_db']
       interval: 5s
       timeout: 3s
       retries: 5
 
   db-facturacion:
     image: postgres:16-alpine
-    container_name: nachopps-db-facturacion
+    container_name: restoapp-db-facturacion
     environment:
-      POSTGRES_USER: nachopps
+      POSTGRES_USER: restoapp
       POSTGRES_PASSWORD: secret
       POSTGRES_DB: facturacion_db
     ports: ['5442:5432']
@@ -128,18 +128,18 @@ services:
     restart: unless-stopped
     mem_limit: 512m
     volumes:
-      - nachopps-db-facturacion:/var/lib/postgresql/data
+      - restoapp-db-facturacion:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U nachopps -d facturacion_db']
+      test: ['CMD-SHELL', 'pg_isready -U restoapp -d facturacion_db']
       interval: 5s
       timeout: 3s
       retries: 5
 
   db-compras:
     image: postgres:16-alpine
-    container_name: nachopps-db-compras
+    container_name: restoapp-db-compras
     environment:
-      POSTGRES_USER: nachopps
+      POSTGRES_USER: restoapp
       POSTGRES_PASSWORD: secret
       POSTGRES_DB: compras_db
     ports: ['5443:5432']
@@ -147,18 +147,18 @@ services:
     restart: unless-stopped
     mem_limit: 512m
     volumes:
-      - nachopps-db-compras:/var/lib/postgresql/data
+      - restoapp-db-compras:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U nachopps -d compras_db']
+      test: ['CMD-SHELL', 'pg_isready -U restoapp -d compras_db']
       interval: 5s
       timeout: 3s
       retries: 5
 
   db-inventario:
     image: postgres:16-alpine
-    container_name: nachopps-db-inventario
+    container_name: restoapp-db-inventario
     environment:
-      POSTGRES_USER: nachopps
+      POSTGRES_USER: restoapp
       POSTGRES_PASSWORD: secret
       POSTGRES_DB: inventario_db
     ports: ['5436:5432']
@@ -166,18 +166,18 @@ services:
     restart: unless-stopped
     mem_limit: 512m
     volumes:
-      - nachopps-db-inventario:/var/lib/postgresql/data
+      - restoapp-db-inventario:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U nachopps -d inventario_db']
+      test: ['CMD-SHELL', 'pg_isready -U restoapp -d inventario_db']
       interval: 5s
       timeout: 3s
       retries: 5
 
   db-reportes:
     image: postgres:16-alpine
-    container_name: nachopps-db-reportes
+    container_name: restoapp-db-reportes
     environment:
-      POSTGRES_USER: nachopps
+      POSTGRES_USER: restoapp
       POSTGRES_PASSWORD: secret
       POSTGRES_DB: reportes_db
     ports: ['5438:5432']
@@ -185,18 +185,18 @@ services:
     restart: unless-stopped
     mem_limit: 512m
     volumes:
-      - nachopps-db-reportes:/var/lib/postgresql/data
+      - restoapp-db-reportes:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U nachopps -d reportes_db']
+      test: ['CMD-SHELL', 'pg_isready -U restoapp -d reportes_db']
       interval: 5s
       timeout: 3s
       retries: 5
 
   db-caja:
     image: postgres:16-alpine
-    container_name: nachopps-db-caja
+    container_name: restoapp-db-caja
     environment:
-      POSTGRES_USER: nachopps
+      POSTGRES_USER: restoapp
       POSTGRES_PASSWORD: secret
       POSTGRES_DB: caja_db
     ports: ['5437:5432']
@@ -204,18 +204,18 @@ services:
     restart: unless-stopped
     mem_limit: 512m
     volumes:
-      - nachopps-db-caja:/var/lib/postgresql/data
+      - restoapp-db-caja:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U nachopps -d caja_db']
+      test: ['CMD-SHELL', 'pg_isready -U restoapp -d caja_db']
       interval: 5s
       timeout: 3s
       retries: 5
 
   db-identidad:
     image: postgres:16-alpine
-    container_name: nachopps-db-identidad
+    container_name: restoapp-db-identidad
     environment:
-      POSTGRES_USER: nachopps
+      POSTGRES_USER: restoapp
       POSTGRES_PASSWORD: secret
       POSTGRES_DB: identidad_db
     ports: ['5439:5432']
@@ -223,18 +223,18 @@ services:
     restart: unless-stopped
     mem_limit: 512m
     volumes:
-      - nachopps-db-identidad:/var/lib/postgresql/data
+      - restoapp-db-identidad:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U nachopps -d identidad_db']
+      test: ['CMD-SHELL', 'pg_isready -U restoapp -d identidad_db']
       interval: 5s
       timeout: 3s
       retries: 5
 
   db-notificaciones:
     image: postgres:16-alpine
-    container_name: nachopps-db-notificaciones
+    container_name: restoapp-db-notificaciones
     environment:
-      POSTGRES_USER: nachopps
+      POSTGRES_USER: restoapp
       POSTGRES_PASSWORD: secret
       POSTGRES_DB: notificaciones_db
     ports: ['5440:5432']
@@ -242,9 +242,9 @@ services:
     restart: unless-stopped
     mem_limit: 512m
     volumes:
-      - nachopps-db-notificaciones:/var/lib/postgresql/data
+      - restoapp-db-notificaciones:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U nachopps -d notificaciones_db']
+      test: ['CMD-SHELL', 'pg_isready -U restoapp -d notificaciones_db']
       interval: 5s
       timeout: 3s
       retries: 5
@@ -253,8 +253,8 @@ services:
   # MICROSERVICIOS
   # ═══════════════════════════════════════════════════
   servicio-identidad:
-    image: infra-servicio-identidad
-    container_name: nachopps-servicio-identidad
+    image: restoapp-servicio-identidad
+    container_name: restoapp-servicio-identidad
     # host 3001 choca con otro stack Docker de este host (medicitas_grafana);
     # Kong sigue enrutando internamente a servicio-identidad:3000, sin cambios.
     ports: ['3021:3000']
@@ -287,12 +287,12 @@ services:
       # B-5: 200 ev/s de drenado por productor (el default de 50 dejaba backlogs
       # de >10 min tras ráfagas de escritura de los niveles L2/L3).
       OUTBOX_BATCH_SIZE: '200'
-      DATABASE_URL: 'postgresql://nachopps:secret@db-identidad:5432/identidad_db?schema=public'
+      DATABASE_URL: 'postgresql://restoapp:secret@db-identidad:5432/identidad_db?schema=public'
       SERVICE_NAME: 'servicio-identidad'
       SERVICE_AUD_ENFORCE: 'true'
-      RABBITMQ_URI: 'amqp://nachopps:nachopps_secret@rabbitmq:5672'
+      RABBITMQ_URI: 'amqp://restoapp:restoapp_secret@rabbitmq:5672'
       OTEL_EXPORTER_OTLP_ENDPOINT: 'http://otel-collector:4318'
-      SERVICE_JWT_SECRET: 'nachopps_service_secret_dev'
+      SERVICE_JWT_SECRET: 'restoapp_service_secret_dev'
       CORS_ORIGIN: 'http://localhost:4200'
       # Parametrizable: la suite k6 (stress-tests/k6) sube esto en la sesión de
       # pruebas (JWT_EXPIRES_IN=60m) para que el token no caduque a mitad de un
@@ -326,8 +326,8 @@ services:
         condition: service_healthy
 
   servicio-mesas:
-    image: infra-servicio-mesas
-    container_name: nachopps-servicio-mesas
+    image: restoapp-servicio-mesas
+    container_name: restoapp-servicio-mesas
     ports: ['3002:3000']
     env_file: *jwt_dev_env
     environment:
@@ -358,12 +358,12 @@ services:
       # B-5: 200 ev/s de drenado por productor (el default de 50 dejaba backlogs
       # de >10 min tras ráfagas de escritura de los niveles L2/L3).
       OUTBOX_BATCH_SIZE: '200'
-      DATABASE_URL: 'postgresql://nachopps:secret@db-mesas:5432/mesas_db?schema=public'
+      DATABASE_URL: 'postgresql://restoapp:secret@db-mesas:5432/mesas_db?schema=public'
       SERVICE_NAME: 'servicio-mesas'
       SERVICE_AUD_ENFORCE: 'true'
-      RABBITMQ_URI: 'amqp://nachopps:nachopps_secret@rabbitmq:5672'
+      RABBITMQ_URI: 'amqp://restoapp:restoapp_secret@rabbitmq:5672'
       OTEL_EXPORTER_OTLP_ENDPOINT: 'http://otel-collector:4318'
-      SERVICE_JWT_SECRET: 'nachopps_service_secret_dev'
+      SERVICE_JWT_SECRET: 'restoapp_service_secret_dev'
       CORS_ORIGIN: 'http://localhost:4200'
     profiles: ['all']
     restart: unless-stopped # A-4: paridad con prod; `docker compose stop` manual sigue funcionando
@@ -390,8 +390,8 @@ services:
         condition: service_healthy
 
   servicio-pedidos:
-    image: infra-servicio-pedidos
-    container_name: nachopps-servicio-pedidos
+    image: restoapp-servicio-pedidos
+    container_name: restoapp-servicio-pedidos
     ports: ['3004:3000']
     env_file: *jwt_dev_env
     environment:
@@ -422,14 +422,14 @@ services:
       # B-5: 200 ev/s de drenado por productor (el default de 50 dejaba backlogs
       # de >10 min tras ráfagas de escritura de los niveles L2/L3).
       OUTBOX_BATCH_SIZE: '200'
-      DATABASE_URL: 'postgresql://nachopps:secret@db-pedidos:5432/pedidos_db?schema=public'
+      DATABASE_URL: 'postgresql://restoapp:secret@db-pedidos:5432/pedidos_db?schema=public'
       SERVICE_NAME: 'servicio-pedidos'
       SERVICE_AUD_ENFORCE: 'true'
-      RABBITMQ_URI: 'amqp://nachopps:nachopps_secret@rabbitmq:5672'
+      RABBITMQ_URI: 'amqp://restoapp:restoapp_secret@rabbitmq:5672'
       OTEL_EXPORTER_OTLP_ENDPOINT: 'http://otel-collector:4318'
       INVENTARIO_SERVICE_URL: 'http://servicio-inventario:3000/api'
       MESAS_SERVICE_URL: 'http://servicio-mesas:3000/api'
-      SERVICE_JWT_SECRET: 'nachopps_service_secret_dev'
+      SERVICE_JWT_SECRET: 'restoapp_service_secret_dev'
       CORS_ORIGIN: 'http://localhost:4200'
     profiles: ['all']
     restart: unless-stopped # A-4: paridad con prod; `docker compose stop` manual sigue funcionando
@@ -456,8 +456,8 @@ services:
         condition: service_healthy
 
   servicio-cuentas:
-    image: infra-servicio-cuentas
-    container_name: nachopps-servicio-cuentas
+    image: restoapp-servicio-cuentas
+    container_name: restoapp-servicio-cuentas
     ports: ['3005:3000']
     env_file: *jwt_dev_env
     environment:
@@ -488,13 +488,13 @@ services:
       # B-5: 200 ev/s de drenado por productor (el default de 50 dejaba backlogs
       # de >10 min tras ráfagas de escritura de los niveles L2/L3).
       OUTBOX_BATCH_SIZE: '200'
-      DATABASE_URL: 'postgresql://nachopps:secret@db-cuentas:5432/cuentas_db?schema=public'
+      DATABASE_URL: 'postgresql://restoapp:secret@db-cuentas:5432/cuentas_db?schema=public'
       SERVICE_NAME: 'servicio-cuentas'
       SERVICE_AUD_ENFORCE: 'true'
-      RABBITMQ_URI: 'amqp://nachopps:nachopps_secret@rabbitmq:5672'
+      RABBITMQ_URI: 'amqp://restoapp:restoapp_secret@rabbitmq:5672'
       OTEL_EXPORTER_OTLP_ENDPOINT: 'http://otel-collector:4318'
       PEDIDOS_SERVICE_URL: 'http://servicio-pedidos:3000/api'
-      SERVICE_JWT_SECRET: 'nachopps_service_secret_dev'
+      SERVICE_JWT_SECRET: 'restoapp_service_secret_dev'
       CORS_ORIGIN: 'http://localhost:4200'
     profiles: ['all']
     restart: unless-stopped # A-4: paridad con prod; `docker compose stop` manual sigue funcionando
@@ -521,8 +521,8 @@ services:
         condition: service_healthy
 
   servicio-reservas:
-    image: infra-servicio-reservas
-    container_name: nachopps-servicio-reservas
+    image: restoapp-servicio-reservas
+    container_name: restoapp-servicio-reservas
     ports: ['3006:3000']
     env_file: *jwt_dev_env
     environment:
@@ -553,12 +553,12 @@ services:
       # B-5: 200 ev/s de drenado por productor (el default de 50 dejaba backlogs
       # de >10 min tras ráfagas de escritura de los niveles L2/L3).
       OUTBOX_BATCH_SIZE: '200'
-      DATABASE_URL: 'postgresql://nachopps:secret@db-reservas:5432/reservas_db?schema=public'
+      DATABASE_URL: 'postgresql://restoapp:secret@db-reservas:5432/reservas_db?schema=public'
       SERVICE_NAME: 'servicio-reservas'
       SERVICE_AUD_ENFORCE: 'true'
-      RABBITMQ_URI: 'amqp://nachopps:nachopps_secret@rabbitmq:5672'
+      RABBITMQ_URI: 'amqp://restoapp:restoapp_secret@rabbitmq:5672'
       OTEL_EXPORTER_OTLP_ENDPOINT: 'http://otel-collector:4318'
-      SERVICE_JWT_SECRET: 'nachopps_service_secret_dev'
+      SERVICE_JWT_SECRET: 'restoapp_service_secret_dev'
       CORS_ORIGIN: 'http://localhost:4200'
     profiles: ['all']
     restart: unless-stopped # A-4: paridad con prod; `docker compose stop` manual sigue funcionando
@@ -585,8 +585,8 @@ services:
         condition: service_healthy
 
   servicio-inventario:
-    image: infra-servicio-inventario
-    container_name: nachopps-servicio-inventario
+    image: restoapp-servicio-inventario
+    container_name: restoapp-servicio-inventario
     ports: ['3007:3000']
     env_file: *jwt_dev_env
     environment:
@@ -617,12 +617,12 @@ services:
       # B-5: 200 ev/s de drenado por productor (el default de 50 dejaba backlogs
       # de >10 min tras ráfagas de escritura de los niveles L2/L3).
       OUTBOX_BATCH_SIZE: '200'
-      DATABASE_URL: 'postgresql://nachopps:secret@db-inventario:5432/inventario_db?schema=public'
+      DATABASE_URL: 'postgresql://restoapp:secret@db-inventario:5432/inventario_db?schema=public'
       SERVICE_NAME: 'servicio-inventario'
       SERVICE_AUD_ENFORCE: 'true'
-      RABBITMQ_URI: 'amqp://nachopps:nachopps_secret@rabbitmq:5672'
+      RABBITMQ_URI: 'amqp://restoapp:restoapp_secret@rabbitmq:5672'
       OTEL_EXPORTER_OTLP_ENDPOINT: 'http://otel-collector:4318'
-      SERVICE_JWT_SECRET: 'nachopps_service_secret_dev'
+      SERVICE_JWT_SECRET: 'restoapp_service_secret_dev'
       CORS_ORIGIN: 'http://localhost:4200'
     profiles: ['all']
     restart: unless-stopped # A-4: paridad con prod; `docker compose stop` manual sigue funcionando
@@ -649,8 +649,8 @@ services:
         condition: service_healthy
 
   servicio-notificaciones:
-    image: infra-servicio-notificaciones
-    container_name: nachopps-servicio-notificaciones
+    image: restoapp-servicio-notificaciones
+    container_name: restoapp-servicio-notificaciones
     ports: ['3008:3000']
     env_file: *jwt_dev_env
     environment:
@@ -681,12 +681,12 @@ services:
       # B-5: 200 ev/s de drenado por productor (el default de 50 dejaba backlogs
       # de >10 min tras ráfagas de escritura de los niveles L2/L3).
       OUTBOX_BATCH_SIZE: '200'
-      DATABASE_URL: 'postgresql://nachopps:secret@db-notificaciones:5432/notificaciones_db?schema=public'
+      DATABASE_URL: 'postgresql://restoapp:secret@db-notificaciones:5432/notificaciones_db?schema=public'
       SERVICE_NAME: 'servicio-notificaciones'
       SERVICE_AUD_ENFORCE: 'true'
-      RABBITMQ_URI: 'amqp://nachopps:nachopps_secret@rabbitmq:5672'
+      RABBITMQ_URI: 'amqp://restoapp:restoapp_secret@rabbitmq:5672'
       OTEL_EXPORTER_OTLP_ENDPOINT: 'http://otel-collector:4318'
-      SERVICE_JWT_SECRET: 'nachopps_service_secret_dev'
+      SERVICE_JWT_SECRET: 'restoapp_service_secret_dev'
       CORS_ORIGIN: 'http://localhost:4200'
     profiles: ['all']
     restart: unless-stopped # A-4: paridad con prod; `docker compose stop` manual sigue funcionando
@@ -713,8 +713,8 @@ services:
         condition: service_healthy
 
   servicio-caja:
-    image: infra-servicio-caja
-    container_name: nachopps-servicio-caja
+    image: restoapp-servicio-caja
+    container_name: restoapp-servicio-caja
     ports: ['3009:3000']
     env_file: *jwt_dev_env
     environment:
@@ -745,16 +745,16 @@ services:
       # B-5: 200 ev/s de drenado por productor (el default de 50 dejaba backlogs
       # de >10 min tras ráfagas de escritura de los niveles L2/L3).
       OUTBOX_BATCH_SIZE: '200'
-      DATABASE_URL: 'postgresql://nachopps:secret@db-caja:5432/caja_db?schema=public'
+      DATABASE_URL: 'postgresql://restoapp:secret@db-caja:5432/caja_db?schema=public'
       SERVICE_NAME: 'servicio-caja'
       SERVICE_AUD_ENFORCE: 'true'
-      RABBITMQ_URI: 'amqp://nachopps:nachopps_secret@rabbitmq:5672'
+      RABBITMQ_URI: 'amqp://restoapp:restoapp_secret@rabbitmq:5672'
       OTEL_EXPORTER_OTLP_ENDPOINT: 'http://otel-collector:4318'
       CUENTAS_SERVICE_URL: 'http://servicio-cuentas:3000/api'
       # Micro-caché del resumen de turno (dato de dashboard): bajo consulta
       # concurrente masiva evita recomputar la agregación por request.
       CAJA_RESUMEN_TTL_MS: '5000'
-      SERVICE_JWT_SECRET: 'nachopps_service_secret_dev'
+      SERVICE_JWT_SECRET: 'restoapp_service_secret_dev'
       CORS_ORIGIN: 'http://localhost:4200'
     profiles: ['all']
     restart: unless-stopped # A-4: paridad con prod; `docker compose stop` manual sigue funcionando
@@ -781,8 +781,8 @@ services:
         condition: service_healthy
 
   servicio-reportes:
-    image: infra-servicio-reportes
-    container_name: nachopps-servicio-reportes
+    image: restoapp-servicio-reportes
+    container_name: restoapp-servicio-reportes
     ports: ['3010:3000']
     env_file: *jwt_dev_env
     environment:
@@ -813,12 +813,12 @@ services:
       # B-5: 200 ev/s de drenado por productor (el default de 50 dejaba backlogs
       # de >10 min tras ráfagas de escritura de los niveles L2/L3).
       OUTBOX_BATCH_SIZE: '200'
-      DATABASE_URL: 'postgresql://nachopps:secret@db-reportes:5432/reportes_db?schema=public'
+      DATABASE_URL: 'postgresql://restoapp:secret@db-reportes:5432/reportes_db?schema=public'
       SERVICE_NAME: 'servicio-reportes'
       SERVICE_AUD_ENFORCE: 'true'
-      RABBITMQ_URI: 'amqp://nachopps:nachopps_secret@rabbitmq:5672'
+      RABBITMQ_URI: 'amqp://restoapp:restoapp_secret@rabbitmq:5672'
       OTEL_EXPORTER_OTLP_ENDPOINT: 'http://otel-collector:4318'
-      SERVICE_JWT_SECRET: 'nachopps_service_secret_dev'
+      SERVICE_JWT_SECRET: 'restoapp_service_secret_dev'
       CORS_ORIGIN: 'http://localhost:4200'
     profiles: ['all']
     restart: unless-stopped # A-4: paridad con prod; `docker compose stop` manual sigue funcionando
@@ -845,8 +845,8 @@ services:
         condition: service_healthy
 
   servicio-facturacion:
-    image: infra-servicio-facturacion
-    container_name: nachopps-servicio-facturacion
+    image: restoapp-servicio-facturacion
+    container_name: restoapp-servicio-facturacion
     ports: ['3011:3000']
     env_file: *jwt_dev_env
     environment:
@@ -857,12 +857,12 @@ services:
       PG_TX_MAXWAIT_MS: '30000'
       PG_POOL_CONN_TIMEOUT_MS: '30000'
       OUTBOX_BATCH_SIZE: '200'
-      DATABASE_URL: 'postgresql://nachopps:secret@db-facturacion:5432/facturacion_db?schema=public'
+      DATABASE_URL: 'postgresql://restoapp:secret@db-facturacion:5432/facturacion_db?schema=public'
       SERVICE_NAME: 'servicio-facturacion'
       SERVICE_AUD_ENFORCE: 'true'
-      RABBITMQ_URI: 'amqp://nachopps:nachopps_secret@rabbitmq:5672'
+      RABBITMQ_URI: 'amqp://restoapp:restoapp_secret@rabbitmq:5672'
       OTEL_EXPORTER_OTLP_ENDPOINT: 'http://otel-collector:4318'
-      SERVICE_JWT_SECRET: 'nachopps_service_secret_dev'
+      SERVICE_JWT_SECRET: 'restoapp_service_secret_dev'
       CORS_ORIGIN: 'http://localhost:4200'
       # SUNAT: sin credenciales en dev por defecto — el servicio arranca igual
       # (CertificadoService/EnvioProcessor detectan "no configurado" y no
@@ -884,8 +884,8 @@ services:
         condition: service_healthy
 
   servicio-compras:
-    image: infra-servicio-compras
-    container_name: nachopps-servicio-compras
+    image: restoapp-servicio-compras
+    container_name: restoapp-servicio-compras
     ports: ['3012:3000']
     env_file: *jwt_dev_env
     environment:
@@ -901,12 +901,12 @@ services:
       PG_TX_MAXWAIT_MS: '30000'
       PG_POOL_CONN_TIMEOUT_MS: '30000'
       OUTBOX_BATCH_SIZE: '200'
-      DATABASE_URL: 'postgresql://nachopps:secret@db-compras:5432/compras_db?schema=public'
+      DATABASE_URL: 'postgresql://restoapp:secret@db-compras:5432/compras_db?schema=public'
       SERVICE_NAME: 'servicio-compras'
       SERVICE_AUD_ENFORCE: 'true'
-      RABBITMQ_URI: 'amqp://nachopps:nachopps_secret@rabbitmq:5672'
+      RABBITMQ_URI: 'amqp://restoapp:restoapp_secret@rabbitmq:5672'
       OTEL_EXPORTER_OTLP_ENDPOINT: 'http://otel-collector:4318'
-      SERVICE_JWT_SECRET: 'nachopps_service_secret_dev'
+      SERVICE_JWT_SECRET: 'restoapp_service_secret_dev'
       CORS_ORIGIN: 'http://localhost:4200'
       COMPROBANTES_DIR: '/data/comprobantes'
       COMPROBANTE_MAX_BYTES: '12582912' # 12 MB antes de comprimir
@@ -916,7 +916,7 @@ services:
     restart: unless-stopped
     mem_limit: 512m
     volumes:
-      - nachopps-comprobantes:/data/comprobantes
+      - restoapp-comprobantes:/data/comprobantes
     healthcheck:
       test: ['CMD', 'wget', '-qO-', 'http://localhost:3000/api/health/live']
       interval: 10s
@@ -936,8 +936,8 @@ services:
     build:
       context: kong
       dockerfile: Dockerfile
-    image: infra-kong
-    container_name: nachopps-kong
+    image: restoapp-kong
+    container_name: restoapp-kong
     env_file: *jwt_dev_env
     environment:
       KONG_DATABASE: 'off'
@@ -988,7 +988,7 @@ services:
   # http://otel-collector:4318, así que no cambia código de aplicación.
   otel-collector:
     image: otel/opentelemetry-collector-contrib:latest
-    container_name: nachopps-otel-collector
+    container_name: restoapp-otel-collector
     command: ['--config=/etc/otel-collector/otel-collector-config.yml']
     volumes:
       - ./otel-collector/otel-collector-config.yml:/etc/otel-collector/otel-collector-config.yml:ro
@@ -1008,7 +1008,7 @@ services:
   # trazas y la UI (16686) sobreviven reinicios. Antes era all-in-one en memoria.
   jaeger:
     image: jaegertracing/all-in-one:latest
-    container_name: nachopps-jaeger
+    container_name: restoapp-jaeger
     # La imagen :latest pasó a correr como UID 10001 no-root; el volumen nombrado
     # se crea con dueño root y el proceso no puede mkdir /badger/key ni /badger/data.
     # ponytail: root en dev alcanza (SOLO DESARROLLO, ver cabecera del archivo); si
@@ -1032,7 +1032,7 @@ services:
 
   prometheus:
     image: prom/prometheus:latest
-    container_name: nachopps-prometheus
+    container_name: restoapp-prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
@@ -1055,7 +1055,7 @@ services:
 
   alertmanager:
     image: prom/alertmanager:latest
-    container_name: nachopps-alertmanager
+    container_name: restoapp-alertmanager
     # Instancia única, sin peers de cluster configurados: en algunos hosts
     # Docker Desktop no puede deducir una IP privada para el gossip mesh
     # ("no private IP found") y el proceso muere en loop de restart.
@@ -1075,7 +1075,7 @@ services:
 
   grafana:
     image: grafana/grafana:latest
-    container_name: nachopps-grafana
+    container_name: restoapp-grafana
     ports:
       - '3000:3000'
     environment:
@@ -1092,7 +1092,7 @@ services:
   # el stdout JSON (con trace_id/correlationId) de los contenedores.
   loki:
     image: grafana/loki:2.9.0
-    container_name: nachopps-loki
+    container_name: restoapp-loki
     command: -config.file=/etc/loki/loki-config.yml
     ports:
       - '3100:3100'
@@ -1105,7 +1105,7 @@ services:
 
   promtail:
     image: grafana/promtail:2.9.0
-    container_name: nachopps-promtail
+    container_name: restoapp-promtail
     command: -config.file=/etc/promtail/promtail-config.yml
     volumes:
       - ./promtail/promtail-config.yml:/etc/promtail/promtail-config.yml:ro
@@ -1120,8 +1120,8 @@ services:
     build:
       context: ../
       dockerfile: apps/pwa-cliente/Dockerfile
-    image: infra-pwa-cliente
-    container_name: nachopps-pwa-cliente
+    image: restoapp-pwa-cliente
+    container_name: restoapp-pwa-cliente
     ports:
       - '4200:8080'
     profiles: ['all']
@@ -1129,20 +1129,20 @@ services:
     mem_limit: 128m
 
 volumes:
-  nachopps-db-reservas:
-  nachopps-db-mesas:
-  nachopps-db-pedidos:
-  nachopps-db-cuentas:
-  nachopps-db-facturacion:
-  nachopps-db-compras:
+  restoapp-db-reservas:
+  restoapp-db-mesas:
+  restoapp-db-pedidos:
+  restoapp-db-cuentas:
+  restoapp-db-facturacion:
+  restoapp-db-compras:
   # Fotos de boletas/facturas de compra (WebP + miniatura). Persiste a
   # `docker compose down`; NO va a la BD para no arrastrar blobs por el heap.
-  nachopps-comprobantes:
-  nachopps-db-inventario:
-  nachopps-db-caja:
-  nachopps-db-reportes:
-  nachopps-db-identidad:
-  nachopps-db-notificaciones:
+  restoapp-comprobantes:
+  restoapp-db-inventario:
+  restoapp-db-caja:
+  restoapp-db-reportes:
+  restoapp-db-identidad:
+  restoapp-db-notificaciones:
   # Observabilidad persistente (sobrevive a `docker compose down`).
   prometheus_data:
   grafana_data:

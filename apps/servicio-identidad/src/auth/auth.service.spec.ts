@@ -42,10 +42,28 @@ function createMockPrismaService(overrides: Record<string, unknown> = {}) {
     },
     sede: {
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
       findMany: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
       delete: jest.fn(),
+    },
+    tenant: {
+      findUnique: jest.fn(),
+      findFirst: jest.fn(),
+      findMany: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+    },
+    membresia: {
+      findUnique: jest.fn(),
+      findFirst: jest.fn(),
+      findMany: jest.fn().mockResolvedValue([]),
+      create: jest.fn(),
+      update: jest.fn(),
+    },
+    membresiaSede: {
+      create: jest.fn(),
     },
     refreshToken: {
       findUnique: jest.fn(),
@@ -640,7 +658,7 @@ describe('AuthService — Identidad', () => {
     });
 
     it('rechaza crear una sede con nombre duplicado', async () => {
-      mockPrisma.sede.findUnique.mockResolvedValue({ id: 's1', nombre: 'Sede Norte' });
+      mockPrisma.sede.findFirst.mockResolvedValue({ id: 's1', nombre: 'Sede Norte' });
       await expect(service.crearSede({ nombre: 'Sede Norte' })).rejects.toThrow(ConflictException);
     });
 
@@ -667,31 +685,33 @@ describe('AuthService — Identidad', () => {
     it('elimina una sede sin usuarios asignados', async () => {
       mockPrisma.sede.findUnique.mockResolvedValue({ id: 's1', nombre: 'Sede Norte', _count: { usuarios: 0 } });
       mockPrisma.sede.delete.mockResolvedValue({});
+
       const result = await service.eliminarSede('s1');
+
+      expect(result.message).toBe('Sede eliminada');
       expect(mockPrisma.sede.delete).toHaveBeenCalledWith({ where: { id: 's1' } });
-      expect(result.message).toMatch(/eliminada/);
     });
   });
 
-  describe('sedeActual', () => {
-    it('un usuario pineado recibe su propia sede, ignorando el query param', async () => {
-      mockPrisma.sede.findUnique.mockResolvedValue({ id: 's1', nombre: 'Salitral 1', direccion: 'Av. X 123', activa: true });
-      const result = await service.sedeActual('s1', 's2');
-      expect(mockPrisma.sede.findUnique).toHaveBeenCalledWith({ where: { id: 's1' } });
-      expect(result.sede?.nombre).toBe('Salitral 1');
-    });
-
-    it('un admin general sin sede fija recibe la sede del query param', async () => {
-      mockPrisma.sede.findUnique.mockResolvedValue({ id: 's2', nombre: 'Sede Principal', direccion: null, activa: true });
-      const result = await service.sedeActual(null, 's2');
-      expect(mockPrisma.sede.findUnique).toHaveBeenCalledWith({ where: { id: 's2' } });
-      expect(result.sede?.nombre).toBe('Sede Principal');
-    });
-
-    it('devuelve sede null (no lanza) si no hay sede pineada ni seleccionada', async () => {
+  describe('sedeActual (T-23)', () => {
+    it('devuelve sede null si no hay sedeId en usuario ni solicitado', async () => {
       const result = await service.sedeActual(null, undefined);
       expect(result.sede).toBeNull();
       expect(mockPrisma.sede.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('prioriza sedeId del usuario si está pineado', async () => {
+      mockPrisma.sede.findUnique.mockResolvedValue({ id: 's1', nombre: 'Sede Norte', direccion: null, activa: true });
+      const result = await service.sedeActual('s1', 's2');
+      expect(result.sede?.id).toBe('s1');
+      expect(mockPrisma.sede.findUnique).toHaveBeenCalledWith({ where: { id: 's1' } });
+    });
+
+    it('usa sedeIdSolicitado si el usuario no tiene sede fija (admin general)', async () => {
+      mockPrisma.sede.findUnique.mockResolvedValue({ id: 's2', nombre: 'Sede Sur', direccion: null, activa: true });
+      const result = await service.sedeActual(null, 's2');
+      expect(result.sede?.id).toBe('s2');
+      expect(mockPrisma.sede.findUnique).toHaveBeenCalledWith({ where: { id: 's2' } });
     });
 
     it('devuelve sede null si el id resuelto no existe', async () => {
@@ -724,6 +744,104 @@ describe('AuthService — Identidad', () => {
         data: { activo: false },
       });
       expect(count).toBe(2);
+    });
+  });
+
+  describe('SaaS Multitenant — Onboarding y Selección de Restaurante', () => {
+    it('onboarding crea tenant, primera sede, usuario admin y membresía', async () => {
+      mockPrisma.tenant.findUnique.mockResolvedValue(null);
+      mockPrisma.usuario.findUnique.mockResolvedValue(null);
+      mockPrisma.usuario.create.mockResolvedValue({
+        id: 'u-admin-new',
+        nombre: 'Dueño',
+        email: 'dueno@restaurante.pe',
+        rol: 'ADMIN',
+      });
+      mockPrisma.tenant.create.mockResolvedValue({
+        id: 'tenant-1',
+        nombre: 'El Buen Sabor',
+        slug: 'el-buen-sabor',
+        ruc: '20123456789',
+        activo: true,
+        plan: 'ESTANDAR',
+        createdAt: new Date(),
+      });
+      mockPrisma.sede.create.mockResolvedValue({
+        id: 'sede-1',
+        nombre: 'Sede Principal',
+        direccion: 'Av. Principal 123',
+        ruc: '20123456789',
+        activa: true,
+      });
+      mockPrisma.membresia.create.mockResolvedValue({
+        id: 'mem-1',
+        tenantId: 'tenant-1',
+        usuarioId: 'u-admin-new',
+        rol: 'ADMIN',
+        activo: true,
+      });
+      mockPrisma.membresiaSede.create.mockResolvedValue({});
+      mockPrisma.usuario.update.mockResolvedValue({});
+      mockPrisma.auditoriaLog.create.mockResolvedValue({});
+
+      const res = await service.onboarding({
+        nombreRestaurante: 'El Buen Sabor',
+        slugRestaurante: 'el-buen-sabor',
+        rucRestaurante: '20123456789',
+        nombreSede: 'Sede Principal',
+        direccionSede: 'Av. Principal 123',
+        nombreUsuario: 'Dueño',
+        emailUsuario: 'dueno@restaurante.pe',
+        passwordUsuario: 'Password123!',
+      });
+
+      expect(res.tenant.slug).toBe('el-buen-sabor');
+      expect(res.sede.nombre).toBe('Sede Principal');
+      expect(res.usuario.email).toBe('dueno@restaurante.pe');
+      expect(res.access_token).toBeDefined();
+    });
+
+    it('onboarding rechaza si el slug de restaurante ya existe', async () => {
+      mockPrisma.tenant.findUnique.mockResolvedValue({ id: 't-existente', slug: 'el-buen-sabor' });
+
+      await expect(
+        service.onboarding({
+          nombreRestaurante: 'El Buen Sabor',
+          slugRestaurante: 'el-buen-sabor',
+          nombreSede: 'Sede',
+          nombreUsuario: 'Dueño',
+          emailUsuario: 'dueno@restaurante.pe',
+          passwordUsuario: 'Password123!',
+        }),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('selectTenant emite token con nuevo tenant si el usuario tiene membresía activa', async () => {
+      mockPrisma.usuario.findUnique.mockResolvedValue(usuarioBase);
+      mockPrisma.membresia.findUnique.mockResolvedValue({
+        id: 'mem-2',
+        tenantId: 'tenant-2',
+        usuarioId: 'u-001',
+        rol: 'ADMIN',
+        activo: true,
+        tenant: { id: 'tenant-2', nombre: 'Segundo Restobar', slug: 'segundo-restobar', activo: true },
+        sedes: [{ sedeId: 'sede-2', sede: { id: 'sede-2', nombre: 'Sede Playa', direccion: null, ruc: null, activa: true } }],
+      });
+
+      const res = await service.selectTenant('u-001', { tenantId: 'tenant-2', sedeId: 'sede-2' });
+
+      expect(res.activeTenantId).toBe('tenant-2');
+      expect(res.activeSedeId).toBe('sede-2');
+      expect(res.access_token).toBeDefined();
+    });
+
+    it('selectTenant rechaza si el usuario no tiene membresía en el tenant solicitado', async () => {
+      mockPrisma.usuario.findUnique.mockResolvedValue(usuarioBase);
+      mockPrisma.membresia.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.selectTenant('u-001', { tenantId: 'tenant-ajeno' }),
+      ).rejects.toThrow(UnauthorizedException);
     });
   });
 });

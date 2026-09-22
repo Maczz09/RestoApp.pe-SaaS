@@ -8,8 +8,9 @@ export class AppService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async obtenerNotificaciones() {
+  async obtenerNotificaciones(tenantId?: string | null) {
     return this.prisma.notificacion.findMany({
+      ...(tenantId ? { where: { tenantId } } : {}),
       orderBy: {
         timestamp: 'desc',
       },
@@ -29,12 +30,18 @@ export class AppService {
    *   mensaje se ACKeaba igual → notificación perdida en silencio). Al relanzar,
    *   el interceptor reintenta y, si persiste, va a la DLQ: sin pérdidas.
    */
-  async registrarNotificacion(pattern: string, data: unknown, eventId?: string) {
+  async registrarNotificacion(pattern: string, data: unknown, eventId?: string, tenantId?: string | null) {
     const contenido = this.formatContenido(pattern, data);
     this.logger.log({
       operation: pattern,
       message: 'Guardando notificación en BD para el evento.',
     } satisfies OperableLog);
+
+    const resolvedTenantId =
+      tenantId ??
+      (typeof data === 'object' && data !== null
+        ? ((data as Record<string, unknown>)['tenantId'] as string | undefined)
+        : undefined);
 
     const notifData = {
       eventoOrigen: pattern,
@@ -42,6 +49,7 @@ export class AppService {
       canal: 'UI',
       contenido,
       estado: 'PENDIENTE',
+      ...(resolvedTenantId ? { tenantId: resolvedTenantId } : {}),
     };
 
     // Sin eventId (publicación sin cabecera, p. ej. mensajes antiguos en vuelo):
@@ -55,7 +63,12 @@ export class AppService {
       return await this.prisma.$transaction(async (prisma) => {
         // Reclama la clave del evento; el índice único la rechaza (P2002) si ya
         // se procesó, abortando la transacción sin insertar la notificación.
-        await prisma.idempotencyKey.create({ data: { key: `notif:${eventId}` } });
+        await prisma.idempotencyKey.create({
+          data: {
+            key: `notif:${eventId}`,
+            ...(resolvedTenantId ? { tenantId: resolvedTenantId } : {}),
+          },
+        });
         return prisma.notificacion.create({ data: notifData });
       });
     } catch (err) {

@@ -25,10 +25,14 @@ export class RecepcionesService {
     private readonly ordenes: OrdenesService,
   ) {}
 
-  async listarPorOrden(ordenId: string, usuarioSedeId?: string | null) {
-    await this.ordenes.findOrThrow(ordenId, usuarioSedeId);
+  async listarPorOrden(ordenId: string, usuarioSedeId?: string | null, tenantId?: string | null) {
+    if (tenantId !== undefined) {
+      await this.ordenes.findOrThrow(ordenId, usuarioSedeId, tenantId);
+    } else {
+      await this.ordenes.findOrThrow(ordenId, usuarioSedeId);
+    }
     const recepciones = await this.prisma.recepcionCompra.findMany({
-      where: { ordenId },
+      where: { ordenId, ...(tenantId ? { tenantId } : {}) },
       include: { items: true },
       orderBy: { fecha: 'asc' },
     });
@@ -40,8 +44,11 @@ export class RecepcionesService {
     command: RegistrarRecepcionCommand,
     usuario?: { id: string; nombre: string } | null,
     usuarioSedeId?: string | null,
+    tenantId?: string | null,
   ) {
-    const ordenActual = await this.ordenes.findOrThrow(ordenId, usuarioSedeId);
+    const ordenActual = tenantId !== undefined
+      ? await this.ordenes.findOrThrow(ordenId, usuarioSedeId, tenantId)
+      : await this.ordenes.findOrThrow(ordenId, usuarioSedeId);
     if (!ESTADOS_RECIBIBLES.has(ordenActual.estado)) {
       throw new ConflictException('Solo se puede recibir mercadería de una orden enviada o con recepción parcial');
     }
@@ -104,6 +111,7 @@ export class RecepcionesService {
         data: {
           sedeId: ordenActual.sedeId,
           ordenId,
+          ...(tenantId ? { tenantId } : {}),
           observaciones: command.observaciones ?? null,
           usuarioId: usuario?.id ?? null,
           usuarioNombre: usuario?.nombre ?? null,

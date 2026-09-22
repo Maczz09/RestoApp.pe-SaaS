@@ -10,6 +10,7 @@ datasource db {
 
 model Transaccion {
   id            String   @id @default(uuid())
+  tenantId      String?
   cuentaId      String
   sedeId        String
   turnoId       String?
@@ -39,15 +40,18 @@ model Transaccion {
 
   turno       TurnoCaja? @relation(fields: [turnoId], references: [id])
 
+  @@index([tenantId])
   @@index([cuentaId])
   @@index([turnoId])
   @@index([usuarioId])
   @@index([sedeId, createdAt])
+  @@index([tenantId, sedeId, createdAt])
   @@map("transacciones")
 }
 
 model OutboxEvent {
   id         String   @id @default(uuid())
+  tenantId   String?
   routingKey String
   payload    String
   status     String   @default("PENDING") // PENDING, PROCESSED, FAILED
@@ -57,6 +61,7 @@ model OutboxEvent {
   updatedAt  DateTime @updatedAt
 
   @@index([status, createdAt])
+  @@index([tenantId, status])
   @@map("outbox_events")
 }
 
@@ -64,6 +69,7 @@ model OutboxEvent {
 // hacer *replay* en reintentos de POST /caja/pagos (evita pagos duplicados).
 model IdempotencyKey {
   id          String    @id @default(uuid())
+  tenantId    String?
   key         String    @unique
   method      String?
   path        String?
@@ -74,12 +80,14 @@ model IdempotencyKey {
   // T-14: huella SHA-256 del cuerpo de la petición; misma clave + body distinto → 422.
   requestHash String?
 
+  @@index([tenantId])
   @@index([createdAt])
   @@map("idempotency_keys")
 }
 
 model CierreCaja {
   id           String   @id @default(uuid())
+  tenantId     String?
   turnoId      String?  @unique
   montoEsperado Decimal  @db.Decimal(10, 2)
   montoReal     Decimal  @db.Decimal(10, 2)
@@ -90,21 +98,25 @@ model CierreCaja {
 
   turno         TurnoCaja? @relation(fields: [turnoId], references: [id])
 
+  @@index([tenantId])
   @@map("cierres_caja")
 }
 
 model CuentaAbierta {
   cuentaId String   @id
+  tenantId String?
   mesaId   String
   sedeId   String
   total    Decimal  @db.Decimal(10, 2)
   estado   String
 
+  @@index([tenantId])
   @@map("cuentas_abiertas")
 }
 
 model TurnoCaja {
   id            String   @id @default(uuid())
+  tenantId      String?
   sedeId        String
   cajaId        String
   cajaNombre    String
@@ -122,14 +134,17 @@ model TurnoCaja {
   arqueos       ArqueoCaja[]
   cierre        CierreCaja?
 
+  @@index([tenantId])
   @@index([estado, abiertoAt])
   @@index([usuarioId, estado])
   @@index([sedeId, estado])
+  @@index([tenantId, sedeId, estado])
   @@map("turnos_caja")
 }
 
 model MovimientoCaja {
   id            String   @id @default(uuid())
+  tenantId      String?
   turnoId       String
   tipo          String
   cuentaId      String?
@@ -145,6 +160,7 @@ model MovimientoCaja {
 
   turno         TurnoCaja @relation(fields: [turnoId], references: [id])
 
+  @@index([tenantId])
   @@index([turnoId, createdAt])
   @@index([cuentaId])
   @@unique([transaccionId])
@@ -153,6 +169,7 @@ model MovimientoCaja {
 
 model ArqueoCaja {
   id               String   @id @default(uuid())
+  tenantId         String?
   turnoId          String
   denominaciones   Json
   efectivoEsperado Decimal  @db.Decimal(10, 2)
@@ -163,6 +180,7 @@ model ArqueoCaja {
 
   turno            TurnoCaja @relation(fields: [turnoId], references: [id])
 
+  @@index([tenantId])
   @@index([turnoId, createdAt])
   @@map("arqueos_caja")
 }

@@ -9,7 +9,7 @@ import {
   JWT_VERIFY_ALGORITHMS,
 } from './jwt-keys';
 
-interface JwtPayload {
+export interface JwtPayload {
   sub: string;
   rol: string;
   // Los tokens S2S (rol SISTEMA) no llevan identidad de usuario.
@@ -18,6 +18,13 @@ interface JwtPayload {
   aud?: string;
   // T-23 (multi-sede): null/ausente = admin general sin sede fija.
   sedeId?: string | null;
+  // SaaS Multitenancy:
+  tenantId?: string;
+  membershipId?: string;
+  permissions?: string[];
+  allowedSedeIds?: string[];
+  activeSedeId?: string | null;
+  sessionVersion?: number;
 }
 
 const cookieExtractor: JwtFromRequestFunction = (req: Request & { cookies?: Record<string, string> }) => {
@@ -50,12 +57,19 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         throw new UnauthorizedException('Audiencia del token de servicio inválida');
       }
     }
+    const effectiveSedeId = payload.activeSedeId ?? payload.sedeId ?? null;
     return {
       sub: payload.sub,
       email: payload.email,
       rol: payload.rol,
       nombre: payload.nombre,
-      sedeId: payload.sedeId ?? null,
+      sedeId: effectiveSedeId,
+      tenantId: payload.tenantId,
+      membershipId: payload.membershipId,
+      permissions: payload.permissions ?? [],
+      allowedSedeIds: payload.allowedSedeIds ?? (effectiveSedeId ? [effectiveSedeId] : []),
+      activeSedeId: effectiveSedeId,
+      sessionVersion: payload.sessionVersion,
     };
   }
 }

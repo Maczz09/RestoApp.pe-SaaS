@@ -51,12 +51,14 @@ $services = @(
     "servicio-inventario",
     "servicio-notificaciones",
     "servicio-caja",
-    "servicio-reportes"
+    "servicio-reportes",
+    "servicio-facturacion",
+    "servicio-compras"
 )
 
 foreach ($svc in $services) {
-    Write-Host "  Construyendo $svc..." -NoNewline
-    $buildOutput = docker build --build-arg APP_NAME=$svc -t infra-$svc -f Dockerfile . 2>&1
+    Write-Host "  Construyendo restoapp-$svc..." -NoNewline
+    $buildOutput = docker build --build-arg APP_NAME=$svc -t "RestoApp-$svc" -t "restoapp-$svc" -t "infra-$svc" -f Dockerfile . 2>&1
     $exitCode = $LASTEXITCODE
     if ($exitCode -eq 0) {
         Write-Host " OK" -ForegroundColor Green
@@ -79,7 +81,8 @@ if ($exitCode -eq 0) {
 }
 
 Write-Host "`n   Construyendo PWA cliente..." -NoNewline
-$buildOutput = docker build -t infra-pwa-cliente -f apps/pwa-cliente/Dockerfile . 2>&1
+$buildOutput = docker build -t "RestoApp-pwa-cliente" -t restoapp-pwa-cliente -t infra-pwa-cliente -f apps/pwa-cliente/Dockerfile . 2>&1
+
 $exitCode = $LASTEXITCODE
 if ($exitCode -eq 0) {
     Write-Host " OK" -ForegroundColor Green

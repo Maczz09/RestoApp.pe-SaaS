@@ -15,11 +15,17 @@ vi.mock('../api/client', () => ({
   clearAuthToken: vi.fn(),
   setUsuarioSedeId: vi.fn(),
   setSedeSeleccionada: vi.fn(),
+  setTenantId: vi.fn(),
 }));
+vi.mock('../api/queryClient', () => ({
+  queryClient: { clear: vi.fn() },
+}));
+
+import { queryClient } from '../api/queryClient';
 
 describe('auth.store', () => {
   beforeEach(() => {
-    useAuthStore.setState({ user: null, authenticated: false, loading: false });
+    useAuthStore.setState({ user: null, authenticated: false, loading: false, activeTenantId: null, tenants: [] });
     vi.clearAllMocks();
   });
 
@@ -44,6 +50,7 @@ describe('auth.store', () => {
     expect(useAuthStore.getState().user).toBeNull();
     expect(useAuthStore.getState().authenticated).toBe(false);
     expect(clientApi.clearAuthToken).toHaveBeenCalled();
+    expect(queryClient.clear).toHaveBeenCalled();
     expect(socketService.disconnect).toHaveBeenCalled();
   });
 
@@ -55,6 +62,7 @@ describe('auth.store', () => {
     expect(useAuthStore.getState().user).toBeNull();
     expect(useAuthStore.getState().authenticated).toBe(false);
     expect(clientApi.clearAuthToken).toHaveBeenCalled();
+    expect(queryClient.clear).toHaveBeenCalled();
     expect(socketService.disconnect).toHaveBeenCalled();
   });
 
@@ -80,6 +88,34 @@ describe('auth.store', () => {
     expect(useAuthStore.getState().loading).toBe(false);
     expect(clientApi.clearAuthToken).toHaveBeenCalled();
     expect(socketService.disconnect).toHaveBeenCalled();
+  });
+
+  it('switchTenant calls api, clears query cache, updates active tenant and reconnects socket', async () => {
+    const mockSelectResponse = {
+      access_token: 'new-token',
+      usuario: { id: 'u-1', nombre: 'Admin Multi', email: 'admin@demo.pe', rol: 'ADMIN', sedeId: 'sede-2' },
+      activeTenantId: 'tenant-2',
+      activeSedeId: 'sede-2',
+    };
+    vi.mocked(authApi.selectTenant).mockResolvedValue(mockSelectResponse as any);
+
+    useAuthStore.setState({
+      user: { id: 'u-1', nombre: 'Admin Multi', email: 'admin@demo.pe', rol: 'ADMIN', activeTenantId: 'tenant-1' } as any,
+      authenticated: true,
+      activeTenantId: 'tenant-1',
+    });
+
+    await useAuthStore.getState().switchTenant('tenant-2', 'sede-2');
+
+    expect(authApi.selectTenant).toHaveBeenCalledWith({ tenantId: 'tenant-2', sedeId: 'sede-2' });
+    expect(clientApi.setTenantId).toHaveBeenCalledWith('tenant-2');
+    expect(clientApi.setUsuarioSedeId).toHaveBeenCalledWith('sede-2');
+    expect(clientApi.setSedeSeleccionada).toHaveBeenCalledWith('sede-2');
+    expect(queryClient.clear).toHaveBeenCalled();
+    expect(socketService.disconnect).toHaveBeenCalled();
+    expect(socketService.connect).toHaveBeenCalled();
+    expect(useAuthStore.getState().activeTenantId).toBe('tenant-2');
+    expect(useAuthStore.getState().user?.sedeId).toBe('sede-2');
   });
 });
 

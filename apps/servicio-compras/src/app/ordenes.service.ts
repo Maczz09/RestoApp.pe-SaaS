@@ -25,13 +25,14 @@ export class OrdenesService {
   private readonly logger = new Logger(OrdenesService.name);
   constructor(private readonly prisma: PrismaService) {}
 
-  async listar(query: ListarOrdenesQuery = {}, usuarioSedeId?: string | null): Promise<OrdenCompraListResponse> {
+  async listar(query: ListarOrdenesQuery = {}, usuarioSedeId?: string | null, tenantId?: string | null): Promise<OrdenCompraListResponse> {
     const sedeId = resolveSedeId(usuarioSedeId, query.sedeId);
     const limit = this.normalizeLimit(query.limit);
 
     const ordenes = await this.prisma.ordenCompra.findMany({
       where: {
         sedeId,
+        ...(tenantId ? { tenantId } : {}),
         ...(query.estado ? { estado: query.estado } : {}),
         ...(query.proveedorId ? { proveedorId: query.proveedorId } : {}),
         ...(query.desde || query.hasta
@@ -58,9 +59,9 @@ export class OrdenesService {
     };
   }
 
-  async obtener(id: string, usuarioSedeId?: string | null) {
+  async obtener(id: string, usuarioSedeId?: string | null, tenantId?: string | null) {
     const orden = await this.prisma.ordenCompra.findUnique({
-      where: { id },
+      where: { id, ...(tenantId ? { tenantId } : {}) },
       include: {
         items: true,
         recepciones: { include: { items: true }, orderBy: { fecha: 'asc' } },
@@ -82,6 +83,7 @@ export class OrdenesService {
     usuario?: { id: string; nombre: string } | null,
     usuarioSedeId?: string | null,
     sedeIdSolicitado?: string,
+    tenantId?: string | null,
   ) {
     const sedeId = resolveSedeId(usuarioSedeId, sedeIdSolicitado);
 
@@ -131,6 +133,7 @@ export class OrdenesService {
       return prisma.ordenCompra.create({
         data: {
           sedeId,
+          ...(tenantId ? { tenantId } : {}),
           codigo,
           proveedorId: command.proveedorId ?? null,
           proveedorNombre: proveedorNombre!,
@@ -289,11 +292,11 @@ export class OrdenesService {
     return { message: 'Orden anulada', orden: toOrdenCompraDto(orden) };
   }
 
-  async resumen(usuarioSedeId?: string | null, sedeIdSolicitado?: string): Promise<ResumenComprasDto> {
+  async resumen(usuarioSedeId?: string | null, sedeIdSolicitado?: string, tenantId?: string | null): Promise<ResumenComprasDto> {
     const sedeId = resolveSedeId(usuarioSedeId, sedeIdSolicitado);
     const [ordenes, insumos] = await Promise.all([
-      this.prisma.ordenCompra.findMany({ where: { sedeId }, include: { items: true } }),
-      this.prisma.insumo.findMany({ where: { sedeId, activo: true } }),
+      this.prisma.ordenCompra.findMany({ where: { sedeId, ...(tenantId ? { tenantId } : {}) }, include: { items: true } }),
+      this.prisma.insumo.findMany({ where: { sedeId, activo: true, ...(tenantId ? { tenantId } : {}) } }),
     ]);
 
     const ordenesAbiertas = ordenes.filter((o) => ESTADOS_ABIERTOS.has(o.estado)).length;
@@ -327,8 +330,13 @@ export class OrdenesService {
     return Math.min(Math.max(Math.trunc(parsed), 1), 100);
   }
 
-  async findOrThrow(id: string, usuarioSedeId?: string | null): Promise<OrdenCompra> {
-    const orden = await this.prisma.ordenCompra.findUnique({ where: { id } });
+  async findOrThrow(id: string, usuarioSedeId?: string | null, tenantId?: string | null): Promise<OrdenCompra> {
+    const orden = await this.prisma.ordenCompra.findUnique({
+      where: {
+        id,
+        ...(tenantId ? { tenantId } : {}),
+      },
+    });
     if (!orden || (usuarioSedeId && orden.sedeId !== usuarioSedeId)) {
       throw new NotFoundException(`Orden de compra ${id} no encontrada`);
     }

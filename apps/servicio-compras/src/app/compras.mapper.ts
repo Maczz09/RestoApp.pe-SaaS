@@ -63,7 +63,7 @@ function toOrdenCompraItemDto(item: OrdenCompraItem): OrdenCompraItemDto {
   };
 }
 
-export function toOrdenCompraDto(o: OrdenCompra & { items: OrdenCompraItem[] }): OrdenCompraDto {
+export function toOrdenCompraDto(o: OrdenCompra & { items: OrdenCompraItem[]; comprobantes?: unknown[]; _count?: { comprobantes: number } }): OrdenCompraDto {
   return {
     id: o.id,
     sedeId: o.sedeId,
@@ -82,6 +82,7 @@ export function toOrdenCompraDto(o: OrdenCompra & { items: OrdenCompraItem[] }):
     usuarioNombre: o.usuarioNombre,
     items: o.items.map(toOrdenCompraItemDto),
     createdAt: o.createdAt.toISOString(),
+    comprobantesCount: o._count?.comprobantes ?? o.comprobantes?.length ?? 0,
   };
 }
 

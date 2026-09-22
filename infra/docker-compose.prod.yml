@@ -4,11 +4,11 @@ services:
   # ═══════════════════════════════════════════════════
   rabbitmq:
     image: rabbitmq:3-management
-    container_name: nachopps-rabbitmq
+    container_name: restoapp-rabbitmq
     restart: unless-stopped
     # Sin puertos expuestos al host
     environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-nachopps}
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-restoapp}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:?RABBITMQ_PASS es obligatorio en produccion}
     healthcheck:
       test: ['CMD', 'rabbitmq-diagnostics', 'check_running']
@@ -19,176 +19,176 @@ services:
   # BASES DE DATOS (Solo red interna)
   db-reservas:
     image: postgres:16-alpine
-    container_name: nachopps-db-reservas
+    container_name: restoapp-db-reservas
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${DB_USER:-nachopps}
+      POSTGRES_USER: ${DB_USER:-restoapp}
       POSTGRES_PASSWORD: ${DB_PASS:?DB_PASS es obligatorio en produccion}
       POSTGRES_DB: reservas_db
     volumes:
-      - nachopps-db-reservas:/var/lib/postgresql/data
+      - restoapp-db-reservas:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U ${DB_USER:-nachopps} -d reservas_db']
+      test: ['CMD-SHELL', 'pg_isready -U ${DB_USER:-restoapp} -d reservas_db']
       interval: 5s
       timeout: 3s
       retries: 5
 
   db-mesas:
     image: postgres:16-alpine
-    container_name: nachopps-db-mesas
+    container_name: restoapp-db-mesas
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${DB_USER:-nachopps}
+      POSTGRES_USER: ${DB_USER:-restoapp}
       POSTGRES_PASSWORD: ${DB_PASS:?DB_PASS es obligatorio en produccion}
       POSTGRES_DB: mesas_db
     volumes:
-      - nachopps-db-mesas:/var/lib/postgresql/data
+      - restoapp-db-mesas:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U ${DB_USER:-nachopps} -d mesas_db']
+      test: ['CMD-SHELL', 'pg_isready -U ${DB_USER:-restoapp} -d mesas_db']
       interval: 5s
       timeout: 3s
       retries: 5
 
   db-pedidos:
     image: postgres:16-alpine
-    container_name: nachopps-db-pedidos
+    container_name: restoapp-db-pedidos
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${DB_USER:-nachopps}
+      POSTGRES_USER: ${DB_USER:-restoapp}
       POSTGRES_PASSWORD: ${DB_PASS:?DB_PASS es obligatorio en produccion}
       POSTGRES_DB: pedidos_db
     volumes:
-      - nachopps-db-pedidos:/var/lib/postgresql/data
+      - restoapp-db-pedidos:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U ${DB_USER:-nachopps} -d pedidos_db']
+      test: ['CMD-SHELL', 'pg_isready -U ${DB_USER:-restoapp} -d pedidos_db']
       interval: 5s
       timeout: 3s
       retries: 5
 
   db-cuentas:
     image: postgres:16-alpine
-    container_name: nachopps-db-cuentas
+    container_name: restoapp-db-cuentas
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${DB_USER:-nachopps}
+      POSTGRES_USER: ${DB_USER:-restoapp}
       POSTGRES_PASSWORD: ${DB_PASS:?DB_PASS es obligatorio en produccion}
       POSTGRES_DB: cuentas_db
     volumes:
-      - nachopps-db-cuentas:/var/lib/postgresql/data
+      - restoapp-db-cuentas:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U ${DB_USER:-nachopps} -d cuentas_db']
+      test: ['CMD-SHELL', 'pg_isready -U ${DB_USER:-restoapp} -d cuentas_db']
       interval: 5s
       timeout: 3s
       retries: 5
 
   db-inventario:
     image: postgres:16-alpine
-    container_name: nachopps-db-inventario
+    container_name: restoapp-db-inventario
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${DB_USER:-nachopps}
+      POSTGRES_USER: ${DB_USER:-restoapp}
       POSTGRES_PASSWORD: ${DB_PASS:?DB_PASS es obligatorio en produccion}
       POSTGRES_DB: inventario_db
     volumes:
-      - nachopps-db-inventario:/var/lib/postgresql/data
+      - restoapp-db-inventario:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U ${DB_USER:-nachopps} -d inventario_db']
+      test: ['CMD-SHELL', 'pg_isready -U ${DB_USER:-restoapp} -d inventario_db']
       interval: 5s
       timeout: 3s
       retries: 5
 
   db-reportes:
     image: postgres:16-alpine
-    container_name: nachopps-db-reportes
+    container_name: restoapp-db-reportes
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${DB_USER:-nachopps}
+      POSTGRES_USER: ${DB_USER:-restoapp}
       POSTGRES_PASSWORD: ${DB_PASS:?DB_PASS es obligatorio en produccion}
       POSTGRES_DB: reportes_db
     volumes:
-      - nachopps-db-reportes:/var/lib/postgresql/data
+      - restoapp-db-reportes:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U ${DB_USER:-nachopps} -d reportes_db']
+      test: ['CMD-SHELL', 'pg_isready -U ${DB_USER:-restoapp} -d reportes_db']
       interval: 5s
       timeout: 3s
       retries: 5
 
   db-facturacion:
     image: postgres:16-alpine
-    container_name: nachopps-db-facturacion
+    container_name: restoapp-db-facturacion
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${DB_USER:-nachopps}
+      POSTGRES_USER: ${DB_USER:-restoapp}
       POSTGRES_PASSWORD: ${DB_PASS:?DB_PASS es obligatorio en produccion}
       POSTGRES_DB: facturacion_db
     volumes:
-      - nachopps-db-facturacion:/var/lib/postgresql/data
+      - restoapp-db-facturacion:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U ${DB_USER:-nachopps} -d facturacion_db']
+      test: ['CMD-SHELL', 'pg_isready -U ${DB_USER:-restoapp} -d facturacion_db']
       interval: 5s
       timeout: 3s
       retries: 5
 
   db-compras:
     image: postgres:16-alpine
-    container_name: nachopps-db-compras
+    container_name: restoapp-db-compras
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${DB_USER:-nachopps}
+      POSTGRES_USER: ${DB_USER:-restoapp}
       POSTGRES_PASSWORD: ${DB_PASS:?DB_PASS es obligatorio en produccion}
       POSTGRES_DB: compras_db
     volumes:
-      - nachopps-db-compras:/var/lib/postgresql/data
+      - restoapp-db-compras:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U ${DB_USER:-nachopps} -d compras_db']
+      test: ['CMD-SHELL', 'pg_isready -U ${DB_USER:-restoapp} -d compras_db']
       interval: 5s
       timeout: 3s
       retries: 5
 
   db-caja:
     image: postgres:16-alpine
-    container_name: nachopps-db-caja
+    container_name: restoapp-db-caja
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${DB_USER:-nachopps}
+      POSTGRES_USER: ${DB_USER:-restoapp}
       POSTGRES_PASSWORD: ${DB_PASS:?DB_PASS es obligatorio en produccion}
       POSTGRES_DB: caja_db
     volumes:
-      - nachopps-db-caja:/var/lib/postgresql/data
+      - restoapp-db-caja:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U ${DB_USER:-nachopps} -d caja_db']
+      test: ['CMD-SHELL', 'pg_isready -U ${DB_USER:-restoapp} -d caja_db']
       interval: 5s
       timeout: 3s
       retries: 5
 
   db-identidad:
     image: postgres:16-alpine
-    container_name: nachopps-db-identidad
+    container_name: restoapp-db-identidad
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${DB_USER:-nachopps}
+      POSTGRES_USER: ${DB_USER:-restoapp}
       POSTGRES_PASSWORD: ${DB_PASS:?DB_PASS es obligatorio en produccion}
       POSTGRES_DB: identidad_db
     volumes:
-      - nachopps-db-identidad:/var/lib/postgresql/data
+      - restoapp-db-identidad:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U ${DB_USER:-nachopps} -d identidad_db']
+      test: ['CMD-SHELL', 'pg_isready -U ${DB_USER:-restoapp} -d identidad_db']
       interval: 5s
       timeout: 3s
       retries: 5
 
   db-notificaciones:
     image: postgres:16-alpine
-    container_name: nachopps-db-notificaciones
+    container_name: restoapp-db-notificaciones
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${DB_USER:-nachopps}
+      POSTGRES_USER: ${DB_USER:-restoapp}
       POSTGRES_PASSWORD: ${DB_PASS:?DB_PASS es obligatorio en produccion}
       POSTGRES_DB: notificaciones_db
     volumes:
-      - nachopps-db-notificaciones:/var/lib/postgresql/data
+      - restoapp-db-notificaciones:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U ${DB_USER:-nachopps} -d notificaciones_db']
+      test: ['CMD-SHELL', 'pg_isready -U ${DB_USER:-restoapp} -d notificaciones_db']
       interval: 5s
       timeout: 3s
       retries: 5
@@ -197,16 +197,16 @@ services:
   # MICROSERVICIOS (Solo red interna)
   # ═══════════════════════════════════════════════════
   servicio-identidad:
-    image: ${REGISTRY:-nachopps}/servicio-identidad:latest
-    container_name: nachopps-servicio-identidad
+    image: ${REGISTRY:-restoapp}/restoapp-servicio-identidad:latest
+    container_name: restoapp-servicio-identidad
     restart: unless-stopped
     stop_grace_period: 30s
     environment:
       PORT: '3000'
-      DATABASE_URL: 'postgresql://${DB_USER:-nachopps}:${DB_PASS:?DB_PASS es obligatorio en produccion}@db-identidad:5432/identidad_db?schema=public'
+      DATABASE_URL: 'postgresql://${DB_USER:-restoapp}:${DB_PASS:?DB_PASS es obligatorio en produccion}@db-identidad:5432/identidad_db?schema=public'
       SERVICE_NAME: 'servicio-identidad'
       SERVICE_AUD_ENFORCE: 'true'
-      RABBITMQ_URI: 'amqp://${RABBITMQ_USER:-nachopps}:${RABBITMQ_PASS:?RABBITMQ_PASS es obligatorio en produccion}@rabbitmq:5672'
+      RABBITMQ_URI: 'amqp://${RABBITMQ_USER:-restoapp}:${RABBITMQ_PASS:?RABBITMQ_PASS es obligatorio en produccion}@rabbitmq:5672'
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4318}
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY:?JWT_PUBLIC_KEY es obligatorio (PEM RS256, \n literales)}
       SERVICE_JWT_SECRET: ${SERVICE_JWT_SECRET:?SERVICE_JWT_SECRET es obligatorio (tokens S2S internos)}
@@ -228,16 +228,16 @@ services:
         condition: service_healthy
 
   servicio-mesas:
-    image: ${REGISTRY:-nachopps}/servicio-mesas:latest
-    container_name: nachopps-servicio-mesas
+    image: ${REGISTRY:-restoapp}/restoapp-servicio-mesas:latest
+    container_name: restoapp-servicio-mesas
     restart: unless-stopped
     stop_grace_period: 30s
     environment:
       PORT: '3000'
-      DATABASE_URL: 'postgresql://${DB_USER:-nachopps}:${DB_PASS:?DB_PASS es obligatorio en produccion}@db-mesas:5432/mesas_db?schema=public'
+      DATABASE_URL: 'postgresql://${DB_USER:-restoapp}:${DB_PASS:?DB_PASS es obligatorio en produccion}@db-mesas:5432/mesas_db?schema=public'
       SERVICE_NAME: 'servicio-mesas'
       SERVICE_AUD_ENFORCE: 'true'
-      RABBITMQ_URI: 'amqp://${RABBITMQ_USER:-nachopps}:${RABBITMQ_PASS:?RABBITMQ_PASS es obligatorio en produccion}@rabbitmq:5672'
+      RABBITMQ_URI: 'amqp://${RABBITMQ_USER:-restoapp}:${RABBITMQ_PASS:?RABBITMQ_PASS es obligatorio en produccion}@rabbitmq:5672'
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4318}
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY:?JWT_PUBLIC_KEY es obligatorio (PEM RS256, \n literales)}
       SERVICE_JWT_SECRET: ${SERVICE_JWT_SECRET:?SERVICE_JWT_SECRET es obligatorio (tokens S2S internos)}
@@ -256,16 +256,16 @@ services:
         condition: service_healthy
 
   servicio-pedidos:
-    image: ${REGISTRY:-nachopps}/servicio-pedidos:latest
-    container_name: nachopps-servicio-pedidos
+    image: ${REGISTRY:-restoapp}/restoapp-servicio-pedidos:latest
+    container_name: restoapp-servicio-pedidos
     restart: unless-stopped
     stop_grace_period: 30s
     environment:
       PORT: '3000'
-      DATABASE_URL: 'postgresql://${DB_USER:-nachopps}:${DB_PASS:?DB_PASS es obligatorio en produccion}@db-pedidos:5432/pedidos_db?schema=public'
+      DATABASE_URL: 'postgresql://${DB_USER:-restoapp}:${DB_PASS:?DB_PASS es obligatorio en produccion}@db-pedidos:5432/pedidos_db?schema=public'
       SERVICE_NAME: 'servicio-pedidos'
       SERVICE_AUD_ENFORCE: 'true'
-      RABBITMQ_URI: 'amqp://${RABBITMQ_USER:-nachopps}:${RABBITMQ_PASS:?RABBITMQ_PASS es obligatorio en produccion}@rabbitmq:5672'
+      RABBITMQ_URI: 'amqp://${RABBITMQ_USER:-restoapp}:${RABBITMQ_PASS:?RABBITMQ_PASS es obligatorio en produccion}@rabbitmq:5672'
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4318}
       INVENTARIO_SERVICE_URL: 'http://servicio-inventario:3000/api'
       MESAS_SERVICE_URL: 'http://servicio-mesas:3000/api'
@@ -286,16 +286,16 @@ services:
         condition: service_healthy
 
   servicio-cuentas:
-    image: ${REGISTRY:-nachopps}/servicio-cuentas:latest
-    container_name: nachopps-servicio-cuentas
+    image: ${REGISTRY:-restoapp}/restoapp-servicio-cuentas:latest
+    container_name: restoapp-servicio-cuentas
     restart: unless-stopped
     stop_grace_period: 30s
     environment:
       PORT: '3000'
-      DATABASE_URL: 'postgresql://${DB_USER:-nachopps}:${DB_PASS:?DB_PASS es obligatorio en produccion}@db-cuentas:5432/cuentas_db?schema=public'
+      DATABASE_URL: 'postgresql://${DB_USER:-restoapp}:${DB_PASS:?DB_PASS es obligatorio en produccion}@db-cuentas:5432/cuentas_db?schema=public'
       SERVICE_NAME: 'servicio-cuentas'
       SERVICE_AUD_ENFORCE: 'true'
-      RABBITMQ_URI: 'amqp://${RABBITMQ_USER:-nachopps}:${RABBITMQ_PASS:?RABBITMQ_PASS es obligatorio en produccion}@rabbitmq:5672'
+      RABBITMQ_URI: 'amqp://${RABBITMQ_USER:-restoapp}:${RABBITMQ_PASS:?RABBITMQ_PASS es obligatorio en produccion}@rabbitmq:5672'
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4318}
       PEDIDOS_SERVICE_URL: 'http://servicio-pedidos:3000/api'
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY:?JWT_PUBLIC_KEY es obligatorio (PEM RS256, \n literales)}
@@ -315,16 +315,16 @@ services:
         condition: service_healthy
 
   servicio-reservas:
-    image: ${REGISTRY:-nachopps}/servicio-reservas:latest
-    container_name: nachopps-servicio-reservas
+    image: ${REGISTRY:-restoapp}/restoapp-servicio-reservas:latest
+    container_name: restoapp-servicio-reservas
     restart: unless-stopped
     stop_grace_period: 30s
     environment:
       PORT: '3000'
-      DATABASE_URL: 'postgresql://${DB_USER:-nachopps}:${DB_PASS:?DB_PASS es obligatorio en produccion}@db-reservas:5432/reservas_db?schema=public'
+      DATABASE_URL: 'postgresql://${DB_USER:-restoapp}:${DB_PASS:?DB_PASS es obligatorio en produccion}@db-reservas:5432/reservas_db?schema=public'
       SERVICE_NAME: 'servicio-reservas'
       SERVICE_AUD_ENFORCE: 'true'
-      RABBITMQ_URI: 'amqp://${RABBITMQ_USER:-nachopps}:${RABBITMQ_PASS:?RABBITMQ_PASS es obligatorio en produccion}@rabbitmq:5672'
+      RABBITMQ_URI: 'amqp://${RABBITMQ_USER:-restoapp}:${RABBITMQ_PASS:?RABBITMQ_PASS es obligatorio en produccion}@rabbitmq:5672'
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4318}
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY:?JWT_PUBLIC_KEY es obligatorio (PEM RS256, \n literales)}
       SERVICE_JWT_SECRET: ${SERVICE_JWT_SECRET:?SERVICE_JWT_SECRET es obligatorio (tokens S2S internos)}
@@ -343,16 +343,16 @@ services:
         condition: service_healthy
 
   servicio-inventario:
-    image: ${REGISTRY:-nachopps}/servicio-inventario:latest
-    container_name: nachopps-servicio-inventario
+    image: ${REGISTRY:-restoapp}/restoapp-servicio-inventario:latest
+    container_name: restoapp-servicio-inventario
     restart: unless-stopped
     stop_grace_period: 30s
     environment:
       PORT: '3000'
-      DATABASE_URL: 'postgresql://${DB_USER:-nachopps}:${DB_PASS:?DB_PASS es obligatorio en produccion}@db-inventario:5432/inventario_db?schema=public'
+      DATABASE_URL: 'postgresql://${DB_USER:-restoapp}:${DB_PASS:?DB_PASS es obligatorio en produccion}@db-inventario:5432/inventario_db?schema=public'
       SERVICE_NAME: 'servicio-inventario'
       SERVICE_AUD_ENFORCE: 'true'
-      RABBITMQ_URI: 'amqp://${RABBITMQ_USER:-nachopps}:${RABBITMQ_PASS:?RABBITMQ_PASS es obligatorio en produccion}@rabbitmq:5672'
+      RABBITMQ_URI: 'amqp://${RABBITMQ_USER:-restoapp}:${RABBITMQ_PASS:?RABBITMQ_PASS es obligatorio en produccion}@rabbitmq:5672'
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4318}
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY:?JWT_PUBLIC_KEY es obligatorio (PEM RS256, \n literales)}
       SERVICE_JWT_SECRET: ${SERVICE_JWT_SECRET:?SERVICE_JWT_SECRET es obligatorio (tokens S2S internos)}
@@ -371,16 +371,16 @@ services:
         condition: service_healthy
 
   servicio-notificaciones:
-    image: ${REGISTRY:-nachopps}/servicio-notificaciones:latest
-    container_name: nachopps-servicio-notificaciones
+    image: ${REGISTRY:-restoapp}/restoapp-servicio-notificaciones:latest
+    container_name: restoapp-servicio-notificaciones
     restart: unless-stopped
     stop_grace_period: 30s
     environment:
       PORT: '3000'
-      DATABASE_URL: 'postgresql://${DB_USER:-nachopps}:${DB_PASS:?DB_PASS es obligatorio en produccion}@db-notificaciones:5432/notificaciones_db?schema=public'
+      DATABASE_URL: 'postgresql://${DB_USER:-restoapp}:${DB_PASS:?DB_PASS es obligatorio en produccion}@db-notificaciones:5432/notificaciones_db?schema=public'
       SERVICE_NAME: 'servicio-notificaciones'
       SERVICE_AUD_ENFORCE: 'true'
-      RABBITMQ_URI: 'amqp://${RABBITMQ_USER:-nachopps}:${RABBITMQ_PASS:?RABBITMQ_PASS es obligatorio en produccion}@rabbitmq:5672'
+      RABBITMQ_URI: 'amqp://${RABBITMQ_USER:-restoapp}:${RABBITMQ_PASS:?RABBITMQ_PASS es obligatorio en produccion}@rabbitmq:5672'
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4318}
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY:?JWT_PUBLIC_KEY es obligatorio (PEM RS256, \n literales)}
       SERVICE_JWT_SECRET: ${SERVICE_JWT_SECRET:?SERVICE_JWT_SECRET es obligatorio (tokens S2S internos)}
@@ -399,16 +399,16 @@ services:
         condition: service_healthy
 
   servicio-caja:
-    image: ${REGISTRY:-nachopps}/servicio-caja:latest
-    container_name: nachopps-servicio-caja
+    image: ${REGISTRY:-restoapp}/restoapp-servicio-caja:latest
+    container_name: restoapp-servicio-caja
     restart: unless-stopped
     stop_grace_period: 30s
     environment:
       PORT: '3000'
-      DATABASE_URL: 'postgresql://${DB_USER:-nachopps}:${DB_PASS:?DB_PASS es obligatorio en produccion}@db-caja:5432/caja_db?schema=public'
+      DATABASE_URL: 'postgresql://${DB_USER:-restoapp}:${DB_PASS:?DB_PASS es obligatorio en produccion}@db-caja:5432/caja_db?schema=public'
       SERVICE_NAME: 'servicio-caja'
       SERVICE_AUD_ENFORCE: 'true'
-      RABBITMQ_URI: 'amqp://${RABBITMQ_USER:-nachopps}:${RABBITMQ_PASS:?RABBITMQ_PASS es obligatorio en produccion}@rabbitmq:5672'
+      RABBITMQ_URI: 'amqp://${RABBITMQ_USER:-restoapp}:${RABBITMQ_PASS:?RABBITMQ_PASS es obligatorio en produccion}@rabbitmq:5672'
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4318}
       CUENTAS_SERVICE_URL: 'http://servicio-cuentas:3000/api'
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY:?JWT_PUBLIC_KEY es obligatorio (PEM RS256, \n literales)}
@@ -428,16 +428,16 @@ services:
         condition: service_healthy
 
   servicio-reportes:
-    image: ${REGISTRY:-nachopps}/servicio-reportes:latest
-    container_name: nachopps-servicio-reportes
+    image: ${REGISTRY:-restoapp}/restoapp-servicio-reportes:latest
+    container_name: restoapp-servicio-reportes
     restart: unless-stopped
     stop_grace_period: 30s
     environment:
       PORT: '3000'
-      DATABASE_URL: 'postgresql://${DB_USER:-nachopps}:${DB_PASS:?DB_PASS es obligatorio en produccion}@db-reportes:5432/reportes_db?schema=public'
+      DATABASE_URL: 'postgresql://${DB_USER:-restoapp}:${DB_PASS:?DB_PASS es obligatorio en produccion}@db-reportes:5432/reportes_db?schema=public'
       SERVICE_NAME: 'servicio-reportes'
       SERVICE_AUD_ENFORCE: 'true'
-      RABBITMQ_URI: 'amqp://${RABBITMQ_USER:-nachopps}:${RABBITMQ_PASS:?RABBITMQ_PASS es obligatorio en produccion}@rabbitmq:5672'
+      RABBITMQ_URI: 'amqp://${RABBITMQ_USER:-restoapp}:${RABBITMQ_PASS:?RABBITMQ_PASS es obligatorio en produccion}@rabbitmq:5672'
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4318}
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY:?JWT_PUBLIC_KEY es obligatorio (PEM RS256, \n literales)}
       SERVICE_JWT_SECRET: ${SERVICE_JWT_SECRET:?SERVICE_JWT_SECRET es obligatorio (tokens S2S internos)}
@@ -456,16 +456,16 @@ services:
         condition: service_healthy
 
   servicio-facturacion:
-    image: ${REGISTRY:-nachopps}/servicio-facturacion:latest
-    container_name: nachopps-servicio-facturacion
+    image: ${REGISTRY:-restoapp}/restoapp-servicio-facturacion:latest
+    container_name: restoapp-servicio-facturacion
     restart: unless-stopped
     stop_grace_period: 30s
     environment:
       PORT: '3000'
-      DATABASE_URL: 'postgresql://${DB_USER:-nachopps}:${DB_PASS:?DB_PASS es obligatorio en produccion}@db-facturacion:5432/facturacion_db?schema=public'
+      DATABASE_URL: 'postgresql://${DB_USER:-restoapp}:${DB_PASS:?DB_PASS es obligatorio en produccion}@db-facturacion:5432/facturacion_db?schema=public'
       SERVICE_NAME: 'servicio-facturacion'
       SERVICE_AUD_ENFORCE: 'true'
-      RABBITMQ_URI: 'amqp://${RABBITMQ_USER:-nachopps}:${RABBITMQ_PASS:?RABBITMQ_PASS es obligatorio en produccion}@rabbitmq:5672'
+      RABBITMQ_URI: 'amqp://${RABBITMQ_USER:-restoapp}:${RABBITMQ_PASS:?RABBITMQ_PASS es obligatorio en produccion}@rabbitmq:5672'
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4318}
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY:?JWT_PUBLIC_KEY es obligatorio (PEM RS256, \n literales)}
       SERVICE_JWT_SECRET: ${SERVICE_JWT_SECRET:?SERVICE_JWT_SECRET es obligatorio (tokens S2S internos)}
@@ -497,16 +497,16 @@ services:
         condition: service_healthy
 
   servicio-compras:
-    image: ${REGISTRY:-nachopps}/servicio-compras:latest
-    container_name: nachopps-servicio-compras
+    image: ${REGISTRY:-restoapp}/restoapp-servicio-compras:latest
+    container_name: restoapp-servicio-compras
     restart: unless-stopped
     stop_grace_period: 30s
     environment:
       PORT: '3000'
-      DATABASE_URL: 'postgresql://${DB_USER:-nachopps}:${DB_PASS:?DB_PASS es obligatorio en produccion}@db-compras:5432/compras_db?schema=public'
+      DATABASE_URL: 'postgresql://${DB_USER:-restoapp}:${DB_PASS:?DB_PASS es obligatorio en produccion}@db-compras:5432/compras_db?schema=public'
       SERVICE_NAME: 'servicio-compras'
       SERVICE_AUD_ENFORCE: 'true'
-      RABBITMQ_URI: 'amqp://${RABBITMQ_USER:-nachopps}:${RABBITMQ_PASS:?RABBITMQ_PASS es obligatorio en produccion}@rabbitmq:5672'
+      RABBITMQ_URI: 'amqp://${RABBITMQ_USER:-restoapp}:${RABBITMQ_PASS:?RABBITMQ_PASS es obligatorio en produccion}@rabbitmq:5672'
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4318}
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY:?JWT_PUBLIC_KEY es obligatorio (PEM RS256, \n literales)}
       SERVICE_JWT_SECRET: ${SERVICE_JWT_SECRET:?SERVICE_JWT_SECRET es obligatorio (tokens S2S internos)}
@@ -518,8 +518,8 @@ services:
       COMPROBANTE_WEBP_QUALITY: ${COMPROBANTE_WEBP_QUALITY:-72}
     volumes:
       # Fotos de boletas/facturas de compra: deben entrar en la rutina de
-      # backup junto a nachopps-backups (ver bloque de backups más abajo).
-      - nachopps-comprobantes:/data/comprobantes
+      # backup junto a restoapp-backups (ver bloque de backups más abajo).
+      - restoapp-comprobantes:/data/comprobantes
     healthcheck:
       test: ['CMD', 'wget', '-qO-', 'http://localhost:3000/api/health/live']
       interval: 10s
@@ -536,8 +536,8 @@ services:
   # FRONTEND (PWA)
   # ═══════════════════════════════════════════════════
   pwa-cliente:
-    image: ${REGISTRY:-ghcr.io/Maczz09/nachoppssoa}/pwa-cliente:latest
-    container_name: nachopps-pwa-cliente
+    image: ${REGISTRY:-ghcr.io/Maczz09/restoappsoa}/pwa-cliente:latest
+    container_name: restoapp-pwa-cliente
     restart: unless-stopped
     ports:
       - '8080:8080'
@@ -549,8 +549,8 @@ services:
     build:
       context: kong
       dockerfile: Dockerfile
-    image: ${REGISTRY:-nachopps}/kong:latest
-    container_name: nachopps-kong
+    image: ${REGISTRY:-restoapp}/restoapp-kong:latest
+    container_name: restoapp-kong
     restart: unless-stopped
     environment:
       KONG_DATABASE: 'off'
@@ -591,7 +591,7 @@ services:
   # Jaeger. Los servicios apuntan a http://otel-collector:4318 (sin cambios).
   otel-collector:
     image: otel/opentelemetry-collector-contrib:latest
-    container_name: nachopps-otel-collector
+    container_name: restoapp-otel-collector
     command: ['--config=/etc/otel-collector/otel-collector-config.yml']
     volumes:
       - ./otel-collector/otel-collector-config.yml:/etc/otel-collector/otel-collector-config.yml:ro
@@ -604,7 +604,7 @@ services:
   # interna / túnel SSH (sin publicar al host en prod).
   jaeger:
     image: jaegertracing/all-in-one:latest
-    container_name: nachopps-jaeger
+    container_name: restoapp-jaeger
     environment:
       SPAN_STORAGE_TYPE: badger
       BADGER_EPHEMERAL: 'false'
@@ -616,7 +616,7 @@ services:
 
   prometheus:
     image: prom/prometheus:latest
-    container_name: nachopps-prometheus
+    container_name: restoapp-prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
@@ -632,7 +632,7 @@ services:
 
   alertmanager:
     image: prom/alertmanager:latest
-    container_name: nachopps-alertmanager
+    container_name: restoapp-alertmanager
     # Instancia única, sin peers de cluster configurados: sin esto el gossip
     # mesh puede fallar a arrancar ("no private IP found") en algunos hosts.
     command:
@@ -645,7 +645,7 @@ services:
 
   grafana:
     image: grafana/grafana:latest
-    container_name: nachopps-grafana
+    container_name: restoapp-grafana
     restart: unless-stopped
     ports:
       - '3000:3000'
@@ -658,24 +658,24 @@ services:
 
   # Backups de las 9 BDs (plan 3.5): pg_dump diario + retención. Para almacenar
   # fuera del host, montar un bind a un volumen de red/objeto o sincronizar
-  # nachopps-backups a S3 con un job aparte.
+  # restoapp-backups a S3 con un job aparte.
   db-backup:
     image: postgres:16-alpine
-    container_name: nachopps-db-backup
+    container_name: restoapp-db-backup
     environment:
-      DB_USER: ${DB_USER:-nachopps}
+      DB_USER: ${DB_USER:-restoapp}
       DB_PASS: ${DB_PASS:?DB_PASS es obligatorio en produccion}
       RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-7}
       BACKUP_DIR: /backups
     volumes:
       - ../scripts/backup-postgres.sh:/usr/local/bin/backup.sh:ro
-      - nachopps-backups:/backups
+      - restoapp-backups:/backups
     entrypoint: ['/bin/sh', '-c', 'while true; do sh /usr/local/bin/backup.sh || echo "[db-backup] ciclo con fallos"; sleep 86400; done']
     restart: unless-stopped
 
   watchtower:
     image: containrrr/watchtower:latest
-    container_name: nachopps-watchtower
+    container_name: restoapp-watchtower
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ~/.docker/config.json:/config.json:ro
@@ -685,22 +685,22 @@ services:
     restart: unless-stopped
 
 volumes:
-  nachopps-backups:
+  restoapp-backups:
   # Observabilidad persistente.
   prometheus_data:
   grafana_data:
   jaeger_data:
-  nachopps-db-reservas:
-  nachopps-db-mesas:
-  nachopps-db-pedidos:
-  nachopps-db-cuentas:
-  nachopps-db-inventario:
-  nachopps-db-caja:
-  nachopps-db-reportes:
-  nachopps-db-facturacion:
-  nachopps-db-compras:
+  restoapp-db-reservas:
+  restoapp-db-mesas:
+  restoapp-db-pedidos:
+  restoapp-db-cuentas:
+  restoapp-db-inventario:
+  restoapp-db-caja:
+  restoapp-db-reportes:
+  restoapp-db-facturacion:
+  restoapp-db-compras:
   # Fotos de boletas/facturas de compra (WebP + miniatura). Debe entrar en la
-  # rutina de backup junto a nachopps-backups.
-  nachopps-comprobantes:
-  nachopps-db-identidad:
-  nachopps-db-notificaciones:
+  # rutina de backup junto a restoapp-backups.
+  restoapp-comprobantes:
+  restoapp-db-identidad:
+  restoapp-db-notificaciones:

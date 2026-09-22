@@ -34,3 +34,27 @@ export function wsRoomsForPattern(pattern: string): string[] {
   const roles = WS_EVENT_ROLES[dominio] ?? [];
   return roles.map(wsRoomForRole);
 }
+
+/** Prefijo de room por tenant y rol (aislamiento estricto SaaS). */
+export const wsRoomForTenantRole = (tenantId: string, rol: string, sedeId?: string | null): string =>
+  sedeId ? `tenant:${tenantId}:sede:${sedeId}:rol:${rol}` : `tenant:${tenantId}:rol:${rol}`;
+
+/** Room para todo un tenant o tenant/sede */
+export const wsRoomForTenant = (tenantId: string): string => `tenant:${tenantId}`;
+export const wsRoomForTenantSede = (tenantId: string, sedeId: string): string => `tenant:${tenantId}:sede:${sedeId}`;
+
+/**
+ * Devuelve los rooms tenant-aware que deben recibir un evento según su routing key, tenantId y sedeId.
+ */
+export function wsTenantRoomsForPattern(pattern: string, tenantId: string, sedeId?: string | null): string[] {
+  if (!tenantId) return wsRoomsForPattern(pattern);
+  const dominio = pattern.split('.')[0];
+  const roles = WS_EVENT_ROLES[dominio] ?? [];
+  const rooms: string[] = roles.map((rol) => wsRoomForTenantRole(tenantId, rol, sedeId));
+  if (sedeId) {
+    roles.forEach((rol) => {
+      rooms.push(wsRoomForTenantRole(tenantId, rol));
+    });
+  }
+  return rooms;
+}

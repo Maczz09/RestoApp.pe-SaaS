@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
-import { Roles, RolesGuard } from '@org/shared-auth';
+import { Roles, RolesGuard, TenantActual } from '@org/shared-auth';
 import { UsuarioActual } from '@org/observabilidad';
 import { CrearReservaCommand, ListarReservasQuery } from '@org/contracts';
 import { ReservasService } from './reservas.service';
@@ -12,7 +12,14 @@ export class AppController {
   constructor(private readonly reservas: ReservasService) {}
 
   @Get()
-  listar(@Query() query: ListarReservasQuery, @UsuarioActual('sedeId') usuarioSedeId: string | null) {
+  listar(
+    @Query() query: ListarReservasQuery,
+    @UsuarioActual('sedeId') usuarioSedeId: string | null,
+    @TenantActual() tenantId?: string | null,
+  ) {
+    if (tenantId !== undefined) {
+      return this.reservas.listar(query, usuarioSedeId, tenantId);
+    }
     return this.reservas.listar(query, usuarioSedeId);
   }
 
@@ -23,7 +30,11 @@ export class AppController {
     @Query('mesaPreferida') mesaPreferida: string | undefined,
     @UsuarioActual('sedeId') usuarioSedeId: string | null,
     @Query('sedeId') sedeId?: string,
+    @TenantActual() tenantId?: string | null,
   ) {
+    if (tenantId !== undefined) {
+      return this.reservas.consultarDisponibilidad(fecha, hora, mesaPreferida, usuarioSedeId, sedeId, tenantId);
+    }
     return this.reservas.consultarDisponibilidad(fecha, hora, mesaPreferida, usuarioSedeId, sedeId);
   }
 
@@ -35,17 +46,24 @@ export class AppController {
     @UsuarioActual('email') usuarioEmail: string | null,
     @UsuarioActual('sedeId') usuarioSedeId: string | null,
     @Query('sedeId') sedeId?: string,
+    @TenantActual() tenantId?: string | null,
   ) {
-    return this.reservas.crear(
-      body,
-      usuarioId ? { id: usuarioId, nombre: usuarioNombre ?? usuarioEmail ?? usuarioId } : null,
-      usuarioSedeId,
-      sedeId,
-    );
+    const usuario = usuarioId ? { id: usuarioId, nombre: usuarioNombre ?? usuarioEmail ?? usuarioId } : null;
+    if (tenantId !== undefined) {
+      return this.reservas.crear(body, usuario, usuarioSedeId, sedeId, tenantId);
+    }
+    return this.reservas.crear(body, usuario, usuarioSedeId, sedeId);
   }
 
   @Patch(':id/confirmar')
-  confirmar(@Param('id') id: string, @UsuarioActual('sedeId') usuarioSedeId: string | null) {
+  confirmar(
+    @Param('id') id: string,
+    @UsuarioActual('sedeId') usuarioSedeId: string | null,
+    @TenantActual() tenantId?: string | null,
+  ) {
+    if (tenantId !== undefined) {
+      return this.reservas.confirmar(id, usuarioSedeId, tenantId);
+    }
     return this.reservas.confirmar(id, usuarioSedeId);
   }
 
@@ -54,7 +72,12 @@ export class AppController {
     @Param('id') id: string,
     @Query('motivo') motivo: string | undefined,
     @UsuarioActual('sedeId') usuarioSedeId: string | null,
+    @TenantActual() tenantId?: string | null,
   ) {
+    if (tenantId !== undefined) {
+      return this.reservas.cancelar(id, motivo, usuarioSedeId, tenantId);
+    }
     return this.reservas.cancelar(id, motivo, usuarioSedeId);
   }
 }
+

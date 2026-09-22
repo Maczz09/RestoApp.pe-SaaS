@@ -67,6 +67,20 @@ export function createBasePrismaService<T extends new (...args: any[]) => any>(P
       if (this.poolMetricsTimer) clearInterval(this.poolMetricsTimer);
       await (this as unknown as { $disconnect(): Promise<void> }).$disconnect();
     }
+
+    /**
+     * Executes a callback within a database transaction where PostgreSQL's session-local
+     * tenant context (`app.tenant_id`) is set. This activates Row-Level Security policies.
+     */
+    async withTenant<R>(tenantId: string, fn: (tx: any) => Promise<R>): Promise<R> {
+      if (!tenantId || typeof tenantId !== 'string' || tenantId.trim() === '') {
+        throw new Error('Tenant ID is required for withTenant execution');
+      }
+      return (this as unknown as { $transaction: (cb: (tx: any) => Promise<R>) => Promise<R> }).$transaction(async (tx) => {
+        await tx.$executeRaw`SELECT set_config('app.tenant_id', ${tenantId}, true)`;
+        return fn(tx);
+      });
+    }
   }
 
   return BasePrismaService;

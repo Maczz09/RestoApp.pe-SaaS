@@ -33,6 +33,7 @@ export class AppService {
       where: { cuentaId: data.cuentaId },
       create: {
         cuentaId: data.cuentaId,
+        ...(data.tenantId ? { tenantId: data.tenantId } : {}),
         sedeId,
         mesaId: data.mesaId,
         total: data.total,
@@ -101,10 +102,18 @@ export class AppService {
   }
 
   /** Reporte por producto en un rango: cantidad e ingresos, ordenado por ingresos. */
-  async obtenerPorProducto(query?: { desde?: string; hasta?: string; sedeId?: string }, usuarioSedeId?: string | null) {
+  async obtenerPorProducto(
+    query?: { desde?: string; hasta?: string; sedeId?: string },
+    usuarioSedeId?: string | null,
+    tenantId?: string | null,
+  ) {
     const { gte, lte } = this.rango(query);
     const ventas = await this.prisma.ventaDiaria.findMany({
-      where: { fecha: { gte, lte }, ...this.filtroSede(usuarioSedeId, query?.sedeId) },
+      where: {
+        fecha: { gte, lte },
+        ...this.filtroSede(usuarioSedeId, query?.sedeId),
+        ...(tenantId ? { tenantId } : {}),
+      },
     });
     const stats = new Map<string, { nombre: string; cantidad: number; ingresos: number }>();
     for (const v of ventas) {
@@ -128,10 +137,18 @@ export class AppService {
   }
 
   /** Reporte por turno (ALMUERZO/CENA/OTRO) en un rango. */
-  async obtenerPorTurno(query?: { desde?: string; hasta?: string; sedeId?: string }, usuarioSedeId?: string | null) {
+  async obtenerPorTurno(
+    query?: { desde?: string; hasta?: string; sedeId?: string },
+    usuarioSedeId?: string | null,
+    tenantId?: string | null,
+  ) {
     const { gte, lte } = this.rango(query);
     const ventas = await this.prisma.ventaDiaria.findMany({
-      where: { fecha: { gte, lte }, ...this.filtroSede(usuarioSedeId, query?.sedeId) },
+      where: {
+        fecha: { gte, lte },
+        ...this.filtroSede(usuarioSedeId, query?.sedeId),
+        ...(tenantId ? { tenantId } : {}),
+      },
     });
     const turnos = new Map<string, { totalVentas: number; ingresos: number }>();
     for (const v of ventas) {
@@ -149,10 +166,18 @@ export class AppService {
   }
 
   /** Reporte por mesero en un rango (agrupa lo sin asignar aparte). */
-  async obtenerPorMesero(query?: { desde?: string; hasta?: string; sedeId?: string }, usuarioSedeId?: string | null) {
+  async obtenerPorMesero(
+    query?: { desde?: string; hasta?: string; sedeId?: string },
+    usuarioSedeId?: string | null,
+    tenantId?: string | null,
+  ) {
     const { gte, lte } = this.rango(query);
     const ventas = await this.prisma.ventaDiaria.findMany({
-      where: { fecha: { gte, lte }, ...this.filtroSede(usuarioSedeId, query?.sedeId) },
+      where: {
+        fecha: { gte, lte },
+        ...this.filtroSede(usuarioSedeId, query?.sedeId),
+        ...(tenantId ? { tenantId } : {}),
+      },
     });
     const meseros = new Map<string, { meseroNombre: string; totalVentas: number; ingresos: number }>();
     for (const v of ventas) {
@@ -175,13 +200,18 @@ export class AppService {
     };
   }
 
-  async obtenerResumenDiario(query?: { desde?: string; hasta?: string; sedeId?: string }, usuarioSedeId?: string | null) {
+  async obtenerResumenDiario(
+    query?: { desde?: string; hasta?: string; sedeId?: string },
+    usuarioSedeId?: string | null,
+    tenantId?: string | null,
+  ) {
     const { gte, lte } = this.rango(query);
 
     const ventas = await this.prisma.ventaDiaria.findMany({
       where: {
         fecha: { gte, lte },
         ...this.filtroSede(usuarioSedeId, query?.sedeId),
+        ...(tenantId ? { tenantId } : {}),
       },
     });
 
@@ -243,5 +273,4 @@ export class AppService {
       topProductos,
     };
   }
-
 }

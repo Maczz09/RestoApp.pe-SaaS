@@ -7,3 +7,5 @@
 Dockerfile text eol=lf
 *.dockerfile text eol=lf
 entrypoint* text eol=lf
+apps/pwa-cliente/public/brand/*.png filter=lfs diff=lfs merge=lfs -text
+apps/pwa-cliente/src/assets/brand/*.png filter=lfs diff=lfs merge=lfs -text

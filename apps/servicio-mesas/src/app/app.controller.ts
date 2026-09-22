@@ -1,5 +1,5 @@
 import { Controller, Get, Post, Body, Param, Patch, Delete, ParseUUIDPipe, UseGuards, Query } from '@nestjs/common';
-import { Roles, RolesGuard } from '@org/shared-auth';
+import { Roles, RolesGuard, TenantActual } from '@org/shared-auth';
 import { UsuarioActual } from '@org/observabilidad';
 import { AppService } from './app.service';
 import { CrearMesaCommand, ActualizarEstadoMesaCommand, CrearUbicacionCommand, ActualizarUbicacionCommand, UnirMesasCommand } from '@org/contracts';
@@ -15,15 +15,23 @@ export class AppController {
   constructor(private readonly appService: AppService) {}
 
   @Get()
-  listarMesas(@UsuarioActual('sedeId') usuarioSedeId: string | null, @Query('sedeId') sedeId?: string) {
-    return this.appService.listarMesas(usuarioSedeId, sedeId);
+  listarMesas(
+    @UsuarioActual('sedeId') usuarioSedeId?: string | null,
+    @Query('sedeId') sedeId?: string,
+    @TenantActual() tenantId?: string | null,
+  ) {
+    return this.appService.listarMesas(usuarioSedeId, sedeId, tenantId);
   }
 
   // --- UBICACIONES --- (antes de ':id' para que no lo capture esa ruta)
 
   @Get('ubicaciones')
-  listarUbicaciones(@UsuarioActual('sedeId') usuarioSedeId: string | null, @Query('sedeId') sedeId?: string) {
-    return this.appService.listarUbicaciones(usuarioSedeId, sedeId);
+  listarUbicaciones(
+    @UsuarioActual('sedeId') usuarioSedeId?: string | null,
+    @Query('sedeId') sedeId?: string,
+    @TenantActual() tenantId?: string | null,
+  ) {
+    return this.appService.listarUbicaciones(usuarioSedeId, sedeId, tenantId);
   }
 
   // Gestión de zonas = configuración del salón, reservada a administración.
@@ -31,9 +39,13 @@ export class AppController {
   @Post('ubicaciones')
   crearUbicacion(
     @Body() body: CrearUbicacionCommand,
-    @UsuarioActual('sedeId') usuarioSedeId: string | null,
+    @UsuarioActual('sedeId') usuarioSedeId?: string | null,
     @Query('sedeId') sedeId?: string,
+    @TenantActual() tenantId?: string | null,
   ) {
+    if (tenantId !== undefined) {
+      return this.appService.crearUbicacion(body, usuarioSedeId, sedeId, tenantId);
+    }
     return this.appService.crearUbicacion(body, usuarioSedeId, sedeId);
   }
 
@@ -59,9 +71,13 @@ export class AppController {
   @Post()
   crearMesa(
     @Body() body: CrearMesaCommand,
-    @UsuarioActual('sedeId') usuarioSedeId: string | null,
+    @UsuarioActual('sedeId') usuarioSedeId?: string | null,
     @Query('sedeId') sedeId?: string,
+    @TenantActual() tenantId?: string | null,
   ) {
+    if (tenantId !== undefined) {
+      return this.appService.crearMesa(body, usuarioSedeId, sedeId, tenantId);
+    }
     return this.appService.crearMesa(body, usuarioSedeId, sedeId);
   }
 

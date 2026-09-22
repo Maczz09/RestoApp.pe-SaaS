@@ -1,6 +1,6 @@
 import { Controller, Logger, Get, Query, UseInterceptors, UseGuards } from '@nestjs/common';
 import { EventPattern, Payload } from '@nestjs/microservices';
-import { Roles, RolesGuard } from '@org/shared-auth';
+import { Roles, RolesGuard, TenantActual } from '@org/shared-auth';
 import { AppService } from './app.service';
 import { CuentaCerradaPayload, RoutingKeys } from '@org/contracts';
 import { RabbitMQRetryInterceptor } from '@org/resiliencia';
@@ -25,7 +25,14 @@ export class AppController {
   @UseGuards(RolesGuard)
   @Roles('ADMIN', 'SISTEMA', 'GERENCIA')
   @Get('resumen')
-  async getResumen(@Query() query: ReporteRangoQuery, @UsuarioActual('sedeId') usuarioSedeId: string | null) {
+  async getResumen(
+    @Query() query: ReporteRangoQuery,
+    @UsuarioActual('sedeId') usuarioSedeId: string | null,
+    @TenantActual() tenantId?: string | null,
+  ) {
+    if (tenantId !== undefined) {
+      return this.appService.obtenerResumenDiario(query, usuarioSedeId, tenantId);
+    }
     return this.appService.obtenerResumenDiario(query, usuarioSedeId);
   }
 
@@ -33,21 +40,42 @@ export class AppController {
   @UseGuards(RolesGuard)
   @Roles('ADMIN', 'SISTEMA', 'GERENCIA')
   @Get('por-producto')
-  async porProducto(@Query() query: ReporteRangoQuery, @UsuarioActual('sedeId') usuarioSedeId: string | null) {
+  async porProducto(
+    @Query() query: ReporteRangoQuery,
+    @UsuarioActual('sedeId') usuarioSedeId: string | null,
+    @TenantActual() tenantId?: string | null,
+  ) {
+    if (tenantId !== undefined) {
+      return this.appService.obtenerPorProducto(query, usuarioSedeId, tenantId);
+    }
     return this.appService.obtenerPorProducto(query, usuarioSedeId);
   }
 
   @UseGuards(RolesGuard)
   @Roles('ADMIN', 'SISTEMA', 'GERENCIA')
   @Get('por-turno')
-  async porTurno(@Query() query: ReporteRangoQuery, @UsuarioActual('sedeId') usuarioSedeId: string | null) {
+  async porTurno(
+    @Query() query: ReporteRangoQuery,
+    @UsuarioActual('sedeId') usuarioSedeId: string | null,
+    @TenantActual() tenantId?: string | null,
+  ) {
+    if (tenantId !== undefined) {
+      return this.appService.obtenerPorTurno(query, usuarioSedeId, tenantId);
+    }
     return this.appService.obtenerPorTurno(query, usuarioSedeId);
   }
 
   @UseGuards(RolesGuard)
   @Roles('ADMIN', 'SISTEMA', 'GERENCIA')
   @Get('por-mesero')
-  async porMesero(@Query() query: ReporteRangoQuery, @UsuarioActual('sedeId') usuarioSedeId: string | null) {
+  async porMesero(
+    @Query() query: ReporteRangoQuery,
+    @UsuarioActual('sedeId') usuarioSedeId: string | null,
+    @TenantActual() tenantId?: string | null,
+  ) {
+    if (tenantId !== undefined) {
+      return this.appService.obtenerPorMesero(query, usuarioSedeId, tenantId);
+    }
     return this.appService.obtenerPorMesero(query, usuarioSedeId);
   }
 

@@ -3,7 +3,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { createReadStream } from 'node:fs';
 import type { Request, Response } from 'express';
-import { Roles, RolesGuard } from '@org/shared-auth';
+import { Roles, RolesGuard, TenantActual } from '@org/shared-auth';
 import { UsuarioActual } from '@org/observabilidad';
 import { IdempotencyInterceptor } from '@org/resiliencia';
 import {
@@ -54,7 +54,12 @@ export class AppController {
 
   // ── Proveedores ──
   @Get('proveedores')
-  listarProveedores(@Query() query: ListarProveedoresQuery, @UsuarioActual('sedeId') usuarioSedeId: string | null) {
+  listarProveedores(
+    @Query() query: ListarProveedoresQuery,
+    @UsuarioActual('sedeId') usuarioSedeId: string | null,
+    @TenantActual() tenantId?: string | null,
+  ) {
+    if (tenantId !== undefined) return this.proveedores.listar(query, usuarioSedeId, tenantId);
     return this.proveedores.listar(query, usuarioSedeId);
   }
 
@@ -63,7 +68,9 @@ export class AppController {
     @Body() body: CrearProveedorCommand,
     @UsuarioActual('sedeId') usuarioSedeId: string | null,
     @Query('sedeId') sedeId?: string,
+    @TenantActual() tenantId?: string | null,
   ) {
+    if (tenantId !== undefined) return this.proveedores.crear(body, usuarioSedeId, sedeId, tenantId);
     return this.proveedores.crear(body, usuarioSedeId, sedeId);
   }
 
@@ -83,7 +90,12 @@ export class AppController {
 
   // ── Insumos ──
   @Get('insumos')
-  listarInsumos(@Query() query: ListarInsumosQuery, @UsuarioActual('sedeId') usuarioSedeId: string | null) {
+  listarInsumos(
+    @Query() query: ListarInsumosQuery,
+    @UsuarioActual('sedeId') usuarioSedeId: string | null,
+    @TenantActual() tenantId?: string | null,
+  ) {
+    if (tenantId !== undefined) return this.insumos.listar(query, usuarioSedeId, tenantId);
     return this.insumos.listar(query, usuarioSedeId);
   }
 
@@ -92,7 +104,9 @@ export class AppController {
     @Body() body: CrearInsumoCommand,
     @UsuarioActual('sedeId') usuarioSedeId: string | null,
     @Query('sedeId') sedeId?: string,
+    @TenantActual() tenantId?: string | null,
   ) {
+    if (tenantId !== undefined) return this.insumos.crear(body, usuarioSedeId, sedeId, tenantId);
     return this.insumos.crear(body, usuarioSedeId, sedeId);
   }
 
@@ -112,17 +126,32 @@ export class AppController {
 
   // ── Órdenes de compra ──
   @Get('ordenes')
-  listarOrdenes(@Query() query: ListarOrdenesQuery, @UsuarioActual('sedeId') usuarioSedeId: string | null) {
+  listarOrdenes(
+    @Query() query: ListarOrdenesQuery,
+    @UsuarioActual('sedeId') usuarioSedeId: string | null,
+    @TenantActual() tenantId?: string | null,
+  ) {
+    if (tenantId !== undefined) return this.ordenes.listar(query, usuarioSedeId, tenantId);
     return this.ordenes.listar(query, usuarioSedeId);
   }
 
   @Get('resumen')
-  resumen(@UsuarioActual('sedeId') usuarioSedeId: string | null, @Query('sedeId') sedeId?: string) {
+  resumen(
+    @UsuarioActual('sedeId') usuarioSedeId: string | null,
+    @Query('sedeId') sedeId?: string,
+    @TenantActual() tenantId?: string | null,
+  ) {
+    if (tenantId !== undefined) return this.ordenes.resumen(usuarioSedeId, sedeId, tenantId);
     return this.ordenes.resumen(usuarioSedeId, sedeId);
   }
 
   @Get('ordenes/:id')
-  obtenerOrden(@Param('id') id: string, @UsuarioActual('sedeId') usuarioSedeId: string | null) {
+  obtenerOrden(
+    @Param('id') id: string,
+    @UsuarioActual('sedeId') usuarioSedeId: string | null,
+    @TenantActual() tenantId?: string | null,
+  ) {
+    if (tenantId !== undefined) return this.ordenes.obtener(id, usuarioSedeId, tenantId);
     return this.ordenes.obtener(id, usuarioSedeId);
   }
 
@@ -135,7 +164,9 @@ export class AppController {
     @UsuarioActual('email') usuarioEmail: string | null,
     @UsuarioActual('sedeId') usuarioSedeId: string | null,
     @Query('sedeId') sedeId?: string,
+    @TenantActual() tenantId?: string | null,
   ) {
+    if (tenantId !== undefined) return this.ordenes.crear(body, usuarioDe(usuarioId, usuarioNombre, usuarioEmail), usuarioSedeId, sedeId, tenantId);
     return this.ordenes.crear(body, usuarioDe(usuarioId, usuarioNombre, usuarioEmail), usuarioSedeId, sedeId);
   }
 
@@ -178,7 +209,12 @@ export class AppController {
 
   // ── Recepciones ──
   @Get('ordenes/:id/recepciones')
-  listarRecepciones(@Param('id') id: string, @UsuarioActual('sedeId') usuarioSedeId: string | null) {
+  listarRecepciones(
+    @Param('id') id: string,
+    @UsuarioActual('sedeId') usuarioSedeId: string | null,
+    @TenantActual() tenantId?: string | null,
+  ) {
+    if (tenantId !== undefined) return this.recepciones.listarPorOrden(id, usuarioSedeId, tenantId);
     return this.recepciones.listarPorOrden(id, usuarioSedeId);
   }
 
@@ -191,13 +227,20 @@ export class AppController {
     @UsuarioActual('nombre') usuarioNombre: string | null,
     @UsuarioActual('email') usuarioEmail: string | null,
     @UsuarioActual('sedeId') usuarioSedeId: string | null,
+    @TenantActual() tenantId?: string | null,
   ) {
+    if (tenantId !== undefined) return this.recepciones.registrar(id, body, usuarioDe(usuarioId, usuarioNombre, usuarioEmail), usuarioSedeId, tenantId);
     return this.recepciones.registrar(id, body, usuarioDe(usuarioId, usuarioNombre, usuarioEmail), usuarioSedeId);
   }
 
   // ── Comprobantes (foto de boleta/factura) ──
   @Get('comprobantes')
-  listarComprobantes(@Query() query: ListarComprobantesQuery, @UsuarioActual('sedeId') usuarioSedeId: string | null) {
+  listarComprobantes(
+    @Query() query: ListarComprobantesQuery,
+    @UsuarioActual('sedeId') usuarioSedeId: string | null,
+    @TenantActual() tenantId?: string | null,
+  ) {
+    if (tenantId !== undefined) return this.comprobantes.listar(query, usuarioSedeId, tenantId);
     return this.comprobantes.listar(query, usuarioSedeId);
   }
 
@@ -211,7 +254,9 @@ export class AppController {
     @UsuarioActual('email') usuarioEmail: string | null,
     @UsuarioActual('sedeId') usuarioSedeId: string | null,
     @Query('sedeId') sedeId?: string,
+    @TenantActual() tenantId?: string | null,
   ) {
+    if (tenantId !== undefined) return this.comprobantes.subir(file, body, usuarioDe(usuarioId, usuarioNombre, usuarioEmail), usuarioSedeId, sedeId, tenantId);
     return this.comprobantes.subir(file, body, usuarioDe(usuarioId, usuarioNombre, usuarioEmail), usuarioSedeId, sedeId);
   }
 

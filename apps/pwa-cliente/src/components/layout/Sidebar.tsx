@@ -12,11 +12,17 @@ import { puedeAcceder } from '../../auth/permisos';
 import { useSedeActualQuery } from '../../hooks/queries/useSedesQuery';
 import { Icons } from '../ui/icons';
 import { NAV_GROUPS } from './navigation';
+import { BrandLogo } from '../brand/BrandLogo';
 
 export function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const rol = useAuthStore((s) => s.user?.rol);
+  const tenants = useAuthStore((s) => s.tenants) ?? [];
+  const activeTenantId = useAuthStore((s) => s.activeTenantId);
+  const activeSummary = tenants.find((t) => t?.tenant?.id === activeTenantId) ?? tenants[0];
+  const nombreLocal = activeSummary?.tenant?.nombre ?? APP_CONFIG.nombreLocal;
+
   const { sede } = useSedeActualQuery();
   const ubicacion = sede ? (sede.direccion?.trim() || sede.nombre) : APP_CONFIG.ubicacionFallback;
 
@@ -34,9 +40,9 @@ export function Sidebar() {
   return (
     <nav className="sidebar" aria-label="Navegación principal">
       <div className="brand" aria-hidden="true">
-        <div className="brand-logo">{APP_CONFIG.nombreLocal.charAt(0)}</div>
+        <BrandLogo variant="icon" height={36} width={36} style={{ borderRadius: 10, flex: 'none' }} />
         <div>
-          <b>{APP_CONFIG.nombreLocal}</b>
+          <b>{nombreLocal}</b>
           <small>{ubicacion}</small>
         </div>
       </div>

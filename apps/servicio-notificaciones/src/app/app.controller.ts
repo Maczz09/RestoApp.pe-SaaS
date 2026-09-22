@@ -1,5 +1,6 @@
 import { Controller, Get, Logger, UseInterceptors } from '@nestjs/common';
 import { Ctx, EventPattern, Payload, RmqContext } from '@nestjs/microservices';
+import { TenantActual } from '@org/shared-auth';
 import {
   PedidoCreadoPayload,
   PedidoActualizadoPayload,
@@ -29,7 +30,10 @@ export class AppController {
   ) {}
 
   @Get()
-  async obtenerNotificaciones() {
+  async obtenerNotificaciones(@TenantActual() tenantId?: string | null) {
+    if (tenantId !== undefined) {
+      return this.appService.obtenerNotificaciones(tenantId);
+    }
     return this.appService.obtenerNotificaciones();
   }
 
@@ -148,9 +152,17 @@ export class AppController {
       message: 'Evento de negocio recibido; se registra y notifica en tiempo real.',
     } satisfies OperableLog);
 
+    const tenantId =
+      typeof data === 'object' && data !== null
+        ? ((data as Record<string, unknown>)['tenantId'] as string | undefined)
+        : undefined;
+
     // Guardar en la BD de forma idempotente (dedup por x-event-id). Si falla la
     // persistencia, registrarNotificacion RELANZA → el interceptor reintenta/DLQ.
-    const notif = await this.appService.registrarNotificacion(pattern, data, this.extractEventId(ctx));
+    const notif =
+      tenantId !== undefined
+        ? await this.appService.registrarNotificacion(pattern, data, this.extractEventId(ctx), tenantId)
+        : await this.appService.registrarNotificacion(pattern, data, this.extractEventId(ctx));
 
     // notif === null ⇒ evento duplicado ya notificado: no se re-emite por WS
     // (evita el KDS recibiendo el mismo update dos veces en una redelivery).
@@ -158,6 +170,7 @@ export class AppController {
 
     this.gateway.emitPedidoUpdate({
       pattern,
+      tenantId,
       data: {
         ...(typeof data === 'object' ? data : {}),
         notificacionId: notif.id,

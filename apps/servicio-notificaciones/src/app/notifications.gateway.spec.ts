@@ -221,5 +221,30 @@ describe('NotificationsGateway', () => {
       // server queda undefined (aún no ligado por @WebSocketServer)
       expect(() => gw.emitPedidoUpdate({ pattern: 'pedido.creado', data: {} })).not.toThrow();
     });
+
+    it('emite a rooms de tenant cuando el evento trae tenantId', () => {
+      const { gw, to } = gatewayWithServerSpy();
+      gw.emitPedidoUpdate({ pattern: 'pedido.creado', tenantId: 'tenant-demo', data: {} });
+      const rooms = to.mock.calls[0][0] as string[];
+      expect(rooms).toContain('tenant:tenant-demo:rol:COCINA');
+      expect(rooms).toContain('tenant:tenant-demo:rol:CAJERO');
+      expect(rooms).not.toContain('rol:COCINA');
+    });
+  });
+
+  describe('Multi-tenant Connection Isolation', () => {
+    it('une al cliente a los rooms de su tenant y rol', async () => {
+      const client = createClient({
+        authToken: userToken({ sub: 'u-tenant', rol: 'COCINA', tenantId: 'tenant-abc', sedeId: 'sede-1' }),
+      });
+
+      await gateway.handleConnection(client);
+
+      expect(client.join).toHaveBeenCalledWith('rol:COCINA');
+      expect(client.join).toHaveBeenCalledWith('tenant:tenant-abc:sede:sede-1:rol:COCINA');
+      expect(client.join).toHaveBeenCalledWith('tenant:tenant-abc:rol:COCINA');
+      expect(client.join).toHaveBeenCalledWith('tenant:tenant-abc:sede:sede-1');
+      expect(client.join).toHaveBeenCalledWith('tenant:tenant-abc');
+    });
   });
 });

@@ -17,6 +17,7 @@ import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { applyThemeColor, isTheme, nextTheme, type Theme } from '../../utils/theme';
 import { Icons } from '../ui/icons';
 import { SedeSwitcher } from './SedeSwitcher';
+import { TenantSwitcher } from './TenantSwitcher';
 
 const THEME_LABEL: Record<Theme, string> = {
   light: 'Claro',
@@ -107,6 +108,9 @@ export function Header() {
       <span className="top-loc desktop-only">{APP_CONFIG.nombreLocal}</span>
       {/* Turno/hora — oculto en ≤1020px via CSS; visible en tablets ≥1021px */}
       <span className="top-turno desktop-only">{turnoLabel} · {hora}</span>
+
+      {/* Selector de restaurante / tenant */}
+      {user && <TenantSwitcher />}
 
       {/* Selector de sede — solo admin general (sedeId nulo en su usuario) */}
       {user && user.sedeId == null && <SedeSwitcher />}

@@ -13,25 +13,28 @@ SERVICES=(
   "servicio-caja"
   "servicio-reportes"
   "servicio-facturacion"
+  "servicio-compras"
 )
 
 echo "=========================================="
-echo "  Docker Build — All Services"
+echo "  Docker Build — All RestoApp Services"
 echo "=========================================="
 echo ""
 
 for svc in "${SERVICES[@]}"; do
-  echo ">>> Building infra-${svc}..."
+  echo ">>> Building restoapp-${svc}..."
   docker build \
     --build-arg APP_NAME="${svc}" \
+    -t "RestoApp-${svc}" \
+    -t "restoapp-${svc}" \
     -t "infra-${svc}" \
     -f Dockerfile \
     . 2>&1 | tee -a "logs/build-${svc}.log"
-  echo ">>> Done: infra-${svc}"
+  echo ">>> Done: restoapp-${svc}"
   echo ""
 done
 
 echo "=========================================="
-echo "  All services built successfully!"
+echo "  All RestoApp services built successfully!"
 echo "=========================================="
-docker images | grep infra-
+docker images | grep restoapp-

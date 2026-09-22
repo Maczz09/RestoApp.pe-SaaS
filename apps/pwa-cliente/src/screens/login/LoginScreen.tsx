@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/auth.store';
 import { ApiError } from '../../api/client';
 import { APP_NAME } from '../../config';
+import { BrandLogo } from '../../components/brand/BrandLogo';
 
 export function LoginScreen() {
   const login = useAuthStore((s) => s.login);
@@ -49,7 +50,7 @@ export function LoginScreen() {
       {/* Panel izquierdo: branding premium con gradiente y grid */}
       <div className="login-art">
         <div className="row" style={{ gap: 12 }}>
-          <div className="brand-logo" style={{ width: 42, height: 42, fontSize: 21 }}>{APP_NAME.charAt(0)}</div>
+          <BrandLogo variant="icon" height={42} width={42} style={{ borderRadius: 10 }} />
           <div>
             <b style={{ fontSize: 19, fontWeight: 800 }}>{APP_NAME}</b>
             <div style={{ opacity: 0.65, fontSize: 12, fontWeight: 600 }}>Sistema operativo de restobar</div>
@@ -81,7 +82,7 @@ export function LoginScreen() {
         <form className="login-card" onSubmit={submit}>
           {/* Cabecera de marca para dispositivos móviles (se oculta en pantallas grandes) */}
           <div className="login-mobile-brand">
-            <div className="brand-logo" style={{ width: 38, height: 38, fontSize: 19 }}>{APP_NAME.charAt(0)}</div>
+            <BrandLogo variant="icon" height={38} width={38} style={{ borderRadius: 10 }} />
             <div>
               <b style={{ fontSize: 17, fontWeight: 800 }}>{APP_NAME}</b>
               <div style={{ opacity: 0.6, fontSize: 11, fontWeight: 600 }}>Sistema de restobar</div>

@@ -1,5 +1,5 @@
 import { Controller, Get, Post, Patch, Body, Query, Param, UseGuards, UseInterceptors } from '@nestjs/common';
-import { Roles, RolesGuard } from '@org/shared-auth';
+import { Roles, RolesGuard, TenantActual } from '@org/shared-auth';
 import { IdempotencyInterceptor } from '@org/resiliencia';
 import { AppService } from './app.service';
 import { ListarTransaccionesQuery, ListarTurnosQuery, TransaccionListResponse, TurnoListResponse } from '@org/contracts';
@@ -31,7 +31,17 @@ export class AppController {
     @UsuarioActual('nombre') usuarioNombre: string | null,
     @UsuarioActual('email') usuarioEmail: string | null,
     @UsuarioActual('sedeId') usuarioSedeId: string | null,
+    @TenantActual() tenantId?: string | null,
   ) {
+    if (tenantId !== undefined) {
+      return this.appService.registrarPago(
+        body,
+        usuarioId,
+        usuarioNombre ?? usuarioEmail ?? usuarioId,
+        usuarioSedeId,
+        tenantId,
+      );
+    }
     return this.appService.registrarPago(
       body,
       usuarioId,
@@ -44,7 +54,11 @@ export class AppController {
   listarTransacciones(
     @Query() query: ListarTransaccionesQuery,
     @UsuarioActual('sedeId') usuarioSedeId: string | null,
+    @TenantActual() tenantId?: string | null,
   ): Promise<TransaccionListResponse> {
+    if (tenantId !== undefined) {
+      return this.appService.listarTransacciones(query, usuarioSedeId, tenantId);
+    }
     return this.appService.listarTransacciones(query, usuarioSedeId);
   }
 
@@ -54,7 +68,11 @@ export class AppController {
     @UsuarioActual() usuarioId: string | null,
     @UsuarioActual('sedeId') usuarioSedeId: string | null,
     @Query('sedeId') sedeId?: string,
+    @TenantActual() tenantId?: string | null,
   ) {
+    if (tenantId !== undefined) {
+      return this.appService.abrirTurno(body, usuarioId, usuarioSedeId, sedeId, tenantId);
+    }
     return this.appService.abrirTurno(body, usuarioId, usuarioSedeId, sedeId);
   }
 
@@ -64,7 +82,11 @@ export class AppController {
   listarTurnos(
     @Query() query: ListarTurnosQuery,
     @UsuarioActual('sedeId') usuarioSedeId: string | null,
+    @TenantActual() tenantId?: string | null,
   ): Promise<TurnoListResponse> {
+    if (tenantId !== undefined) {
+      return this.appService.listarTurnos(query, usuarioSedeId, tenantId);
+    }
     return this.appService.listarTurnos(query, usuarioSedeId);
   }
 
@@ -74,7 +96,11 @@ export class AppController {
     @UsuarioActual() _usuarioId: string | null,
     @UsuarioActual('sedeId') usuarioSedeId: string | null,
     @Query('sedeId') sedeId?: string,
+    @TenantActual() tenantId?: string | null,
   ) {
+    if (tenantId !== undefined) {
+      return this.appService.obtenerTurnoActivo(usuarioSedeId, sedeId, tenantId);
+    }
     return this.appService.obtenerTurnoActivo(usuarioSedeId, sedeId);
   }
 
@@ -84,17 +110,35 @@ export class AppController {
     @UsuarioActual() _usuarioId: string | null,
     @UsuarioActual('sedeId') usuarioSedeId: string | null,
     @Query('sedeId') sedeId?: string,
+    @TenantActual() tenantId?: string | null,
   ) {
+    if (tenantId !== undefined) {
+      return this.appService.obtenerResumenTurnoActivo(usuarioSedeId, sedeId, tenantId);
+    }
     return this.appService.obtenerResumenTurnoActivo(usuarioSedeId, sedeId);
   }
 
   @Get('turnos/:id/resumen')
-  obtenerResumenTurno(@Param('id') id: string, @UsuarioActual('sedeId') usuarioSedeId: string | null) {
+  obtenerResumenTurno(
+    @Param('id') id: string,
+    @UsuarioActual('sedeId') usuarioSedeId: string | null,
+    @TenantActual() tenantId?: string | null,
+  ) {
+    if (tenantId !== undefined) {
+      return this.appService.obtenerResumenTurno(id, usuarioSedeId, tenantId);
+    }
     return this.appService.obtenerResumenTurno(id, usuarioSedeId);
   }
 
   @Get('turnos/:id/movimientos')
-  listarMovimientosTurno(@Param('id') id: string, @UsuarioActual('sedeId') usuarioSedeId: string | null) {
+  listarMovimientosTurno(
+    @Param('id') id: string,
+    @UsuarioActual('sedeId') usuarioSedeId: string | null,
+    @TenantActual() tenantId?: string | null,
+  ) {
+    if (tenantId !== undefined) {
+      return this.appService.listarMovimientosTurno(id, usuarioSedeId, tenantId);
+    }
     return this.appService.listarMovimientosTurno(id, usuarioSedeId);
   }
 
@@ -103,7 +147,11 @@ export class AppController {
     @Param('id') id: string,
     @Body() body: CrearMovimientoCajaCommand,
     @UsuarioActual('sedeId') usuarioSedeId: string | null,
+    @TenantActual() tenantId?: string | null,
   ) {
+    if (tenantId !== undefined) {
+      return this.appService.crearMovimiento(id, body, usuarioSedeId, tenantId);
+    }
     return this.appService.crearMovimiento(id, body, usuarioSedeId);
   }
 
@@ -113,7 +161,11 @@ export class AppController {
     @Body() body: RegistrarArqueoCajaCommand,
     @UsuarioActual() usuarioId: string | null,
     @UsuarioActual('sedeId') usuarioSedeId: string | null,
+    @TenantActual() tenantId?: string | null,
   ) {
+    if (tenantId !== undefined) {
+      return this.appService.registrarArqueo(id, body, usuarioId, usuarioSedeId, tenantId);
+    }
     return this.appService.registrarArqueo(id, body, usuarioId, usuarioSedeId);
   }
 
@@ -123,14 +175,25 @@ export class AppController {
     @Body() body: CerrarTurnoCajaCommand,
     @UsuarioActual() usuarioId: string | null,
     @UsuarioActual('sedeId') usuarioSedeId: string | null,
+    @TenantActual() tenantId?: string | null,
   ) {
+    if (tenantId !== undefined) {
+      return this.appService.cerrarTurno(id, body, usuarioId, usuarioSedeId, tenantId);
+    }
     return this.appService.cerrarTurno(id, body, usuarioId, usuarioSedeId);
   }
 
   // Detalle/edición de una transacción — después de las rutas 'turnos/*'
   // para que ':id' no las capture (mismo orden de ruteo que el resto).
   @Get(':id')
-  obtenerTransaccion(@Param('id') id: string, @UsuarioActual('sedeId') usuarioSedeId: string | null) {
+  obtenerTransaccion(
+    @Param('id') id: string,
+    @UsuarioActual('sedeId') usuarioSedeId: string | null,
+    @TenantActual() tenantId?: string | null,
+  ) {
+    if (tenantId !== undefined) {
+      return this.appService.obtenerTransaccion(id, usuarioSedeId, tenantId);
+    }
     return this.appService.obtenerTransaccion(id, usuarioSedeId);
   }
 
@@ -139,7 +202,11 @@ export class AppController {
     @Param('id') id: string,
     @Body() body: ActualizarTransaccionCommand,
     @UsuarioActual('sedeId') usuarioSedeId: string | null,
+    @TenantActual() tenantId?: string | null,
   ) {
+    if (tenantId !== undefined) {
+      return this.appService.actualizarTransaccion(id, body, usuarioSedeId, tenantId);
+    }
     return this.appService.actualizarTransaccion(id, body, usuarioSedeId);
   }
 }

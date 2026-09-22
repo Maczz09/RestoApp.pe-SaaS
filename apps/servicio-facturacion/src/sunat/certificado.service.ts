@@ -9,12 +9,16 @@ export class CertificadoService {
 
   constructor(private readonly config: SunatConfigService) {}
 
-  clavesParaSlot(slot: number): ClavesFirma {
+  async clavesParaSlot(slot: number): Promise<ClavesFirma> {
     const cached = this.cache.get(slot);
     if (cached) return cached;
-    const creds = this.config.credencialesParaSlot(slot);
+    const creds = await this.config.credencialesParaSlot(slot);
     const claves = extraerClavesDesdePfx(creds.pfxBuffer, creds.pfxPass);
     this.cache.set(slot, claves);
     return claves;
+  }
+
+  invalidarSlot(slot: number): void {
+    this.cache.delete(slot);
   }
 }

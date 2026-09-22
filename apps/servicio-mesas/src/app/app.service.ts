@@ -28,10 +28,12 @@ export class AppService {
     return { ...resto, ubicacion: ubicacion.nombre };
   }
 
-  async listarMesas(usuarioSedeId?: string | null, sedeIdSolicitado?: string): Promise<{ mesas: MesaDto[] }> {
+  async listarMesas(usuarioSedeId?: string | null, sedeIdSolicitado?: string, tenantId?: string | null): Promise<{ mesas: MesaDto[] }> {
     const sedeId = resolveSedeId(usuarioSedeId, sedeIdSolicitado);
+    const where: any = { sedeId };
+    if (tenantId) where.tenantId = tenantId;
     const mesas = await this.prisma.mesa.findMany({
-      where: { sedeId },
+      where,
       orderBy: { numero: 'asc' },
       include: { ubicacion: true },
       // Tope de seguridad (hallazgo pruebas de carga 2026-07-13): sin límite,
@@ -44,9 +46,21 @@ export class AppService {
     return { mesas: mesas.map((m) => this.toMesaDto(m)) };
   }
 
-  async crearMesa(command: CrearMesaCommand, usuarioSedeId?: string | null, sedeIdSolicitado?: string): Promise<{ message: string; mesa: MesaDto }> {
+  async crearMesa(command: CrearMesaCommand, usuarioSedeId?: string | null, sedeIdSolicitado?: string, tenantId?: string | null): Promise<{ message: string; mesa: MesaDto }> {
     const sedeId = resolveSedeId(usuarioSedeId, sedeIdSolicitado);
-    const existe = await this.prisma.mesa.findUnique({ where: { sedeId_numero: { sedeId, numero: command.numero } } });
+    const existe = this.prisma.mesa.findFirst
+      ? await this.prisma.mesa.findFirst({
+          where: {
+            sedeId,
+            numero: command.numero,
+            ...(tenantId ? { tenantId } : {}),
+          },
+        })
+      : await (this.prisma.mesa as any).findUnique({
+          where: {
+            sedeId_numero: { sedeId, numero: command.numero },
+          },
+        });
     if (existe) {
       throw new ConflictException(`La mesa número ${command.numero} ya existe.`);
     }
@@ -56,21 +70,22 @@ export class AppService {
     }
 
     const mesa = await this.prisma.$transaction(async (prisma) => {
-      const m = await prisma.mesa.create({
-        data: {
-          numero: command.numero,
-          sedeId,
-          capacidad: command.capacidad || 4,
-          ubicacionId: command.ubicacionId,
-          estado: MesaEstado.Libre,
-        }
-      });
+      const data: any = {
+        numero: command.numero,
+        sedeId,
+        capacidad: command.capacidad || 4,
+        ubicacionId: command.ubicacionId,
+        estado: MesaEstado.Libre,
+      };
+      if (tenantId) data.tenantId = tenantId;
+      const m = await prisma.mesa.create({ data });
 
       await prisma.outboxEvent.create({
         data: {
           routingKey: RoutingKeys.MesaCreada,
-          payload: JSON.stringify({ mesa: { ...m, ubicacion: ubicacion.nombre } }),
+          payload: JSON.stringify({ mesa: { ...m, ubicacion: ubicacion.nombre }, tenantId }),
           status: 'PENDING',
+          tenantId: tenantId ?? null,
         }
       });
 
@@ -287,18 +302,20 @@ export class AppService {
 
   // --- UBICACIONES ---
 
-  async listarUbicaciones(usuarioSedeId?: string | null, sedeIdSolicitado?: string): Promise<{ ubicaciones: UbicacionDto[] }> {
+  async listarUbicaciones(usuarioSedeId?: string | null, sedeIdSolicitado?: string, tenantId?: string | null): Promise<{ ubicaciones: UbicacionDto[] }> {
     const sedeId = resolveSedeId(usuarioSedeId, sedeIdSolicitado);
-    const ubicaciones = await this.prisma.ubicacion.findMany({ where: { sedeId }, orderBy: { nombre: 'asc' } });
+    const where: any = { sedeId };
+    if (tenantId) where.tenantId = tenantId;
+    const ubicaciones = await this.prisma.ubicacion.findMany({ where, orderBy: { nombre: 'asc' } });
     return { ubicaciones };
   }
 
-  async crearUbicacion(command: CrearUbicacionCommand, usuarioSedeId?: string | null, sedeIdSolicitado?: string): Promise<{ message: string; ubicacion: UbicacionDto }> {
+  async crearUbicacion(command: CrearUbicacionCommand, usuarioSedeId?: string | null, sedeIdSolicitado?: string, tenantId?: string | null): Promise<{ message: string; ubicacion: UbicacionDto }> {
     const sedeId = resolveSedeId(usuarioSedeId, sedeIdSolicitado);
     const nombre = command.nombre.trim();
-    await this.assertNombreUbicacionDisponible(sedeId, nombre);
+    await this.assertNombreUbicacionDisponible(sedeId, nombre, undefined, tenantId);
 
-    const ubicacion = await this.crearUbicacionSegura(sedeId, nombre);
+    const ubicacion = await this.crearUbicacionSegura(sedeId, nombre, tenantId);
     return { message: 'Ubicación creada exitosamente', ubicacion };
   }
 
@@ -307,7 +324,7 @@ export class AppService {
     if (!existente) throw new NotFoundException('Ubicación no encontrada');
 
     const nombre = command.nombre.trim();
-    await this.assertNombreUbicacionDisponible(existente.sedeId, nombre, id);
+    await this.assertNombreUbicacionDisponible(existente.sedeId, nombre, id, existente.tenantId);
 
     const ubicacion = await this.actualizarUbicacionSegura(id, nombre);
     return { message: 'Ubicación actualizada', ubicacion };
@@ -331,11 +348,12 @@ export class AppService {
   }
 
   /** Rechaza un nombre que ya existe EN LA MISMA SEDE (case-insensitive). `excludeId` permite renombrar una ubicación a sí misma. */
-  private async assertNombreUbicacionDisponible(sedeId: string, nombre: string, excludeId?: string): Promise<void> {
+  private async assertNombreUbicacionDisponible(sedeId: string, nombre: string, excludeId?: string, tenantId?: string | null): Promise<void> {
     const existente = await this.prisma.ubicacion.findFirst({
       where: {
         sedeId,
         nombre: { equals: nombre, mode: 'insensitive' },
+        ...(tenantId ? { tenantId } : {}),
         ...(excludeId ? { id: { not: excludeId } } : {}),
       },
     });
@@ -347,9 +365,11 @@ export class AppService {
   // El check de arriba no cierra una carrera entre dos requests simultáneos;
   // la constraint UNIQUE de la BD es la garantía real. P2002 aquí es ese
   // caso raro, traducido al mismo 409 que ya usa assertNombreUbicacionDisponible.
-  private async crearUbicacionSegura(sedeId: string, nombre: string): Promise<UbicacionDto> {
+  private async crearUbicacionSegura(sedeId: string, nombre: string, tenantId?: string | null): Promise<UbicacionDto> {
     try {
-      return await this.prisma.ubicacion.create({ data: { nombre, sedeId } });
+      const data: any = { nombre, sedeId };
+      if (tenantId) data.tenantId = tenantId;
+      return await this.prisma.ubicacion.create({ data });
     } catch (error) {
       if (this.isUniqueConstraintViolation(error)) {
         throw new ConflictException(`Ya existe una ubicación llamada "${nombre}"`);

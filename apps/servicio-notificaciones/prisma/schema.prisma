@@ -8,19 +8,25 @@ datasource db {
 }
 
 model Notificacion {
-  id          String   @id @default(uuid())
+  id           String   @id @default(uuid())
+  tenantId     String?
   eventoOrigen String
   destinatario String
-  canal       String   // SMS, WHATSAPP, UI
-  contenido   String
-  estado      String   @default("PENDIENTE") // PENDIENTE, ENVIADO, FALLIDO
-  intentos    Int      @default(0)
-  timestamp   DateTime @default(now())
+  canal        String   // SMS, WHATSAPP, UI
+  contenido    String
+  estado       String   @default("PENDIENTE") // PENDIENTE, ENVIADO, FALLIDO
+  intentos     Int      @default(0)
+  timestamp    DateTime @default(now())
+
+  @@index([tenantId, timestamp])
+  @@index([timestamp])
 }
 
 model IdempotencyKey {
   key       String   @id
+  tenantId  String?
   createdAt DateTime @default(now())
 
+  @@index([tenantId])
   @@map("idempotency_keys")
 }

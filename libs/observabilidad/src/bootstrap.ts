@@ -80,7 +80,7 @@ export interface BootstrapOptions {
   defaultPort: number;
 }
 
-export async function bootstrapNachoppsService(options: BootstrapOptions): Promise<void> {
+export async function bootstrapRestoAppService(options: BootstrapOptions): Promise<void> {
   const { serviceName, module, queue, swagger, defaultPort } = options;
 
   if (!process.env.RABBITMQ_URI) {
@@ -117,6 +117,8 @@ export async function bootstrapNachoppsService(options: BootstrapOptions): Promi
   app.useGlobalFilters(new GlobalExceptionFilter());
 
   if (queue) {
+    const exchange = process.env.RABBITMQ_EXCHANGE || 'restoapp_exchange';
+    const dlx = process.env.RABBITMQ_DLX || 'RESTOAPP_DLX';
     app.connectMicroservice({
       transport: Transport.RMQ,
       options: {
@@ -125,11 +127,11 @@ export async function bootstrapNachoppsService(options: BootstrapOptions): Promi
         queueOptions: {
           durable: true,
           arguments: {
-            'x-dead-letter-exchange': 'NACHOPPS_DLX',
+            'x-dead-letter-exchange': dlx,
             'x-dead-letter-routing-key': `dlq.${queue}`,
           },
         },
-        exchange: 'nachopps_exchange',
+        exchange,
         exchangeType: 'topic',
         noAck: false,
         // Backpressure: cap de mensajes en vuelo por consumidor (R-09). No toca
@@ -191,3 +193,7 @@ export async function bootstrapNachoppsService(options: BootstrapOptions): Promi
   process.once('SIGTERM', (s) => void apagadoGraceful(s));
   process.once('SIGINT', (s) => void apagadoGraceful(s));
 }
+
+/** @deprecated Mantener alias hacia bootstrapRestoAppService */
+export const bootstrapNachoppsService = bootstrapRestoAppService;
+

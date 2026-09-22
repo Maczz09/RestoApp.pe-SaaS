@@ -3,16 +3,32 @@ import {
   IsArray,
   IsBoolean,
   IsDateString,
+  IsEnum,
   IsInt,
   IsNumber,
   IsOptional,
   IsString,
   IsUUID,
   Max,
+  MaxLength,
   Min,
+  MinLength,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
+
+// Determina qué módulo administra la categoría (Carta vs Inventario) y, si es
+// Carta, a qué estación de producción se enruta un pedido — el dueño la elige
+// explícitamente al crear/editar la categoría (nunca se infiere del nombre),
+// para que el ruteo sea escalable sin tocar código (ver ItemArea en pedidos.ts).
+export const CategoriaArea = {
+  Cocina: 'COCINA',
+  Barra: 'BARRA',
+  Inventario: 'INVENTARIO',
+} as const;
+
+export type CategoriaArea = (typeof CategoriaArea)[keyof typeof CategoriaArea];
 
 export class StockBajoPayload {
   @IsString()
@@ -54,6 +70,22 @@ export class StockInsuficientePayload {
   disponible: number;
 }
 
+/**
+ * CU-02: un ítem de Inventario se reservó al crear el pedido pero nunca se
+ * consumió (mesa anulada antes de abrirlo) — se le devuelve el stock.
+ */
+export class StockRestauradoPayload {
+  @IsOptional()
+  @IsString()
+  eventId?: string;
+  @IsString()
+  productoId: string;
+  @IsNumber()
+  cantidad: number;
+  @IsString()
+  motivo: string;
+}
+
 export class CategoriaDto {
   @IsString()
   id: string;
@@ -65,6 +97,8 @@ export class CategoriaDto {
   @IsOptional()
   @IsString()
   parentId?: string | null;
+  @IsEnum(CategoriaArea)
+  area: CategoriaArea;
 }
 
 export class CrearCategoriaCommand {
@@ -76,6 +110,9 @@ export class CrearCategoriaCommand {
   @IsOptional()
   @IsString()
   parentId?: string;
+  @IsOptional()
+  @IsEnum(CategoriaArea)
+  area?: CategoriaArea;
 }
 
 export class ActualizarCategoriaCommand {
@@ -88,6 +125,57 @@ export class ActualizarCategoriaCommand {
   @IsOptional()
   @IsString()
   parentId?: string | null;
+  @IsOptional()
+  @IsEnum(CategoriaArea)
+  area?: CategoriaArea;
+}
+
+/** Versión aditiva del catálogo: tamaño estructurado, independiente del nombre. */
+export const CATALOGO_SCHEMA_VERSION = 2;
+
+export class TamanoPlatoDto {
+  @IsString()
+  id: string;
+  @IsString()
+  nombre: string;
+  @IsInt()
+  @Min(0)
+  orden: number;
+  @IsBoolean()
+  activo: boolean;
+}
+
+export class CrearTamanoPlatoCommand {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(60)
+  @Transform(({ value }: { value: unknown }) => typeof value === 'string' ? value.trim() : value)
+  nombre: string;
+  @ValidateIf((_, value) => value !== undefined)
+  @IsInt()
+  @Min(0)
+  @Max(10000)
+  orden?: number;
+  @ValidateIf((_, value) => value !== undefined)
+  @IsBoolean()
+  activo?: boolean;
+}
+
+export class ActualizarTamanoPlatoCommand {
+  @ValidateIf((_, value) => value !== undefined)
+  @IsString()
+  @MinLength(1)
+  @MaxLength(60)
+  @Transform(({ value }: { value: unknown }) => typeof value === 'string' ? value.trim() : value)
+  nombre?: string;
+  @ValidateIf((_, value) => value !== undefined)
+  @IsInt()
+  @Min(0)
+  @Max(10000)
+  orden?: number;
+  @ValidateIf((_, value) => value !== undefined)
+  @IsBoolean()
+  activo?: boolean;
 }
 
 export class ProductoDto {
@@ -99,6 +187,13 @@ export class ProductoDto {
   @ValidateNested()
   @Type(() => CategoriaDto)
   categoria?: CategoriaDto | null;
+  @IsOptional()
+  @IsString()
+  tamanoId?: string | null;
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => TamanoPlatoDto)
+  tamano?: TamanoPlatoDto | null;
   @IsString()
   nombre: string;
   @IsOptional()
@@ -117,6 +212,17 @@ export class ListarProductosQuery {
   @IsOptional()
   @IsString()
   categoriaId?: string;
+
+  /** ID del tamaño; SIN_TAMANO filtra productos con tamanoId NULL. */
+  @IsOptional()
+  @IsString()
+  tamanoId?: string;
+
+  /** Categoría, orden del tamaño (sin tamaño al final), nombre e ID. */
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }) => value === true || value === 'true')
+  ordenPorTamano?: boolean;
 
   @IsOptional()
   @IsBoolean()
@@ -140,7 +246,7 @@ export class ListarProductosQuery {
   @IsOptional()
   @IsInt()
   @Min(1)
-  @Max(100)
+  @Max(500)
   @Type(() => Number)
   limit?: number;
 
@@ -170,9 +276,30 @@ export class ProductoListResponse {
   nextCursor: string | null;
 }
 
+/**
+ * Carta pública/QR (T-XX): respuesta del endpoint sin autenticación.
+ * Categorías/productos de Carta (COCINA/BARRA, sin stock) más los de
+ * Inventario ("Abarrotes" de cara al cliente) que todavía tengan stock —
+ * ya filtrados server-side, listos para mostrar.
+ */
+export class CartaPublicaResponse {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CategoriaDto)
+  categorias: CategoriaDto[];
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ProductoDto)
+  productos: ProductoDto[];
+}
+
 export class CrearProductoCommand {
   @IsString()
   categoriaId: string;
+  @IsOptional()
+  @IsString()
+  tamanoId?: string | null;
   @IsString()
   nombre: string;
   @IsOptional()
@@ -192,6 +319,9 @@ export class ActualizarProductoCommand {
   @IsOptional()
   @IsString()
   categoriaId?: string;
+  @IsOptional()
+  @IsString()
+  tamanoId?: string | null;
   @IsOptional()
   @IsString()
   nombre?: string;
@@ -257,6 +387,14 @@ export class ActualizarMenuDiarioCommand {
 // Pérdida de stock que no viene de una venta (botellas rotas, vencidas,
 // etc.). Queda como registro auditable con motivo obligatorio.
 
+export const MermaOrigen = {
+  DescarteManual: 'DESCARTE_MANUAL_INVENTARIO',
+  AnulacionNoCobrada: 'ANULACION_COMANDA_NO_COBRADA',
+  AnulacionCobrada: 'ANULACION_COMANDA_COBRADA',
+} as const;
+
+export type MermaOrigen = (typeof MermaOrigen)[keyof typeof MermaOrigen];
+
 export class MermaDto {
   @IsString()
   id: string;
@@ -270,6 +408,26 @@ export class MermaDto {
   cantidad: number;
   @IsString()
   motivo: string;
+  @IsOptional()
+  @IsString()
+  observacion?: string | null;
+  @IsEnum(MermaOrigen)
+  origen: MermaOrigen;
+  @IsOptional()
+  @IsNumber()
+  costoUnitario?: number | null;
+  /** cantidad × costoUnitario — se calcula en el servicio, no se persiste. */
+  @IsOptional()
+  @IsNumber()
+  costoTotal?: number | null;
+  @IsOptional()
+  @IsString()
+  pedidoItemId?: string | null;
+  // Código legible de la atención origen ("A0000001"). Ausente en mermas
+  // manuales o si el pedido origen no tenía correlativo todavía.
+  @IsOptional()
+  @IsString()
+  cuentaCorrelativo?: string | null;
   @IsOptional()
   @IsString()
   usuarioId?: string | null;
@@ -288,12 +446,49 @@ export class RegistrarMermaCommand {
   cantidad: number;
   @IsString()
   motivo: string;
+  @IsOptional()
+  @IsString()
+  observacion?: string;
+  @IsOptional()
+  @IsNumber()
+  costoUnitario?: number;
+}
+
+export class ActualizarMermaCommand {
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  cantidad?: number;
+  @IsOptional()
+  @IsString()
+  motivo?: string;
+  @IsOptional()
+  @IsString()
+  observacion?: string | null;
+}
+
+export class EliminarMermaCommand {
+  @IsString()
+  @MinLength(3)
+  justificacion: string;
 }
 
 export class ListarMermasQuery {
   @IsOptional()
   @IsString()
   productoId?: string;
+
+  @IsOptional()
+  @IsEnum(MermaOrigen)
+  origen?: MermaOrigen;
+
+  @IsOptional()
+  @IsDateString()
+  desde?: string;
+
+  @IsOptional()
+  @IsDateString()
+  hasta?: string;
 
   @IsOptional()
   @IsInt()
@@ -306,6 +501,11 @@ export class ListarMermasQuery {
   @IsOptional()
   @IsString()
   sedeId?: string;
+
+  // Busca por el código de la atención origen ("A0000001" o un fragmento).
+  @IsOptional()
+  @IsString()
+  search?: string;
 }
 
 export class ObtenerProductosLoteCommand {
@@ -331,6 +531,9 @@ export class ProductoCreadoPayload {
   @IsOptional()
   @IsString()
   categoriaNombre?: string;
+  @IsOptional()
+  @IsEnum(CategoriaArea)
+  categoriaArea?: CategoriaArea;
   @IsBoolean()
   disponible: boolean;
 }
@@ -341,6 +544,11 @@ export class ProductoActualizadoPayload {
   eventId?: string;
   @IsString()
   id: string;
+  // Necesario para unir clientes de la carta pública al room `sede:<id>`
+  // (T-XX: WebSocket de disponibilidad) — sin esto el consumidor no puede
+  // saber a qué sede pertenece el producto que cambió.
+  @IsString()
+  sedeId: string;
   @IsString()
   nombre: string;
   @IsNumber()
@@ -351,6 +559,9 @@ export class ProductoActualizadoPayload {
   @IsOptional()
   @IsString()
   categoriaNombre?: string;
+  @IsOptional()
+  @IsEnum(CategoriaArea)
+  categoriaArea?: CategoriaArea;
   @IsBoolean()
   disponible: boolean;
   @IsOptional()

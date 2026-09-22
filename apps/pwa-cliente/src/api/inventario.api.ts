@@ -21,10 +21,14 @@ import type {
   MenuDiarioItemResponse,
   MenuDiarioResponse,
   RegistrarMermaPayload,
+  ActualizarMermaPayload,
   MermaListQuery,
   MermaDto,
   MermaResponse,
   MermasResponse,
+  TamanoPlatoDto,
+  CrearTamanoPlatoPayload,
+  ActualizarTamanoPlatoPayload,
 } from '../types/inventario.types';
 
 export async function getCategorias(): Promise<CategoriaDto[]> {
@@ -46,9 +50,30 @@ export async function eliminarCategoria(id: string): Promise<void> {
   await client.delete(`/inventario/categorias/${id}`);
 }
 
+export async function getTamanosPlato(): Promise<TamanoPlatoDto[]> {
+  const response = await client.get<{ tamanos: TamanoPlatoDto[] }>('/inventario/tamanos-plato');
+  return unwrapArray<TamanoPlatoDto>(response, 'tamanos');
+}
+
+export async function crearTamanoPlato(payload: CrearTamanoPlatoPayload): Promise<TamanoPlatoDto> {
+  const response = await client.post<{ tamano: TamanoPlatoDto }>('/inventario/tamanos-plato', payload);
+  return unwrapEntity<TamanoPlatoDto>(response, 'tamano');
+}
+
+export async function actualizarTamanoPlato(id: string, payload: ActualizarTamanoPlatoPayload): Promise<TamanoPlatoDto> {
+  const response = await client.patch<{ tamano: TamanoPlatoDto }>(`/inventario/tamanos-plato/${encodeURIComponent(id)}`, payload);
+  return unwrapEntity<TamanoPlatoDto>(response, 'tamano');
+}
+
+export async function eliminarTamanoPlato(id: string): Promise<void> {
+  await client.delete(`/inventario/tamanos-plato/${encodeURIComponent(id)}`);
+}
+
 function buildProductosQuery(query: ProductoListQuery = {}): string {
   const params = new URLSearchParams();
   if (query.categoriaId) params.set('categoriaId', query.categoriaId);
+  if (query.tamanoId) params.set('tamanoId', query.tamanoId);
+  if (query.ordenPorTamano != null) params.set('ordenPorTamano', String(query.ordenPorTamano));
   if (query.disponible != null) params.set('disponible', String(query.disponible));
   if (query.conStock != null) params.set('conStock', String(query.conStock));
   if (query.search) params.set('search', query.search);
@@ -84,6 +109,36 @@ export async function getProductosPage(
 export async function getProductos(categoriaId?: string): Promise<ProductoDto[]> {
   const response = await getProductosPage({ categoriaId, limit: 50 });
   return response.data;
+}
+
+/** Tope duro del listado: 500 tanto en el DTO (`@Max`) como en el clamp del
+ *  servicio. Pedir más no trae más, así que se pide exactamente eso. */
+const PAGINA_MAXIMA = 500;
+/** Corta el recorrido a 10 000 productos. Es un seguro contra un cursor que no
+ *  avance (bug de servidor): sin esto el navegador giraría para siempre. */
+const PAGINAS_MAXIMAS = 20;
+
+/**
+ * Recorre TODAS las páginas del listado. La pantalla de Inventario pagina de a
+ * 50, pero un PDF de cuadre con la mitad de los productos es peor que no
+ * tenerlo: el conteo físico se haría contra una lista incompleta.
+ */
+export async function getTodosLosProductos(query: ProductoListQuery = {}): Promise<ProductoDto[]> {
+  const productos: ProductoDto[] = [];
+  let cursor: string | undefined = query.cursor;
+
+  for (let pagina = 0; pagina < PAGINAS_MAXIMAS; pagina++) {
+    const response: ProductoListResponse = await getProductosPage({
+      ...query,
+      cursor,
+      limit: PAGINA_MAXIMA,
+    });
+    productos.push(...response.data);
+    if (!response.nextCursor || response.data.length === 0) break;
+    cursor = response.nextCursor;
+  }
+
+  return productos;
 }
 
 export async function crearProducto(payload: CrearProductoPayload): Promise<ProductoDto> {
@@ -153,4 +208,13 @@ export async function getMermas(query: MermaListQuery = {}): Promise<MermaDto[]>
 export async function registrarMerma(payload: RegistrarMermaPayload): Promise<MermaDto> {
   const response = await client.post<MermaResponse | MermaDto>('/inventario/mermas', payload);
   return unwrapEntity<MermaDto>(response, 'merma');
+}
+
+export async function actualizarMerma(id: string, payload: ActualizarMermaPayload): Promise<MermaDto> {
+  const response = await client.patch<MermaResponse | MermaDto>(`/inventario/mermas/${id}`, payload);
+  return unwrapEntity<MermaDto>(response, 'merma');
+}
+
+export async function eliminarMerma(id: string, justificacion: string): Promise<void> {
+  await client.post<unknown>(`/inventario/mermas/${id}/eliminar`, { justificacion });
 }

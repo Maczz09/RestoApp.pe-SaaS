@@ -214,4 +214,76 @@ describe('AppService — Reportes', () => {
       );
     });
   });
+
+  describe('Multi-tenant SaaS Isolation', () => {
+    it('registra venta con tenantId en el payload', async () => {
+      await service.registrarVenta({
+        tenantId: 'tenant-123',
+        cuentaId: 'c-tenant',
+        mesaId: 'm-1',
+        total: 100,
+      });
+
+      expect(prisma.ventaDiaria.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          create: expect.objectContaining({
+            tenantId: 'tenant-123',
+            cuentaId: 'c-tenant',
+          }),
+        }),
+      );
+    });
+
+    it('filtra obtenerResumenDiario por tenantId', async () => {
+      prisma.ventaDiaria.findMany.mockResolvedValue([]);
+      await service.obtenerResumenDiario({}, null, 'tenant-123');
+
+      expect(prisma.ventaDiaria.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            tenantId: 'tenant-123',
+          }),
+        }),
+      );
+    });
+
+    it('filtra obtenerPorProducto por tenantId', async () => {
+      prisma.ventaDiaria.findMany.mockResolvedValue([]);
+      await service.obtenerPorProducto({}, null, 'tenant-123');
+
+      expect(prisma.ventaDiaria.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            tenantId: 'tenant-123',
+          }),
+        }),
+      );
+    });
+
+    it('filtra obtenerPorTurno por tenantId', async () => {
+      prisma.ventaDiaria.findMany.mockResolvedValue([]);
+      await service.obtenerPorTurno({}, null, 'tenant-123');
+
+      expect(prisma.ventaDiaria.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            tenantId: 'tenant-123',
+          }),
+        }),
+      );
+    });
+
+    it('filtra obtenerPorMesero por tenantId', async () => {
+      prisma.ventaDiaria.findMany.mockResolvedValue([]);
+      await service.obtenerPorMesero({}, null, 'tenant-123');
+
+      expect(prisma.ventaDiaria.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            tenantId: 'tenant-123',
+          }),
+        }),
+      );
+    });
+  });
 });

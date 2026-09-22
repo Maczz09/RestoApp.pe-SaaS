@@ -24,7 +24,12 @@ export class EmisionService {
    * deja en estado FIRMADO — el envío real a SUNAT lo hace EnvioProcessor por
    * separado (así un SUNAT caído no bloquea la respuesta de este endpoint).
    */
-  async emitir(cuentaId: string, dto: EmitirComprobanteDto, usuarioSedeId?: string | null): Promise<{
+  async emitir(
+    cuentaId: string,
+    dto: EmitirComprobanteDto,
+    usuarioSedeId?: string | null,
+    tenantId?: string | null,
+  ): Promise<{
     id: string;
     tipo: string;
     serie: string;
@@ -36,7 +41,9 @@ export class EmisionService {
       throw new BadRequestException('La factura electrónica exige el RUC del cliente.');
     }
 
-    const comprobantePago = await this.prisma.comprobantePago.findUnique({ where: { cuentaId } });
+    const comprobantePago = tenantId
+      ? await this.prisma.comprobantePago.findFirst({ where: { cuentaId, tenantId } })
+      : await this.prisma.comprobantePago.findUnique({ where: { cuentaId } });
     if (!comprobantePago || (usuarioSedeId && comprobantePago.sedeId !== usuarioSedeId)) {
       throw new NotFoundException(`No hay comprobante de pago para la cuenta ${cuentaId}`);
     }
@@ -47,6 +54,11 @@ export class EmisionService {
     const empresa = await this.prisma.empresa.findUnique({ where: { ruc: dto.empresaRuc } });
     if (!empresa || !empresa.activo) {
       throw new NotFoundException(`Empresa con RUC ${dto.empresaRuc} no está configurada`);
+    }
+    if (empresa.sedeId !== comprobantePago.sedeId) {
+      throw new BadRequestException(
+        `El RUC ${empresa.ruc} debe estar enlazado a la sede de esta venta.`,
+      );
     }
 
     const itemsSnapshot = (Array.isArray(comprobantePago.items) ? comprobantePago.items : []) as unknown as PedidoSnapshotItem[];
@@ -74,17 +86,20 @@ export class EmisionService {
         razonSocial: empresa.razonSocial,
         nombreComercial: empresa.nombreComercial ?? undefined,
         direccion: empresa.direccion ?? undefined,
+        ubigeo: empresa.ubigeo ?? undefined,
+        codigoEstablecimiento: empresa.codigoEstablecimiento,
       },
       cliente: this.datosCliente(dto),
       items,
     });
 
-    const claves = this.certificado.clavesParaSlot(empresa.slot);
+    const claves = await this.certificado.clavesParaSlot(empresa.slot);
     const xmlFirmado = firmarComprobante(xmlSinFirmar, claves);
 
     const [comprobante] = await this.prisma.$transaction([
       this.prisma.comprobante.create({
         data: {
+          ...(tenantId ? { tenantId } : (comprobantePago.tenantId ? { tenantId: comprobantePago.tenantId } : {})),
           comprobantePagoId: comprobantePago.id,
           empresaId: empresa.id,
           tipo: dto.tipoComprobante,

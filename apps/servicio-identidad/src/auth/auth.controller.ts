@@ -17,7 +17,18 @@ import {
 import { Request as ExpressRequest, Response } from 'express';
 
 interface AuthenticatedRequest extends ExpressRequest {
-  user: { sub: string; email: string; rol: string; nombre: string; sedeId?: string | null };
+  user: {
+    sub: string;
+    email: string;
+    rol: string;
+    nombre: string;
+    sedeId?: string | null;
+    tenantId?: string | null;
+    tenantSlug?: string | null;
+    membershipId?: string | null;
+    allowedSedeIds?: string[];
+    activeSedeId?: string | null;
+  };
 }
 import { randomBytes } from 'node:crypto';
 import { AuthService } from './auth.service';
@@ -30,6 +41,8 @@ import {
   UsuarioListResponse,
   CrearSedeCommand,
   ActualizarSedeCommand,
+  OnboardingCommand,
+  SelectTenantCommand,
 } from '@org/contracts';
 import { JwtAuthGuard, RolesGuard, Roles, CSRF_COOKIE_NAME } from '@org/shared-auth';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
@@ -92,6 +105,32 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     const result = await this.authService.login(command);
+    const refresh = await this.authService.issueRefreshToken(result.usuario.id);
+    this.setAuthCookies(res, result.access_token, refresh.token);
+    return { ...result, expires_in: ACCESS_TTL_SECONDS };
+  }
+
+  @HttpCode(201)
+  @Post('auth/onboarding')
+  async onboarding(
+    @Body() command: OnboardingCommand,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.authService.onboarding(command);
+    const refresh = await this.authService.issueRefreshToken(result.usuario.id);
+    this.setAuthCookies(res, result.access_token, refresh.token);
+    return { ...result, expires_in: ACCESS_TTL_SECONDS };
+  }
+
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  @Post('auth/tenant-select')
+  async selectTenant(
+    @Request() req: AuthenticatedRequest,
+    @Body() command: SelectTenantCommand,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.authService.selectTenant(req.user.sub, command);
     const refresh = await this.authService.issueRefreshToken(result.usuario.id);
     this.setAuthCookies(res, result.access_token, refresh.token);
     return { ...result, expires_in: ACCESS_TTL_SECONDS };
@@ -204,15 +243,15 @@ export class AuthController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN')
   @Get('sedes')
-  async listarSedes() {
-    return this.authService.listarSedes();
+  async listarSedes(@Request() req: AuthenticatedRequest) {
+    return this.authService.listarSedes(req.user.tenantId);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN')
   @Post('sedes')
-  async crearSede(@Body() command: CrearSedeCommand) {
-    return this.authService.crearSede(command);
+  async crearSede(@Request() req: AuthenticatedRequest, @Body() command: CrearSedeCommand) {
+    return this.authService.crearSede(command, req.user.tenantId);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

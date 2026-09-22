@@ -13,7 +13,7 @@ export class InsumosService {
   private readonly logger = new Logger(InsumosService.name);
   constructor(private readonly prisma: PrismaService) {}
 
-  async listar(query: ListarInsumosQuery = {}, usuarioSedeId?: string | null): Promise<InsumoListResponse> {
+  async listar(query: ListarInsumosQuery = {}, usuarioSedeId?: string | null, tenantId?: string | null): Promise<InsumoListResponse> {
     const sedeId = resolveSedeId(usuarioSedeId, query.sedeId);
     const limit = this.normalizeLimit(query.limit);
 
@@ -24,6 +24,7 @@ export class InsumosService {
     const insumos = await this.prisma.insumo.findMany({
       where: {
         sedeId,
+        ...(tenantId ? { tenantId } : {}),
         activo: true,
         ...(query.proveedorId ? { proveedorId: query.proveedorId } : {}),
         ...(query.search ? { nombre: { contains: query.search, mode: 'insensitive' } } : {}),
@@ -47,7 +48,7 @@ export class InsumosService {
     };
   }
 
-  async crear(command: CrearInsumoCommand, usuarioSedeId?: string | null, sedeIdSolicitado?: string) {
+  async crear(command: CrearInsumoCommand, usuarioSedeId?: string | null, sedeIdSolicitado?: string, tenantId?: string | null) {
     const sedeId = resolveSedeId(usuarioSedeId, sedeIdSolicitado);
 
     if (command.proveedorId) {
@@ -62,6 +63,7 @@ export class InsumosService {
       insumo = await this.prisma.insumo.create({
         data: {
           sedeId,
+          ...(tenantId ? { tenantId } : {}),
           nombre: command.nombre,
           unidad: command.unidad,
           stockActual: command.stockActual ?? 0,

@@ -2,6 +2,9 @@
 
 import type {
   CategoriaDto as ContractCategoriaDto,
+  TamanoPlatoDto as ContractTamanoPlatoDto,
+  CrearTamanoPlatoCommand,
+  ActualizarTamanoPlatoCommand,
   CrearCategoriaCommand,
   ActualizarCategoriaCommand,
   CrearProductoCommand,
@@ -14,10 +17,16 @@ import type {
   ActualizarMenuDiarioCommand,
   MermaDto as ContractMermaDto,
   RegistrarMermaCommand,
+  ActualizarMermaCommand,
+  EliminarMermaCommand,
   ListarMermasQuery,
+  MermaOrigen as ContractMermaOrigen,
 } from '@org/contracts';
 
 export type CategoriaDto = ContractCategoriaDto;
+export type TamanoPlatoDto = ContractTamanoPlatoDto;
+export type CrearTamanoPlatoPayload = CrearTamanoPlatoCommand;
+export type ActualizarTamanoPlatoPayload = ActualizarTamanoPlatoCommand;
 export type CrearCategoriaPayload = CrearCategoriaCommand;
 export type ActualizarCategoriaPayload = ActualizarCategoriaCommand;
 export type ProductoDto = ContractProductoDto;
@@ -29,6 +38,8 @@ export interface ProductoVM {
   categoriaId: string;
   categoriaNombre: string | null;
   nombre: string;
+  tamanoId?: string | null;
+  tamano?: TamanoPlatoDto | null;
   descripcion: string | null;
   precio: number;
   precioLabel: string;
@@ -83,10 +94,19 @@ export interface MenuDiarioItemVM {
   producto: ProductoVM;
 }
 
-// --- Merma de inventario (T-22) ---
+// --- Merma de inventario (T-22, CU-01..CU-04) ---
+
+export const MermaOrigen = {
+  DescarteManual: 'DESCARTE_MANUAL_INVENTARIO',
+  AnulacionNoCobrada: 'ANULACION_COMANDA_NO_COBRADA',
+  AnulacionCobrada: 'ANULACION_COMANDA_COBRADA',
+} as const satisfies Record<string, ContractMermaOrigen>;
+export type MermaOrigen = ContractMermaOrigen;
 
 export type MermaDto = ContractMermaDto;
 export type RegistrarMermaPayload = RegistrarMermaCommand;
+export type ActualizarMermaPayload = ActualizarMermaCommand;
+export type EliminarMermaPayload = EliminarMermaCommand;
 export type MermaListQuery = ListarMermasQuery;
 
 export interface MermasResponse {
@@ -104,6 +124,15 @@ export interface MermaVM {
   productoNombre: string;
   cantidad: number;
   motivo: string;
+  observacion: string | null;
+  origen: MermaOrigen;
+  origenLabel: string;
+  costoUnitario: number | null;
+  costoTotal: number | null;
+  costoTotalLabel: string;
   usuarioNombre: string | null;
   fechaLabel: string;
+  /** Código de la atención origen ("A0000001"). Ausente en mermas manuales
+   *  o si el pedido origen no tenía correlativo todavía. */
+  cuentaCorrelativo: string | null;
 }

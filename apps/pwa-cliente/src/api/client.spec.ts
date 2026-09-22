@@ -11,11 +11,14 @@ import {
   setUsuarioSedeId,
   setSedeSeleccionada,
   getSedeSeleccionada,
+  setTenantId,
+  getTenantId,
 } from './client';
 
 describe('client', () => {
   beforeEach(() => {
     clearAuthToken();
+    setTenantId(null);
     setUsuarioSedeId(null);
     setSedeSeleccionada(null);
     vi.stubGlobal('fetch', vi.fn());
@@ -35,6 +38,13 @@ describe('client', () => {
     expect(getAuthToken()).toBe('my-token');
     clearAuthToken();
     expect(getAuthToken()).toBe(null);
+  });
+
+  it('setTenantId / getTenantId', () => {
+    setTenantId('tenant-123');
+    expect(getTenantId()).toBe('tenant-123');
+    setTenantId(null);
+    expect(getTenantId()).toBe(null);
   });
 
   it('ApiError sets correct properties', () => {

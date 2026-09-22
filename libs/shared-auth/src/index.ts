@@ -12,4 +12,8 @@ export {
   JWT_VERIFY_ALGORITHMS,
 } from './lib/jwt-keys';
 export { resolveSedeId, SEDE_PRINCIPAL_ID } from './lib/resolve-sede';
+export { resolveTenantId, TENANT_DEMO_ID } from './lib/resolve-tenant';
+export { TenantActual, UsuarioActual } from './lib/tenant.decorator';
+export { JwtPayload } from './lib/jwt.strategy';
 export { CSRF_COOKIE_NAME } from './lib/csrf';
+

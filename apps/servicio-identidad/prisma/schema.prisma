@@ -8,37 +8,104 @@ datasource db {
   provider = "postgresql"
 }
 
+model Tenant {
+  id        String         @id @default(uuid())
+  nombre    String
+  slug      String         @unique
+  ruc       String?
+  activo    Boolean        @default(true)
+  plan      String         @default("ESTANDAR")
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  sedes      Sede[]
+  membresias Membresia[]
+  dominios   TenantDomain[]
+
+  @@map("tenants")
+}
+
+model TenantDomain {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  domain    String   @unique
+  createdAt DateTime @default(now())
+
+  @@index([tenantId])
+  @@map("tenant_domains")
+}
+
+model Membresia {
+  id        String          @id @default(uuid())
+  tenantId  String
+  tenant    Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  usuarioId String
+  usuario   Usuario         @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  rol       String          @default("MESERO")
+  activo    Boolean         @default(true)
+  permisos  String?
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  sedes     MembresiaSede[]
+
+  @@unique([tenantId, usuarioId])
+  @@index([usuarioId])
+  @@index([tenantId])
+  @@map("membresias")
+}
+
+model MembresiaSede {
+  id          String    @id @default(uuid())
+  membresiaId String
+  membresia   Membresia @relation(fields: [membresiaId], references: [id], onDelete: Cascade)
+  sedeId      String
+  sede        Sede      @relation(fields: [sedeId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+
+  @@unique([membresiaId, sedeId])
+  @@index([sedeId])
+  @@map("membresias_sedes")
+}
+
 model Usuario {
-  id                  String    @id @default(uuid())
+  id                  String      @id @default(uuid())
   nombre              String
-  email               String    @unique
+  email               String      @unique
   password            String
-  rol                 String    @default("MESERO")
-  activo              Boolean   @default(true)
-  failedLoginAttempts Int       @default(0)
+  rol                 String      @default("MESERO")
+  activo              Boolean     @default(true)
+  failedLoginAttempts Int         @default(0)
   lockedUntil         DateTime?
   // T-23 (multi-sede): null = admin general, sin sede fija — opera cualquier
   // sede que elija en el navbar. No-null = usuario pineado a esa sede única.
   sedeId              String?
-  sede                Sede?     @relation(fields: [sedeId], references: [id])
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  sede                Sede?       @relation(fields: [sedeId], references: [id])
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+
+  membresias          Membresia[]
 
   @@index([sedeId])
 }
 
-// T-23: local/sucursal. El admin general las crea y elige en cuál operar;
-// el resto del personal queda pineado a una sola vía Usuario.sedeId.
+// T-23: local/sucursal. En SaaS multitenant, cada sede pertenece a un tenant.
 model Sede {
-  id        String    @id @default(uuid())
-  nombre    String    @unique
-  direccion String?
-  ruc       String?
-  activa    Boolean   @default(true)
-  usuarios  Usuario[]
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id             String          @id @default(uuid())
+  tenantId       String?
+  tenant         Tenant?         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  nombre         String
+  direccion      String?
+  ruc            String?
+  activa         Boolean         @default(true)
+  usuarios       Usuario[]
+  membresiasSede MembresiaSede[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
 
+  @@unique([tenantId, nombre])
+  @@index([tenantId])
   @@map("sedes")
 }
 
@@ -59,6 +126,7 @@ model RefreshToken {
 
 model AuditoriaLog {
   id        String   @id @default(uuid())
+  tenantId  String?
   accion    String
   usuarioId String
   servicio  String
@@ -66,18 +134,21 @@ model AuditoriaLog {
   createdAt DateTime @default(now())
 
   @@index([usuarioId])
+  @@index([tenantId])
 }
 
 model OutboxEvent {
-  id         String   @id @default(uuid())
+  id         String    @id @default(uuid())
+  tenantId   String?
   routingKey String
   payload    String
-  status     String   @default("PENDING")
-  attempts   Int      @default(0)
+  status     String    @default("PENDING")
+  attempts   Int       @default(0)
   claimedAt  DateTime?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   @@index([status, createdAt])
+  @@index([tenantId])
   @@map("outbox_events")
 }

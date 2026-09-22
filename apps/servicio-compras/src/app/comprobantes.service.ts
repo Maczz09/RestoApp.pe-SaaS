@@ -46,11 +46,12 @@ export class ComprobantesService implements OnModuleInit {
     return join(this.dir, rutaRelativa);
   }
 
-  async listar(query: ListarComprobantesQuery = {}, usuarioSedeId?: string | null): Promise<ComprobanteListResponse> {
+  async listar(query: ListarComprobantesQuery = {}, usuarioSedeId?: string | null, tenantId?: string | null): Promise<ComprobanteListResponse> {
     const sedeId = resolveSedeId(usuarioSedeId, query.sedeId);
     const comprobantes = await this.prisma.comprobanteCompra.findMany({
       where: {
         sedeId,
+        ...(tenantId ? { tenantId } : {}),
         ...(query.ordenId ? { ordenId: query.ordenId } : {}),
         ...(query.recepcionId ? { recepcionId: query.recepcionId } : {}),
       },
@@ -59,8 +60,8 @@ export class ComprobantesService implements OnModuleInit {
     return { data: comprobantes.map(toComprobanteCompraDto) };
   }
 
-  async obtenerComprobante(id: string, usuarioSedeId?: string | null): Promise<ComprobanteCompra> {
-    const comprobante = await this.prisma.comprobanteCompra.findUnique({ where: { id } });
+  async obtenerComprobante(id: string, usuarioSedeId?: string | null, tenantId?: string | null): Promise<ComprobanteCompra> {
+    const comprobante = await this.prisma.comprobanteCompra.findUnique({ where: { id, ...(tenantId ? { tenantId } : {}) } });
     if (!comprobante || (usuarioSedeId && comprobante.sedeId !== usuarioSedeId)) {
       throw new NotFoundException(`Comprobante ${id} no encontrado`);
     }
@@ -73,6 +74,7 @@ export class ComprobantesService implements OnModuleInit {
     usuario?: { id: string; nombre: string } | null,
     usuarioSedeId?: string | null,
     sedeIdSolicitado?: string,
+    tenantId?: string | null,
   ): Promise<{ message: string; comprobante: ReturnType<typeof toComprobanteCompraDto> }> {
     if (!archivo || !archivo.buffer || archivo.buffer.length === 0) {
       throw new BadRequestException('Sube una foto de la boleta o factura (campo "file")');
@@ -117,6 +119,7 @@ export class ComprobantesService implements OnModuleInit {
       comprobante = await this.prisma.comprobanteCompra.create({
         data: {
           sedeId,
+          ...(tenantId ? { tenantId } : {}),
           ordenId: command.ordenId ?? null,
           recepcionId: command.recepcionId ?? null,
           tipo: command.tipo ?? 'BOLETA',

@@ -16,13 +16,14 @@ export class ProveedoresService {
   private readonly logger = new Logger(ProveedoresService.name);
   constructor(private readonly prisma: PrismaService) {}
 
-  async listar(query: ListarProveedoresQuery = {}, usuarioSedeId?: string | null): Promise<ProveedorListResponse> {
+  async listar(query: ListarProveedoresQuery = {}, usuarioSedeId?: string | null, tenantId?: string | null): Promise<ProveedorListResponse> {
     const sedeId = resolveSedeId(usuarioSedeId, query.sedeId);
     const limit = this.normalizeLimit(query.limit);
 
     const proveedores = await this.prisma.proveedor.findMany({
       where: {
         sedeId,
+        ...(tenantId ? { tenantId } : {}),
         ...(query.activo != null ? { activo: query.activo } : {}),
         ...(query.search
           ? { nombre: { contains: query.search, mode: 'insensitive' } }
@@ -42,7 +43,7 @@ export class ProveedoresService {
     };
   }
 
-  async crear(command: CrearProveedorCommand, usuarioSedeId?: string | null, sedeIdSolicitado?: string) {
+  async crear(command: CrearProveedorCommand, usuarioSedeId?: string | null, sedeIdSolicitado?: string, tenantId?: string | null) {
     const sedeId = resolveSedeId(usuarioSedeId, sedeIdSolicitado);
 
     let proveedor: Proveedor;
@@ -50,6 +51,7 @@ export class ProveedoresService {
       proveedor = await this.prisma.proveedor.create({
         data: {
           sedeId,
+          ...(tenantId ? { tenantId } : {}),
           nombre: command.nombre,
           ruc: command.ruc ?? null,
           categoria: command.categoria ?? null,

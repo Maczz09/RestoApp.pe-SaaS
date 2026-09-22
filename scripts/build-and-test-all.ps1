@@ -22,21 +22,22 @@ $services = @(
   "servicio-notificaciones",
   "servicio-caja",
   "servicio-reportes",
-  "servicio-facturacion"
+  "servicio-facturacion",
+  "servicio-compras"
 )
 
 Write-Host ""
 Write-Host "==========================================" -ForegroundColor Cyan
-Write-Host "  PHASE 1: Docker Build (all services)" -ForegroundColor Cyan
+Write-Host "  PHASE 1: Docker Build (all RestoApp services)" -ForegroundColor Cyan
 Write-Host "==========================================" -ForegroundColor Cyan
 Write-Host ""
 
 foreach ($svc in $services) {
-  $img = "infra-$svc"
+  $img = "restoapp-$svc"
   Write-Host ">>> Building $img ..." -ForegroundColor Yellow
   $logFile = Join-Path $logDir "build-$svc.log"
   
-  docker build --build-arg APP_NAME=$svc -t $img -f Dockerfile . 2>&1 | Tee-Object -FilePath $logFile
+  docker build --build-arg APP_NAME=$svc -t "RestoApp-$svc" -t $img -t "infra-$svc" -f Dockerfile . 2>&1 | Tee-Object -FilePath $logFile
   
   if ($LASTEXITCODE -eq 0) {
     Write-Host "    OK: $img" -ForegroundColor Green
@@ -47,14 +48,15 @@ foreach ($svc in $services) {
 }
 
 # Also build Kong
-Write-Host ">>> Building infra-kong ..." -ForegroundColor Yellow
+Write-Host ">>> Building restoapp-kong ..." -ForegroundColor Yellow
 Push-Location (Join-Path $infraDir "kong")
-docker build -t infra-kong . 2>&1 | Tee-Object -FilePath (Join-Path $logDir "build-kong.log")
+docker build -t "RestoApp-kong" -t restoapp-kong -t infra-kong . 2>&1 | Tee-Object -FilePath (Join-Path $logDir "build-kong.log")
 Pop-Location
 
 # Build PWA
-Write-Host ">>> Building infra-pwa-cliente ..." -ForegroundColor Yellow
-docker build -t infra-pwa-cliente -f apps/pwa-cliente/Dockerfile . 2>&1 | Tee-Object -FilePath (Join-Path $logDir "build-pwa-cliente.log")
+Write-Host ">>> Building restoapp-pwa-cliente ..." -ForegroundColor Yellow
+docker build -t "RestoApp-pwa-cliente" -t restoapp-pwa-cliente -t infra-pwa-cliente -f apps/pwa-cliente/Dockerfile . 2>&1 | Tee-Object -FilePath (Join-Path $logDir "build-pwa-cliente.log")
+
 
 Write-Host ""
 Write-Host "==========================================" -ForegroundColor Cyan

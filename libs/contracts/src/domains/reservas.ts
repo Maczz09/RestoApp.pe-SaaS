@@ -25,6 +25,9 @@ export type ReservaEstado = (typeof ReservaEstado)[keyof typeof ReservaEstado];
 export class ReservaDto {
   @IsString()
   id: string;
+  @IsOptional()
+  @IsString()
+  tenantId?: string;
   @IsString()
   sedeId: string;
   @IsString()
@@ -50,6 +53,11 @@ export class ReservaDto {
   @IsOptional()
   @IsString()
   usuarioNombre?: string;
+  // Código legible ("R0000001"). Ausente en reservas creadas antes de este
+  // campo (no hay backfill retroactivo).
+  @IsOptional()
+  @IsString()
+  correlativo?: string;
   @IsString()
   createdAt: string;
 }
@@ -81,6 +89,11 @@ export class ListarReservasQuery {
   @IsOptional()
   @IsDateString()
   updatedSince?: string;
+
+  // Busca por el código de la reserva ("R0000001" o un fragmento).
+  @IsOptional()
+  @IsString()
+  search?: string;
 }
 
 export class ReservaListResponse {

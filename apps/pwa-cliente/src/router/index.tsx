@@ -21,6 +21,8 @@ const UsuariosScreen = lazy(() => import('../screens/admin/UsuariosScreen').then
 const SedesScreen = lazy(() => import('../screens/sedes/SedesScreen').then(m => ({ default: m.SedesScreen })));
 const CartaScreen = lazy(() => import('../screens/carta/CartaScreen').then(m => ({ default: m.CartaScreen })));
 const ComprasScreen = lazy(() => import('../screens/compras/ComprasScreen').then(m => ({ default: m.ComprasScreen })));
+const FacturacionScreen = lazy(() => import('../screens/facturacion/FacturacionScreen').then(m => ({ default: m.FacturacionScreen })));
+const PublicCartaScreen = lazy(() => import('../screens/carta-publica/PublicCartaScreen').then(m => ({ default: m.PublicCartaScreen })));
 const TicketPrintPage = lazy(() => import('../screens/print/TicketPrintPage').then(m => ({ default: m.TicketPrintPage })));
 import { Shell } from '../components/layout/Shell';
 import { ErrorBoundary } from '../components/ui/ErrorBoundary';
@@ -105,6 +107,8 @@ export function AppRouter() {
             de localStorage, ver utils/ticketPrint.ts) — así Chrome imprime
             solo el ticket, no el layout completo de la app alrededor. */}
         <Route path="/imprimir/boleta" element={<Suspense fallback={null}><TicketPrintPage /></Suspense>} />
+        {/* Carta pública/QR sin auth ni Shell */}
+        <Route path="/carta/:sedeId" element={<Suspense fallback={null}><PublicCartaScreen /></Suspense>} />
 
         {/* Rutas públicas */}
         <Route element={<PublicRoute />}>
@@ -131,6 +135,7 @@ export function AppRouter() {
           <Route path="sedes" element={<RutaPorRol ruta="sedes"><ScreenBoundary modulo="Sedes"><SedesScreen /></ScreenBoundary></RutaPorRol>} />
           <Route path="carta" element={<RutaPorRol ruta="carta"><ScreenBoundary modulo="Carta"><CartaScreen /></ScreenBoundary></RutaPorRol>} />
           <Route path="compras" element={<RutaPorRol ruta="compras"><ScreenBoundary modulo="Compras"><ComprasScreen /></ScreenBoundary></RutaPorRol>} />
+          <Route path="facturacion" element={<RutaPorRol ruta="facturacion"><ScreenBoundary modulo="Facturación"><FacturacionScreen /></ScreenBoundary></RutaPorRol>} />
         </Route>
 
 

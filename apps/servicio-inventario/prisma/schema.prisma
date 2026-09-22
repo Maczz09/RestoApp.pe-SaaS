@@ -8,32 +8,69 @@ datasource db {
   provider = "postgresql"
 }
 
+// Determina TANTO qué módulo administra la categoría (Carta vs Inventario)
+// COMO, si es Carta, a qué estación de producción se enruta un pedido: nunca
+// se infiere del nombre (el dueño puede llamarla "Tragos", "Licores", lo que
+// sea) — el propio dueño la elige explícitamente al crear/editar la
+// categoría, así el ruteo es 100% escalable sin tocar código.
+enum CategoriaArea {
+  COCINA
+  BARRA
+  INVENTARIO
+}
+
 model Categoria {
-  id             String      @id @default(uuid())
+  id             String        @id @default(uuid())
+  tenantId       String?
   // T-23 (multi-sede): el nombre es único DENTRO de su sede, no globalmente
   // (dos locales pueden tener cada uno su "Bebidas").
   nombre         String
   sedeId         String
   descripcion    String?
   parentId       String?
+  area           CategoriaArea @default(COCINA)
   // Un solo nivel de subcategorías a propósito (parent no puede tener su
   // propio parent) — se valida en el servicio, no en el schema.
-  parent         Categoria?  @relation("Subcategorias", fields: [parentId], references: [id])
-  subcategorias  Categoria[] @relation("Subcategorias")
+  parent         Categoria?    @relation("Subcategorias", fields: [parentId], references: [id])
+  subcategorias  Categoria[]   @relation("Subcategorias")
   productos      Producto[]
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
   @@unique([sedeId, nombre])
+  @@index([tenantId])
   @@index([parentId])
   @@index([sedeId])
+  @@index([tenantId, sedeId])
+  @@index([area])
   @@map("categorias")
+}
+
+model TamanoPlato {
+  id        String     @id @default(uuid())
+  tenantId  String?
+  sedeId    String
+  nombre    String
+  orden     Int        @default(0)
+  activo    Boolean    @default(true)
+  productos Producto[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@unique([sedeId, nombre])
+  @@index([tenantId])
+  @@index([sedeId, orden])
+  @@index([tenantId, sedeId, orden])
+  @@map("tamanos_plato")
 }
 
 model Producto {
   id          String       @id @default(uuid())
+  tenantId    String?
   categoriaId String
   categoria   Categoria    @relation(fields: [categoriaId], references: [id])
+  tamanoId    String?
+  tamano      TamanoPlato?  @relation(fields: [tamanoId], references: [id], onDelete: Restrict)
   sedeId      String
   nombre      String
   descripcion String?
@@ -45,26 +82,59 @@ model Producto {
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
+  @@index([tenantId])
   @@index([categoriaId])
+  @@index([tamanoId])
   @@index([sedeId])
+  @@index([tenantId, sedeId])
   @@map("productos")
 }
 
-// T-22: merma de inventario — botellas rotas/vencidas u otra pérdida de
-// stock que no viene de una venta. Queda como registro auditable (motivo +
-// quién la reportó), separado de la reposición/consumo normal.
+// Origen de una merma: descarte manual desde Inventario, o automática desde
+// una anulación de comanda (CU-01/CU-02) — cobrada o no al cliente. Ver
+// AnulacionAuditoria en servicio-pedidos para el detalle de esa anulación.
+enum MermaOrigen {
+  DESCARTE_MANUAL_INVENTARIO
+  ANULACION_COMANDA_NO_COBRADA
+  ANULACION_COMANDA_COBRADA
+}
+
+// T-22: merma de inventario — botellas rotas/vencidas, plato ya preparado
+// que se anuló, u otra pérdida de stock que no viene de una venta normal.
+// Queda como registro auditable (motivo + quién la reportó).
+//
+// Un producto de Carta/Menú (stockActual null, sin control de stock en este
+// sistema) SÍ puede tener merma — para dejar constancia del costo perdido —
+// pero no mueve ningún contador de stock porque no existe uno; solo los
+// productos de Inventario (stockActual no-null) descuentan/restauran stock.
 model Merma {
-  id            String   @id @default(uuid())
+  id            String      @id @default(uuid())
+  tenantId      String?
   productoId    String
-  producto      Producto @relation(fields: [productoId], references: [id])
+  producto      Producto    @relation(fields: [productoId], references: [id])
   cantidad      Int
   motivo        String
+  observacion   String?
+  origen        MermaOrigen @default(DESCARTE_MANUAL_INVENTARIO)
+  // Snapshot del precio al momento de la merma (protege el cálculo histórico
+  // de $ perdido aunque el precio del producto cambie después).
+  costoUnitario Decimal?    @db.Decimal(10, 2)
+  // Referencia laxa (sin FK: servicio-pedidos tiene su propia BD) al ítem de
+  // comanda que originó una merma automática — solo trazabilidad.
+  pedidoItemId  String?
+  // Código legible de la atención origen ("A0000001"), denormalizado desde
+  // PedidoItemAnuladoConMermaPayload — ausente en mermas manuales
+  // (DESCARTE_MANUAL_INVENTARIO) o si el pedido no tenía correlativo aún.
+  cuentaCorrelativo String?
   usuarioId     String?
   usuarioNombre String?
-  createdAt     DateTime @default(now())
+  createdAt     DateTime    @default(now())
 
+  @@index([tenantId])
   @@index([productoId])
   @@index([createdAt])
+  @@index([origen])
+  @@index([cuentaCorrelativo])
   @@map("mermas")
 }
 
@@ -75,6 +145,7 @@ model Merma {
 // upsert sobre esa clave en vez de crear una fila nueva).
 model MenuDiario {
   id          String   @id @default(uuid())
+  tenantId    String?
   fecha       DateTime @db.Date
   productoId  String
   producto    Producto @relation(fields: [productoId], references: [id])
@@ -83,12 +154,14 @@ model MenuDiario {
   updatedAt   DateTime @updatedAt
 
   @@unique([fecha, productoId])
+  @@index([tenantId])
   @@index([fecha])
   @@map("menu_diario")
 }
 
 model OutboxEvent {
   id         String   @id @default(uuid())
+  tenantId   String?
   routingKey String
   payload    String
   status     String   @default("PENDING")
@@ -98,14 +171,17 @@ model OutboxEvent {
   updatedAt  DateTime @updatedAt
 
   @@index([status, createdAt])
+  @@index([tenantId, status])
   @@map("outbox_events")
 }
 
 model IdempotencyKey {
   id        String   @id @default(uuid())
+  tenantId  String?
   key       String   @unique
   createdAt DateTime @default(now())
 
+  @@index([tenantId])
   @@index([createdAt])
   @@map("idempotency_keys")
 }

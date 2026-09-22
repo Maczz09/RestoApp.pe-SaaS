@@ -28,6 +28,7 @@ export function getAuthToken() {
 export function clearAuthToken() {
   authToken = null;
   localStorage.removeItem(LEGACY_AUTH_TOKEN_KEY);
+  setTenantId(null);
 }
 
 // ─── T-23 (multi-sede) ────────────────────────────────────────────
@@ -69,6 +70,24 @@ export function setSedeSeleccionada(sedeId: string | null) {
 
 export function getSedeSeleccionada(): string | null {
   return sedeSeleccionada;
+}
+
+// ─── SaaS Multitenancy ─────────────────────────────────────────────
+const ACTIVE_TENANT_KEY = 'restoapp.active_tenant';
+let activeTenantId: string | null = typeof window !== 'undefined' && window.localStorage
+  ? localStorage.getItem(ACTIVE_TENANT_KEY)
+  : null;
+
+export function setTenantId(tenantId: string | null) {
+  activeTenantId = tenantId;
+  if (typeof window !== 'undefined' && window.localStorage) {
+    if (tenantId) localStorage.setItem(ACTIVE_TENANT_KEY, tenantId);
+    else localStorage.removeItem(ACTIVE_TENANT_KEY);
+  }
+}
+
+export function getTenantId(): string | null {
+  return activeTenantId;
 }
 
 function appendSedeParam(path: string): string {
@@ -173,6 +192,12 @@ function applyHeaders(headers: Headers, method: string, body?: BodyInit | null):
   const csrfToken = getCookie(CSRF_COOKIE_KEY);
   if (csrfToken && MUTATING_METHODS.has(method) && !headers.has(CSRF_HEADER_KEY)) {
     headers.set(CSRF_HEADER_KEY, csrfToken);
+  }
+  if (authToken && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${authToken}`);
+  }
+  if (activeTenantId && !headers.has('X-Tenant-Id')) {
+    headers.set('X-Tenant-Id', activeTenantId);
   }
 }
 

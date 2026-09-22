@@ -9,11 +9,20 @@ import { Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { OperableLog } from '@org/observabilidad';
 import { getJwtPublicKey, getServiceJwtSecret } from '@org/shared-auth';
-import { wsRoomForRole, wsRoomsForPattern } from '@org/contracts';
+import {
+  wsRoomForRole,
+  wsRoomsForPattern,
+  wsRoomForTenant,
+  wsRoomForTenantRole,
+  wsRoomForTenantSede,
+  wsTenantRoomsForPattern,
+} from '@org/contracts';
 
 export interface NotificacionEvento {
   pattern: string;
   data: unknown;
+  tenantId?: string;
+  sedeId?: string;
 }
 
 export function resolveWsCorsOrigins(): string[] {
@@ -57,11 +66,19 @@ export class NotificationsGateway
       const token = this.extractToken(client);
       if (!token) throw new Error('missing token');
 
-      const user = (await this.verifyToken(token)) as { rol?: string };
+      const user = (await this.verifyToken(token)) as { rol?: string; tenantId?: string; sedeId?: string };
       (client.data as Record<string, unknown>).user = user;
       // T-19: unir al room por rol para emisión dirigida en vez de broadcast global.
       if (user?.rol) {
         await client.join(wsRoomForRole(user.rol));
+        if (user.tenantId) {
+          await client.join(wsRoomForTenantRole(user.tenantId, user.rol, user.sedeId));
+          if (user.sedeId) {
+            await client.join(wsRoomForTenantRole(user.tenantId, user.rol));
+            await client.join(wsRoomForTenantSede(user.tenantId, user.sedeId));
+          }
+          await client.join(wsRoomForTenant(user.tenantId));
+        }
       }
       this.logger.log({
         operation: 'handleConnection',
@@ -92,7 +109,14 @@ export class NotificationsGateway
   // T-19: emite el evento solo a los roles autorizados a verlo (matriz en @org/contracts),
   // en vez de un broadcast global que filtraba pagos/arqueos a cualquier autenticado.
   emitPedidoUpdate(evento: NotificacionEvento) {
-    const rooms = wsRoomsForPattern(evento.pattern);
+    const dataObj = typeof evento.data === 'object' && evento.data !== null ? (evento.data as Record<string, unknown>) : {};
+    const tenantId = evento.tenantId ?? (dataObj['tenantId'] as string | undefined);
+    const sedeId = evento.sedeId ?? (dataObj['sedeId'] as string | undefined);
+
+    const rooms = tenantId
+      ? wsTenantRoomsForPattern(evento.pattern, tenantId, sedeId)
+      : wsRoomsForPattern(evento.pattern);
+
     if (rooms.length === 0) {
       this.logger.warn({
         operation: evento.pattern,

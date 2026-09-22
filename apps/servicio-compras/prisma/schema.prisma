@@ -14,6 +14,7 @@ datasource db {
 // @@unique([sedeId, ruc]) tolera N proveedores informales por sede.
 model Proveedor {
   id            String   @id @default(uuid())
+  tenantId      String?
   sedeId        String
   nombre        String
   ruc           String?
@@ -30,6 +31,7 @@ model Proveedor {
 
   @@unique([sedeId, nombre])
   @@unique([sedeId, ruc])
+  @@index([tenantId, sedeId])
   @@index([sedeId, activo])
   @@map("proveedores")
 }
@@ -41,6 +43,7 @@ model Proveedor {
 // además se revenden tal cual (cervezas, gaseosas, pisco).
 model Insumo {
   id               String     @id @default(uuid())
+  tenantId         String?
   sedeId           String
   nombre           String
   unidad           String
@@ -57,6 +60,7 @@ model Insumo {
   updatedAt        DateTime   @updatedAt
 
   @@unique([sedeId, nombre])
+  @@index([tenantId, sedeId])
   @@index([sedeId, activo])
   @@index([proveedorId])
   @@map("insumos")
@@ -68,6 +72,7 @@ model Insumo {
 // luego renombran al proveedor, (c) el listado no necesita join.
 model OrdenCompra {
   id                   String    @id @default(uuid())
+  tenantId             String?
   sedeId               String
   codigo               String
   proveedorId          String?
@@ -90,6 +95,7 @@ model OrdenCompra {
   updatedAt            DateTime  @updatedAt
 
   @@unique([sedeId, codigo])
+  @@index([tenantId, sedeId])
   @@index([sedeId, estado])
   @@index([sedeId, fechaEmision])
   @@map("ordenes_compra")
@@ -123,6 +129,7 @@ model OrdenCompraItem {
 // OC se recalculan a partir de ellas.
 model RecepcionCompra {
   id            String   @id @default(uuid())
+  tenantId      String?
   sedeId        String
   ordenId       String
   orden         OrdenCompra @relation(fields: [ordenId], references: [id], onDelete: Cascade)
@@ -134,6 +141,7 @@ model RecepcionCompra {
   comprobantes  ComprobanteCompra[]
   createdAt     DateTime @default(now())
 
+  @@index([tenantId, sedeId])
   @@index([sedeId, fecha])
   @@index([ordenId])
   @@map("recepciones_compra")
@@ -159,6 +167,7 @@ model RecepcionCompraItem {
 // permite adjuntar la foto de una compra ad-hoc que no tiene OC.
 model ComprobanteCompra {
   id             String   @id @default(uuid())
+  tenantId       String?
   sedeId         String
   ordenId        String?
   orden          OrdenCompra? @relation(fields: [ordenId], references: [id], onDelete: Cascade)
@@ -183,6 +192,7 @@ model ComprobanteCompra {
   usuarioNombre  String?
   createdAt      DateTime @default(now())
 
+  @@index([tenantId, sedeId])
   @@index([sedeId, createdAt])
   @@index([ordenId])
   @@index([recepcionId])
@@ -200,6 +210,7 @@ model SecuenciaOrden {
 
 model OutboxEvent {
   id         String   @id @default(uuid())
+  tenantId   String?
   routingKey String
   payload    String
   status     String   @default("PENDING")
@@ -208,6 +219,7 @@ model OutboxEvent {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
+  @@index([tenantId, status])
   @@index([status, createdAt])
   @@map("outbox_events")
 }
@@ -218,6 +230,7 @@ model OutboxEvent {
 // IdempotencyInterceptor (libs/resiliencia).
 model IdempotencyKey {
   id          String    @id @default(uuid())
+  tenantId    String?
   key         String    @unique
   method      String?
   path        String?

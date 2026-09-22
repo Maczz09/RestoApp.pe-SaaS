@@ -20,6 +20,7 @@ enum PedidoEstado {
 
 model Pedido {
   id             String       @id @default(uuid())
+  tenantId       String?
   mesaId         String
   sedeId         String
   numeroMesa     Int?
@@ -37,6 +38,7 @@ model Pedido {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
+  @@index([tenantId])
   @@index([mesaId])
   @@index([estado])
   @@index([meseroId])
@@ -46,6 +48,7 @@ model Pedido {
 
 model PedidoItem {
   id             String        @id @default(uuid())
+  tenantId       String?
   pedidoId       String
   pedido         Pedido        @relation(fields: [pedidoId], references: [id])
   productoId     String
@@ -59,6 +62,7 @@ model PedidoItem {
   meseroId       String?
   meseroNombre   String?
 
+  @@index([tenantId])
   @@index([pedidoId])
   @@index([meseroId])
   @@map("pedido_items")
@@ -66,15 +70,18 @@ model PedidoItem {
 
 model MesaLocal {
   id        String   @id
+  tenantId  String?
   sedeId    String?
   numero    Int
   updatedAt DateTime @updatedAt
 
+  @@index([tenantId])
   @@map("mesas_local")
 }
 
 model OutboxEvent {
   id         String   @id @default(uuid())
+  tenantId   String?
   routingKey String
   payload    String
   status     String   @default("PENDING")
@@ -84,22 +91,26 @@ model OutboxEvent {
   updatedAt  DateTime @updatedAt
 
   @@index([status, createdAt])
+  @@index([tenantId])
   @@map("outbox_events")
 }
 
 model ProductoLocal {
   id              String  @id
+  tenantId        String?
   nombre          String
   precio          Decimal @db.Decimal(10, 2)
   stockActual     Int?
   categoriaNombre String  @default("COCINA")
   disponible      Boolean @default(true)
 
+  @@index([tenantId])
   @@map("productos_locales")
 }
 
 model IdempotencyKey {
   id          String    @id @default(uuid())
+  tenantId    String?
   key         String    @unique
   createdAt   DateTime  @default(now())
   // Idempotencia HTTP (plan 1.3): además del dedup de eventos, almacena la
@@ -112,6 +123,7 @@ model IdempotencyKey {
   // T-14: huella SHA-256 del cuerpo de la petición; misma clave + body distinto → 422.
   requestHash String?
 
+  @@index([tenantId])
   @@index([createdAt])
   @@map("idempotency_keys")
 }

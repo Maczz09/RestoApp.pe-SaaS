@@ -31,12 +31,14 @@ export class ReservasService {
   async listar(
     query: ListarReservasQuery = {},
     usuarioSedeId?: string | null,
+    tenantId?: string | null,
   ): Promise<ReservaListResponse> {
     const sedeId = resolveSedeId(usuarioSedeId, query.sedeId);
     const limit = this.normalizeLimit(query.limit);
     const reservas = await this.prisma.reserva.findMany({
       where: {
         sedeId,
+        ...(tenantId ? { tenantId } : {}),
         ...(query.estado ? { estado: query.estado } : {}),
         ...(query.fecha ? { fecha: new Date(query.fecha) } : {}),
         ...(query.updatedSince
@@ -68,6 +70,7 @@ export class ReservasService {
     usuario?: { id: string; nombre: string } | null,
     usuarioSedeId?: string | null,
     sedeIdSolicitado?: string,
+    tenantId?: string | null,
   ) {
     const sedeId = resolveSedeId(usuarioSedeId, sedeIdSolicitado);
     const clienteNombre = command.clienteNombre ?? 'Sin nombre';
@@ -80,7 +83,7 @@ export class ReservasService {
 
     this.assertFechaFutura(command.fecha, command.hora);
 
-    await this.assertMesaDisponible(command.fecha, command.hora, sedeId, mesaPreferida);
+    await this.assertMesaDisponible(command.fecha, command.hora, sedeId, mesaPreferida, tenantId);
 
     let reserva: Reserva;
     try {
@@ -89,6 +92,7 @@ export class ReservasService {
         const r = await prisma.reserva.create({
           data: {
             sedeId,
+            ...(tenantId ? { tenantId } : {}),
             clienteId: command.clienteId ?? null,
             clienteNombre,
             clienteTelefono: command.clienteTelefono ?? null,
@@ -107,6 +111,7 @@ export class ReservasService {
             routingKey: RoutingKeys.ReservaCreada,
             payload: JSON.stringify({ reserva: toReservaDto(r) } satisfies ReservaCreadaPayload),
             status: 'PENDING',
+            ...(tenantId ? { tenantId } : {}),
           },
         });
 
@@ -129,8 +134,8 @@ export class ReservasService {
     return { message: 'Reserva creada', reserva: dto };
   }
 
-  async confirmar(id: string, usuarioSedeId?: string | null) {
-    const reserva = await this.findOrThrow(id, usuarioSedeId);
+  async confirmar(id: string, usuarioSedeId?: string | null, tenantId?: string | null) {
+    const reserva = await this.findOrThrow(id, usuarioSedeId, tenantId);
     if (reserva.estado !== ReservaEstado.Pendiente) {
       throw new ConflictException('Solo se pueden confirmar reservas pendientes');
     }
@@ -149,8 +154,8 @@ export class ReservasService {
     return { message: 'Reserva confirmada', reserva: toReservaDto(updated) };
   }
 
-  async cancelar(id: string, motivo?: string, usuarioSedeId?: string | null) {
-    await this.findOrThrow(id, usuarioSedeId);
+  async cancelar(id: string, motivo?: string, usuarioSedeId?: string | null, tenantId?: string | null) {
+    await this.findOrThrow(id, usuarioSedeId, tenantId);
 
     // M2.A: cancelar reserva + outbox en la misma transacción
     const updated = await this.prisma.$transaction(async (prisma) => {
@@ -164,6 +169,7 @@ export class ReservasService {
           routingKey: RoutingKeys.ReservaCancelada,
           payload: JSON.stringify({ reservaId: id, motivo } satisfies ReservaCanceladaPayload),
           status: 'PENDING',
+          ...(tenantId ? { tenantId } : {}),
         },
       });
 
@@ -185,9 +191,10 @@ export class ReservasService {
     mesaPreferida?: string,
     usuarioSedeId?: string | null,
     sedeIdSolicitado?: string,
+    tenantId?: string | null,
   ): Promise<ReservaDisponibilidadResponse> {
     const sedeId = resolveSedeId(usuarioSedeId, sedeIdSolicitado);
-    return this.disponibilidadEnSede(fecha, hora, sedeId, mesaPreferida);
+    return this.disponibilidadEnSede(fecha, hora, sedeId, mesaPreferida, tenantId);
   }
 
   private async disponibilidadEnSede(
@@ -195,11 +202,13 @@ export class ReservasService {
     hora: string,
     sedeId: string,
     mesaPreferida?: string,
+    tenantId?: string | null,
   ): Promise<ReservaDisponibilidadResponse> {
     const mesa = mesaPreferida?.trim();
     const reservasActivas = await this.prisma.reserva.findMany({
       where: {
         sedeId,
+        ...(tenantId ? { tenantId } : {}),
         fecha: new Date(fecha),
         hora,
         estado: { in: [ReservaEstado.Pendiente, ReservaEstado.Confirmada] },
@@ -221,8 +230,8 @@ export class ReservasService {
     };
   }
 
-  private async assertMesaDisponible(fecha: string, hora: string, sedeId: string, mesaPreferida: string): Promise<void> {
-    const { disponible } = await this.disponibilidadEnSede(fecha, hora, sedeId, mesaPreferida);
+  private async assertMesaDisponible(fecha: string, hora: string, sedeId: string, mesaPreferida: string, tenantId?: string | null): Promise<void> {
+    const { disponible } = await this.disponibilidadEnSede(fecha, hora, sedeId, mesaPreferida, tenantId);
     if (!disponible) {
       throw new ConflictException('La mesa ya está reservada para la fecha y hora solicitadas');
     }
@@ -244,9 +253,9 @@ export class ReservasService {
     return typeof error === 'object' && error !== null && (error as { code?: string }).code === 'P2002';
   }
 
-  private async findOrThrow(id: string, usuarioSedeId?: string | null) {
+  private async findOrThrow(id: string, usuarioSedeId?: string | null, tenantId?: string | null) {
     const reserva = await this.prisma.reserva.findUnique({ where: { id } });
-    if (!reserva || (usuarioSedeId && reserva.sedeId !== usuarioSedeId)) {
+    if (!reserva || (usuarioSedeId && reserva.sedeId !== usuarioSedeId) || (tenantId && reserva.tenantId && reserva.tenantId !== tenantId)) {
       throw new NotFoundException(`Reserva ${id} no encontrada`);
     }
     return reserva;
