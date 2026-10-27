@@ -35,6 +35,14 @@ interface MeseroPedido {
 
 @Injectable()
 export class AppService {
+  async resumenPlataforma(tenantId: string) {
+    const [total, porEstado, recientes] = await Promise.all([
+      this.prisma.pedido.count({ where: { tenantId } }),
+      this.prisma.pedido.groupBy({ by: ['estado'], where: { tenantId }, _count: { _all: true } }),
+      this.prisma.pedido.findMany({ where: { tenantId }, orderBy: { updatedAt: 'desc' }, take: 20, select: { id: true, sedeId: true, estado: true, modalidad: true, total: true, updatedAt: true } }),
+    ]);
+    return { total, porEstado: Object.fromEntries(porEstado.map((row) => [row.estado, row._count._all])), recientes, observedAt: new Date().toISOString() };
+  }
   private readonly logger = new Logger(AppService.name);
   // Métricas de negocio (plan 5.2): pedidos/min vía rate(pedidos_creados_total).
   private readonly pedidosCreadosCounter = getOrCreateCounter(

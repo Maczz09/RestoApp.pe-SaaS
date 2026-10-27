@@ -15,14 +15,49 @@ model Tenant {
   ruc       String?
   activo    Boolean        @default(true)
   plan      String         @default("ESTANDAR")
+  nextDueAt DateTime?
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
 
   sedes      Sede[]
   membresias Membresia[]
   dominios   TenantDomain[]
+  pagos      PlatformPayment[]
 
   @@map("tenants")
+}
+
+model PlatformPlan {
+  code         String   @id
+  nombre       String
+  descripcion  String?
+  priceCents   Int
+  cycleDays    Int      @default(30)
+  activo       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("platform_plans")
+}
+
+model PlatformPayment {
+  id          String   @id @default(uuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  planCode    String
+  amountCents Int
+  periods     Int
+  dueBefore   DateTime
+  dueAfter    DateTime
+  method      String
+  reference   String?
+  note        String?
+  recordedBy  String
+  paidAt      DateTime
+  createdAt   DateTime @default(now())
+
+  @@index([tenantId, paidAt])
+  @@map("platform_payments")
 }
 
 model TenantDomain {
@@ -30,7 +65,10 @@ model TenantDomain {
   tenantId  String
   tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   domain    String   @unique
+  activo    Boolean  @default(true)
+  principal Boolean  @default(false)
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([tenantId])
   @@map("tenant_domains")
@@ -82,6 +120,7 @@ model Usuario {
   // sede que elija en el navbar. No-null = usuario pineado a esa sede única.
   sedeId              String?
   sede                Sede?       @relation(fields: [sedeId], references: [id])
+  telefono            String?
   createdAt           DateTime    @default(now())
   updatedAt           DateTime    @updatedAt
 
@@ -98,6 +137,7 @@ model Sede {
   nombre         String
   direccion      String?
   ruc            String?
+  telefono       String?
   activa         Boolean         @default(true)
   usuarios       Usuario[]
   membresiasSede MembresiaSede[]
@@ -130,6 +170,10 @@ model AuditoriaLog {
   accion    String
   usuarioId String
   servicio  String
+  recurso   String?
+  recursoId String?
+  detalle   String?
+  resultado String   @default("OK")
   ip        String?
   createdAt DateTime @default(now())
 

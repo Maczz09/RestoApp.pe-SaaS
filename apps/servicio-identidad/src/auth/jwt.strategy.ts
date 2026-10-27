@@ -27,6 +27,7 @@ interface JwtPayload {
   membershipId?: string | null;
   allowedSedeIds?: string[];
   activeSedeId?: string | null;
+  sessionScope?: 'PLATFORM' | 'TENANT';
 }
 
 const cookieExtractor: JwtFromRequestFunction = (req: Request) => {
@@ -61,6 +62,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       membershipId: payload.membershipId ?? null,
       allowedSedeIds: payload.allowedSedeIds ?? (payload.sedeId ? [payload.sedeId] : []),
       activeSedeId: payload.activeSedeId ?? payload.sedeId ?? null,
+      sessionScope: payload.sessionScope ?? 'TENANT',
     };
   }
 }

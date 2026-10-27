@@ -102,6 +102,17 @@ describe('AppService — Pedidos', () => {
     service = createService(mockPrisma as never, mockPublisher as never);
   });
 
+  it('observación de plataforma filtra pedidos por tenant en cada consulta', async () => {
+    mockPrisma.pedido.count = jest.fn().mockResolvedValue(3);
+    mockPrisma.pedido.groupBy = jest.fn().mockResolvedValue([{ estado: PedidoEstado.Pendiente, _count: { _all: 3 } }]);
+    mockPrisma.pedido.findMany = jest.fn().mockResolvedValue([]);
+    const result = await service.resumenPlataforma('tenant-1');
+    expect(result.total).toBe(3);
+    for (const method of ['count', 'groupBy', 'findMany']) {
+      expect(mockPrisma.pedido[method]).toHaveBeenCalledWith(expect.objectContaining({ where: { tenantId: 'tenant-1' } }));
+    }
+  });
+
   afterEach(() => {
     jest.restoreAllMocks();
   });

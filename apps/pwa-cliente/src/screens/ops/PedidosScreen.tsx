@@ -3,8 +3,10 @@ import { useMemo, useState } from 'react';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import { useNow } from '../../hooks/useNow';
 import { usePedidosQuery } from '../../hooks/queries/usePedidosQuery';
+import { useTableroAlertasSonoras } from '../../hooks/useTableroAlertasSonoras';
 import { useToast } from '../../components/ui/ToastProvider';
 import { Icons } from '../../components/ui/icons';
+import { AlertasSonorasButton } from '../../components/ui/AlertasSonorasButton';
 import { Comandero } from '../../components/comandero/Comandero';
 import { TableroView } from '../../components/pedidos/TableroView';
 import { ListaView } from '../../components/pedidos/ListaView';
@@ -25,6 +27,10 @@ export function PedidosScreen() {
   const now = useNow();
   const { toast } = useToast();
   const { pedidos, nextCursor, loading, loadingMore, error, fetch, fetchMore, avanzarEstado, avanzarItem } = usePedidosQuery();
+  const { sonidoActivo, activarSonido, desactivarSonido } = useTableroAlertasSonoras(pedidos, {
+    tablero: 'PEDIDOS',
+    listo: !loading && !loadingMore,
+  });
   const [canal, setCanal] = useState<CanalFiltro>('TODOS');
   const [vista, setVista] = useState<'tablero' | 'lista'>('tablero');
   const [detalle, setDetalle] = useState<PedidoVM | null>(null);
@@ -109,6 +115,7 @@ export function PedidosScreen() {
           <div className="sub">{visibles.length} pedidos activos · Salón, delivery y para llevar</div>
         </div>
         <span className="spacer" />
+        <AlertasSonorasButton activo={sonidoActivo} onActivar={activarSonido} onDesactivar={desactivarSonido} />
         <div className="seg sm" style={{ marginRight: 4 }}>
           <button className={vista === 'tablero' ? 'on' : ''} onClick={() => setVista('tablero')}><Icons.Layers s={14} /> Tablero</button>
           <button className={vista === 'lista' ? 'on' : ''} onClick={() => setVista('lista')}><Icons.Pedidos s={14} /> Lista</button>

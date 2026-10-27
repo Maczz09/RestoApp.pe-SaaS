@@ -1,4 +1,4 @@
-import { Controller, Logger, Get, Query, UseInterceptors, UseGuards } from '@nestjs/common';
+import { Controller, Logger, Get, Query, Param, ParseUUIDPipe, UseInterceptors, UseGuards } from '@nestjs/common';
 import { EventPattern, Payload } from '@nestjs/microservices';
 import { Roles, RolesGuard, TenantActual } from '@org/shared-auth';
 import { AppService } from './app.service';
@@ -19,6 +19,15 @@ export class AppController {
   @Get()
   healthCheck() {
     return { status: 'OK', service: 'Reportes' };
+  }
+
+  /** Instantánea financiera de solo lectura para la consola central. El JWT
+   * PLATFORM_ADMIN solo es válido en el host base y no recibe tenant por headers. */
+  @UseGuards(RolesGuard)
+  @Roles('PLATFORM_ADMIN')
+  @Get('platform/tenants/:tenantId/live')
+  observarVentas(@Param('tenantId', ParseUUIDPipe) tenantId: string) {
+    return this.appService.obtenerResumenDiario(undefined, null, tenantId);
   }
 
   // Reportes/dashboard: administración y gerencia.

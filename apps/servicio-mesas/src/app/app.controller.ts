@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Patch, Delete, ParseUUIDPipe, UseGuards, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Patch, Delete, ParseUUIDPipe, UseGuards, Query, ForbiddenException, Req } from '@nestjs/common';
 import { Roles, RolesGuard, TenantActual } from '@org/shared-auth';
 import { UsuarioActual } from '@org/observabilidad';
 import { AppService } from './app.service';
@@ -13,6 +13,13 @@ import { CrearMesaCommand, ActualizarEstadoMesaCommand, CrearUbicacionCommand, A
 @Controller()
 export class AppController {
   constructor(private readonly appService: AppService) {}
+
+  @Roles('PLATFORM_ADMIN')
+  @Get('platform/tenants/:tenantId/live')
+  observarSalon(@Param('tenantId', ParseUUIDPipe) tenantId: string, @Req() req: { user?: { sessionScope?: string } }) {
+    if (req.user?.sessionScope !== 'PLATFORM') throw new ForbiddenException('Se requiere una sesión de plataforma');
+    return this.appService.resumenPlataforma(tenantId);
+  }
 
   @Get()
   listarMesas(

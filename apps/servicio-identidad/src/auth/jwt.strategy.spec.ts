@@ -41,6 +41,7 @@ describe('JwtStrategy de identidad', () => {
       membershipId: null,
       allowedSedeIds: [],
       activeSedeId: null,
+      sessionScope: 'TENANT',
     });
 
     expect(
@@ -66,6 +67,30 @@ describe('JwtStrategy de identidad', () => {
       membershipId: 'mem-1',
       allowedSedeIds: ['sede-1', 'sede-2'],
       activeSedeId: 'sede-1',
+      sessionScope: 'TENANT',
+    });
+
+    expect(
+      strategy.validate({
+        sub: 'platform-1',
+        email: 'superadmin@restoapp.local',
+        rol: 'PLATFORM_ADMIN',
+        nombre: 'Superadministrador',
+        tenantId: null,
+        sessionScope: 'PLATFORM',
+      }),
+    ).toEqual({
+      sub: 'platform-1',
+      email: 'superadmin@restoapp.local',
+      rol: 'PLATFORM_ADMIN',
+      nombre: 'Superadministrador',
+      sedeId: null,
+      tenantId: null,
+      tenantSlug: null,
+      membershipId: null,
+      allowedSedeIds: [],
+      activeSedeId: null,
+      sessionScope: 'PLATFORM',
     });
 
     process.env.JWT_PUBLIC_KEY = prevPub;

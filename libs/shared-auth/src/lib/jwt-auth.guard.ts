@@ -11,6 +11,8 @@ import { timingSafeEqual } from 'node:crypto';
 import type { Request } from 'express';
 import { CSRF_COOKIE_NAME } from './csrf';
 import { IS_PUBLIC_KEY } from './public.decorator';
+import { assertTenantHostAccess, resolveTenantHost } from './tenant-host';
+import type { TenantHostResolution, TenantHostUser } from './tenant-host';
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
@@ -21,6 +23,17 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
   }
 
   override async canActivate(context: ExecutionContext): Promise<boolean> {
+    const request = context.switchToHttp().getRequest<
+      Request & {
+        cookies?: Record<string, string>;
+        tenantHost?: TenantHostResolution;
+        user?: TenantHostUser;
+      }
+    >();
+    // Se resuelve antes de cualquier bypass público. La carta QR puede leer
+    // `request.tenantHost` sin aceptar un X-Tenant-Id controlado por navegador.
+    request.tenantHost = resolveTenantHost(request.headers?.host);
+
     const isPublic = this.reflector?.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
       context.getHandler(),
       context.getClass(),
@@ -29,7 +42,6 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
       return true;
     }
 
-    const request = context.switchToHttp().getRequest<Request & { cookies?: Record<string, string> }>();
     if (
       request.path === '/api/telemetry/metrics' ||
       request.path === '/telemetry/metrics' ||
@@ -46,6 +58,11 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     const authenticated = await (super.canActivate(
       context,
     ) as Promise<boolean>);
+    assertTenantHostAccess(request.headers?.host, request.user, {
+      nodeEnv: process.env.NODE_ENV,
+      serviceName: process.env.SERVICE_NAME,
+      allowLocalhostTenant: process.env.TENANT_LOCALHOST_DEV === 'true',
+    });
     this.assertCsrfToken(request);
     return authenticated;
   }
@@ -57,7 +74,9 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     return user as TUser;
   }
 
-  private assertCsrfToken(request: Request & { cookies?: Record<string, string> }) {
+  private assertCsrfToken(
+    request: Request & { cookies?: Record<string, string> },
+  ) {
     if (SAFE_METHODS.has(String(request.method).toUpperCase())) return;
 
     const authorization = request.headers?.authorization;
@@ -67,7 +86,9 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     )
       return;
 
-    const cookieToken = request.cookies?.[CSRF_COOKIE_NAME] as string | undefined;
+    const cookieToken = request.cookies?.[CSRF_COOKIE_NAME] as
+      | string
+      | undefined;
     const headerToken = request.headers?.['x-csrf-token'];
     const normalizedHeader = Array.isArray(headerToken)
       ? headerToken[0]

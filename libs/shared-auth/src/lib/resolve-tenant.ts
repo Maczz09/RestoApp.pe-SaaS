@@ -15,20 +15,29 @@ export function resolveTenantId(
 ): string {
   // Tokens de servicio interno (S2S SISTEMA) o rol PLATFORM_ADMIN pueden operar sobre tenant solicitado
   if (userRol === 'SISTEMA' || userRol === 'PLATFORM_ADMIN') {
-    const effective = solicitadoTenantId || userTenantId || TENANT_DEMO_ID;
-    return effective;
+    const effective = solicitadoTenantId || userTenantId;
+    if (effective) return effective;
+    throw new ForbiddenException(
+      'La operación privilegiada requiere un tenant explícito.',
+    );
   }
 
   if (userTenantId) {
     if (solicitadoTenantId && solicitadoTenantId !== userTenantId) {
-      throw new ForbiddenException('No tienes permiso para acceder a datos de otro restaurante.');
+      throw new ForbiddenException(
+        'No tienes permiso para acceder a datos de otro restaurante.',
+      );
     }
     return userTenantId;
   }
 
   if (solicitadoTenantId) {
-    throw new ForbiddenException('Sesión sin restaurante activo. Inicia sesión seleccionando tu restaurante.');
+    throw new ForbiddenException(
+      'Sesión sin restaurante activo. Inicia sesión seleccionando tu restaurante.',
+    );
   }
 
-  return TENANT_DEMO_ID;
+  throw new ForbiddenException(
+    'Sesión sin restaurante activo. Inicia sesión seleccionando tu restaurante.',
+  );
 }

@@ -4,6 +4,9 @@
   "license": "MIT",
   "nx": {
     "targets": {
+      "vps-check": {
+        "command": "node --test scripts/vps/config.test.mjs scripts/vps/migrate-domains.test.mjs"
+      },
       "typecheck": {
         "command": "npm exec nx run-many -- --target=typecheck --all --exclude=@org/source"
       },
@@ -69,6 +72,7 @@
     "@types/opossum": "^8.1.9",
     "@types/passport-jwt": "^4.0.1",
     "@types/pg": "^8.20.0",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@typescript-eslint/eslint-plugin": "^8.60.1",
@@ -107,6 +111,8 @@
     "libs/shared/*"
   ],
   "overrides": {
+    "proxy-addr": "2.0.8",
+    "dompurify": "3.4.17",
     "@hono/node-server": "1.19.13",
     "sockjs": {
       "uuid": "11.1.1"
@@ -166,6 +172,7 @@
     "pg": "^8.21.0",
     "prisma": "^7.8.0",
     "prom-client": "^15.1.3",
+    "qrcode": "^1.5.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-router-dom": "^7.16.0",

@@ -14,12 +14,14 @@ import { useRef, useState } from 'react';
 import { useAuthStore } from '../../store/auth.store';
 import { useSedesQuery } from '../../hooks/queries/useSedesQuery';
 import { queryClient } from '../../api/queryClient';
-import { getSedeSeleccionada, setSedeSeleccionada } from '../../api/client';
+import { getSedeSeleccionada } from '../../api/client';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { Icons } from '../ui/icons';
 
 export function SedeGateModal() {
   const user = useAuthStore((s) => s.user);
+  const activeTenantId = useAuthStore((s) => s.activeTenantId);
+  const switchTenant = useAuthStore((s) => s.switchTenant);
   const esAdminGeneral = !!user && user.sedeId == null;
   const { sedes, loading } = useSedesQuery({ enabled: esAdminGeneral });
   const modalRef = useRef<HTMLDivElement>(null);
@@ -35,8 +37,9 @@ export function SedeGateModal() {
 
   if (!mostrar) return null;
 
-  const elegir = (id: string) => {
-    setSedeSeleccionada(id);
+  const elegir = async (id: string) => {
+    if (!activeTenantId) return;
+    await switchTenant(activeTenantId, id);
     setSeleccionId(id);
     void queryClient.invalidateQueries();
   };
@@ -58,7 +61,7 @@ export function SedeGateModal() {
                 type="button"
                 className="sede-gate-item"
                 style={{ '--i': i } as React.CSSProperties}
-                onClick={() => elegir(sede.id)}
+                onClick={() => void elegir(sede.id)}
               >
                 <span className="sede-gate-ic"><Icons.Sede s={16} /></span>
                 <span style={{ minWidth: 0 }}>

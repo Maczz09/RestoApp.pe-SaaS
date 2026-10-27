@@ -78,6 +78,16 @@ describe('resolveWsCorsOrigins', () => {
     ]);
   });
 
+  it('permite wildcard HTTPS anclado al subdominio del SaaS', () => {
+    process.env.NODE_ENV = 'production';
+    process.env.CORS_ORIGIN = 'https://restoapp.mavricitas.com,https://*.restoapp.mavricitas.com';
+    const origins = resolveWsCorsOrigins();
+    expect(origins[0]).toBe('https://restoapp.mavricitas.com');
+    expect(origins[1].test('https://cevicheria.restoapp.mavricitas.com')).toBe(true);
+    expect(origins[1].test('https://cevicheria.restoapp.mavricitas.com.evil.test')).toBe(false);
+    expect(origins[1].test('https://otro.mavricitas.com')).toBe(false);
+  });
+
   it('mantiene fallback local fuera de produccion', () => {
     delete process.env.CORS_ORIGIN;
     process.env.NODE_ENV = 'test';
@@ -98,6 +108,28 @@ describe('resolveWsCorsOrigins', () => {
 describe('NotificationsGateway', () => {
   // JwtService REAL: el gateway pasa clave/algoritmo por llamada.
   const gateway = new NotificationsGateway(new JwtService({}));
+
+  describe('host de tenant en producción', () => {
+    const originalEnv = { ...process.env };
+    afterEach(() => { process.env = { ...originalEnv }; });
+
+    it.each([
+      ['cevicheria.restoapp.mavricitas.com', false],
+      ['otro.restoapp.mavricitas.com', true],
+      ['cevicheria.restoapp.mavricitas.com.evil.test', true],
+      ['restoapp.mavricitas.com', true],
+    ])('verifica que la sesión firmada pertenezca a %s', async (host, rejected) => {
+      process.env.NODE_ENV = 'production';
+      process.env.TENANT_BASE_DOMAIN = 'restoapp.mavricitas.com';
+      process.env.TENANT_ROOT_DOMAINS = 'restoapp.mavricitas.com';
+      const client = createClient({ authToken: userToken({ sub: 'u1', rol: 'ADMIN', tenantId: 'tenant-1', tenantSlug: 'cevicheria' }) });
+      client.handshake.headers.host = host;
+      await gateway.handleConnection(client);
+      expect(client.disconnect.mock.calls.length > 0).toBe(rejected);
+      if (rejected) expect(client.join).not.toHaveBeenCalled();
+      else expect(client.join).toHaveBeenCalledWith(expect.stringContaining('tenant-1'));
+    });
+  });
 
   it('desconecta conexiones sin token', async () => {
     const client = createClient();

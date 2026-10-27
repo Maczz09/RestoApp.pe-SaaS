@@ -52,7 +52,7 @@ describe('LoginScreen', () => {
   });
 
   it('submits successfully and navigates', async () => {
-    mockLogin.mockResolvedValueOnce(true);
+    mockLogin.mockResolvedValueOnce({ rol: 'ADMIN' });
     renderScreen();
     
     fireEvent.change(screen.getByPlaceholderText('tu@restoapp.pe'), { target: { value: 'test@test.com' } });
@@ -65,6 +65,17 @@ describe('LoginScreen', () => {
     await waitFor(() => {
       expect(mockNavigate).toHaveBeenCalledWith('/app', { replace: true });
     });
+  });
+
+  it('envía al superadministrador a la consola de plataforma', async () => {
+    mockLogin.mockResolvedValueOnce({ rol: 'PLATFORM_ADMIN' });
+    renderScreen();
+
+    fireEvent.change(screen.getByPlaceholderText('tu@restoapp.pe'), { target: { value: 'platform@restoapp.pe' } });
+    fireEvent.change(screen.getByPlaceholderText('••••••••'), { target: { value: 'segura123' } });
+    fireEvent.click(screen.getByRole('button', { name: /Ingresar/i }));
+
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/platform', { replace: true }));
   });
 
   it('handles 401 ApiError', async () => {

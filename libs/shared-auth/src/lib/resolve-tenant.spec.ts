@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveTenantId, TENANT_DEMO_ID } from './resolve-tenant';
+import { resolveTenantId } from './resolve-tenant';
 import { ForbiddenException } from '@nestjs/common';
 
 describe('resolveTenantId', () => {
@@ -9,16 +9,36 @@ describe('resolveTenantId', () => {
   });
 
   it('rechaza con ForbiddenException si se intenta acceder a otro tenant con token de usuario regular', () => {
-    expect(() => resolveTenantId('tenant-123', 'tenant-otro', 'MESERO')).toThrow(ForbiddenException);
-    expect(() => resolveTenantId('tenant-123', 'tenant-otro', 'ADMIN')).toThrow(ForbiddenException);
+    expect(() =>
+      resolveTenantId('tenant-123', 'tenant-otro', 'MESERO'),
+    ).toThrow(ForbiddenException);
+    expect(() => resolveTenantId('tenant-123', 'tenant-otro', 'ADMIN')).toThrow(
+      ForbiddenException,
+    );
   });
 
   it('permite operar sobre otro tenant al rol SISTEMA (S2S) y PLATFORM_ADMIN', () => {
-    expect(resolveTenantId('tenant-123', 'tenant-otro', 'SISTEMA')).toBe('tenant-otro');
-    expect(resolveTenantId(null, 'tenant-otro', 'PLATFORM_ADMIN')).toBe('tenant-otro');
+    expect(resolveTenantId('tenant-123', 'tenant-otro', 'SISTEMA')).toBe(
+      'tenant-otro',
+    );
+    expect(resolveTenantId(null, 'tenant-otro', 'PLATFORM_ADMIN')).toBe(
+      'tenant-otro',
+    );
   });
 
-  it('usa fallback a TENANT_DEMO_ID si no hay tenantId en usuario ni solicitado', () => {
-    expect(resolveTenantId(null, null, 'SISTEMA')).toBe(TENANT_DEMO_ID);
+  it('exige tenant explícito incluso para operaciones privilegiadas', () => {
+    expect(() => resolveTenantId(null, null, 'SISTEMA')).toThrow(
+      ForbiddenException,
+    );
+    expect(() => resolveTenantId(null, null, 'PLATFORM_ADMIN')).toThrow(
+      ForbiddenException,
+    );
+  });
+
+  it('no asigna silenciosamente el tenant demo a un usuario regular sin tenant', () => {
+    expect(() => resolveTenantId(null, null, 'ADMIN')).toThrow(
+      ForbiddenException,
+    );
+    expect(() => resolveTenantId()).toThrow(ForbiddenException);
   });
 });

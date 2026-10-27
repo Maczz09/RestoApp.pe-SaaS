@@ -43,6 +43,7 @@ export interface UserDto {
   /** null = admin general (opera cualquier sede, debe elegir una). T-23. */
   sedeId?: string | null;
   activeTenantId?: string | null;
+  activeSedeId?: string | null;
   tenants?: UserTenantSummaryDto[];
 }
 
@@ -53,4 +54,3 @@ export interface LoginResponseDto {
   activeTenantId?: string | null;
   activeSedeId?: string | null;
 }
-

@@ -1,10 +1,10 @@
 FROM node@sha256:968df39aedcea65eeb078fb336ed7191baf48f972b4479711397108be0966920 AS builder
 WORKDIR /usr/src/app
 
-# URL del API Gateway (Kong) horneada en el bundle por Vite.
-# Por defecto apunta al stack local/CI; en prod se pasa el dominio HTTPS real:
-#   docker build --build-arg VITE_API_BASE_URL=https://api.tudominio.com ...
-ARG VITE_API_BASE_URL=http://localhost:8000
+# La API comparte el origen de cada subdominio del tenant a traves de Kong.
+# Solo un despliegue con gateway separado debe fijar una URL explicita.
+ARG VITE_API_BASE_URL=
+ARG VITE_TENANT_BASE_DOMAIN=restoapp.pe
 
 COPY package.json package-lock.json nx.json tsconfig.base.json ./
 COPY apps/pwa-cliente/package.json ./apps/pwa-cliente/package.json
@@ -15,7 +15,7 @@ COPY libs/ ./libs/
 COPY apps/pwa-cliente ./apps/pwa-cliente
 # Vite hornea import.meta.env.VITE_* desde .env.production (root = apps/pwa-cliente).
 # Lo reescribimos con la URL del gateway de este entorno antes de compilar.
-RUN printf 'VITE_API_BASE_URL=%s\nVITE_WS_PATH=/notificaciones/socket.io\n' "$VITE_API_BASE_URL" > apps/pwa-cliente/.env.production
+RUN printf 'VITE_API_BASE_URL=%s\nVITE_WS_PATH=/notificaciones/socket.io\nVITE_TENANT_BASE_DOMAIN=%s\n' "$VITE_API_BASE_URL" "$VITE_TENANT_BASE_DOMAIN" > apps/pwa-cliente/.env.production
 RUN cd apps/pwa-cliente && npx vite build
 
 FROM nginxinc/nginx-unprivileged@sha256:0c79d56aee561a1d81c63f00eee5fb5fe29279560cdc55e91425133104c7fbe6

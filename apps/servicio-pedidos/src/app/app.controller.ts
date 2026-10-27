@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Patch, Query, UseInterceptors, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Patch, Query, UseInterceptors, UseGuards, ParseUUIDPipe, ForbiddenException, Req } from '@nestjs/common';
 import { EventPattern, Payload } from '@nestjs/microservices';
 import { Roles, RolesGuard } from '@org/shared-auth';
 import { AppService } from './app.service';
@@ -12,6 +12,14 @@ import { UsuarioActual } from '@org/observabilidad';
 @Controller()
 export class AppController {
   constructor(private readonly appService: AppService) {}
+
+  @UseGuards(RolesGuard)
+  @Roles('PLATFORM_ADMIN')
+  @Get('platform/tenants/:tenantId/live')
+  observarPedidos(@Param('tenantId', ParseUUIDPipe) tenantId: string, @Req() req: { user?: { sessionScope?: string } }) {
+    if (req.user?.sessionScope !== 'PLATFORM') throw new ForbiddenException('Se requiere una sesión de plataforma');
+    return this.appService.resumenPlataforma(tenantId);
+  }
 
   // Crean pedidos meseros y cajeros (comandero); cocina solo despacha.
   // Idempotencia HTTP (plan 1.3): doble-click/retry con la misma Idempotency-Key

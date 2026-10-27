@@ -37,6 +37,7 @@ function createMockPrismaService(): any {
       findMany: jest.fn(),
       findUnique: jest.fn(),
       update: jest.fn(),
+      count: jest.fn(),
       aggregate: jest.fn(),
     },
     outboxEvent: {
@@ -49,6 +50,8 @@ function createMockPrismaService(): any {
     },
     turnoCaja: {
       findFirst: jest.fn(),
+      findMany: jest.fn(),
+      count: jest.fn(),
       findUnique: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
@@ -84,6 +87,18 @@ describe('AppService — Caja', () => {
     // T-40: el cliente HTTP real con el token service mockeado, para que los
     // specs sigan espiando axios de extremo a extremo.
     service = new AppService(mockPrisma as never, new CuentasHttpClient(mockTokenService as never));
+  });
+
+  it('observa solo la caja del tenant indicado', async () => {
+    mockPrisma.turnoCaja.count.mockResolvedValue(1);
+    mockPrisma.transaccion.count.mockResolvedValue(3);
+    mockPrisma.transaccion.aggregate.mockResolvedValue({ _sum: { monto: 45 } });
+    mockPrisma.turnoCaja.findMany.mockResolvedValue([]);
+    const result = await service.resumenPlataforma('tenant-uno');
+    expect(result).toMatchObject({ turnosAbiertos: 1, pagosUltimas24h: 3, ingresosUltimas24h: 45 });
+    for (const call of [mockPrisma.turnoCaja.count, mockPrisma.transaccion.count, mockPrisma.transaccion.aggregate, mockPrisma.turnoCaja.findMany]) {
+      expect(call).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ tenantId: 'tenant-uno' }) }));
+    }
   });
 
   describe('registrarPago', () => {

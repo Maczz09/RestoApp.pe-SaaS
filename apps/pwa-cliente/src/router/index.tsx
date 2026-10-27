@@ -4,7 +4,7 @@
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { lazy, Suspense, type ReactNode } from 'react';
 import { useAuthStore } from '../store/auth.store';
-import { homeDeRol, puedeAcceder, type RutaApp } from '../auth/permisos';
+import { esPlatformAdmin, homeDeRol, puedeAcceder, type RutaApp } from '../auth/permisos';
 
 const LoginScreen = lazy(() => import('../screens/login/LoginScreen').then(m => ({ default: m.LoginScreen })));
 const InicioScreen = lazy(() => import('../screens/inicio/InicioScreen').then(m => ({ default: m.InicioScreen })));
@@ -24,7 +24,18 @@ const ComprasScreen = lazy(() => import('../screens/compras/ComprasScreen').then
 const FacturacionScreen = lazy(() => import('../screens/facturacion/FacturacionScreen').then(m => ({ default: m.FacturacionScreen })));
 const PublicCartaScreen = lazy(() => import('../screens/carta-publica/PublicCartaScreen').then(m => ({ default: m.PublicCartaScreen })));
 const TicketPrintPage = lazy(() => import('../screens/print/TicketPrintPage').then(m => ({ default: m.TicketPrintPage })));
+const PlatformDashboardScreen = lazy(() => import('../screens/platform/PlatformDashboardScreen').then(m => ({ default: m.PlatformDashboardScreen })));
+const TenantCreateScreen = lazy(() => import('../screens/platform/TenantCreateScreen').then(m => ({ default: m.TenantCreateScreen })));
+const TenantDetailScreen = lazy(() => import('../screens/platform/TenantDetailScreen').then(m => ({ default: m.TenantDetailScreen })));
+const PlatformPlansScreen = lazy(() => import('../screens/platform/PlatformPlansScreen').then(m => ({ default: m.PlatformPlansScreen })));
+const PlatformBillingScreen = lazy(() => import('../screens/platform/PlatformBillingScreen').then(m => ({ default: m.PlatformBillingScreen })));
+const PlatformAdminsScreen = lazy(() => import('../screens/platform/PlatformAdminsScreen').then(m => ({ default: m.PlatformAdminsScreen })));
+const TenantObserveScreen = lazy(() => import('../screens/platform/TenantObserveScreen').then(m => ({ default: m.TenantObserveScreen })));
+const TenantAdminViewScreen = lazy(() => import('../screens/platform/TenantAdminViewScreen').then(m => ({ default: m.TenantAdminViewScreen })));
 import { Shell } from '../components/layout/Shell';
+import { PlatformShell } from '../screens/platform/PlatformShell';
+import { useSedesQuery } from '../hooks/queries/useSedesQuery';
+import { FirstSedeScreen } from '../screens/sedes/FirstSedeScreen';
 import { ErrorBoundary } from '../components/ui/ErrorBoundary';
 
 
@@ -32,7 +43,10 @@ import { ErrorBoundary } from '../components/ui/ErrorBoundary';
 // ─── Guard: redirige a /login si no está autenticado ────────────
 function ProtectedRoute() {
   const authenticated = useAuthStore((s) => s.authenticated);
+  const rol = useAuthStore((s) => s.user?.rol);
   if (!authenticated) return <Navigate to="/login" replace />;
+  if (esPlatformAdmin(rol)) return <Navigate to="/platform" replace />;
+  if (rol === 'ADMIN') return <AdminSedeGate />;
   return (
     <Shell>
       <Outlet />
@@ -40,10 +54,39 @@ function ProtectedRoute() {
   );
 }
 
+function AdminSedeGate() {
+  const { sedes, loaded, loading, error, fetch } = useSedesQuery();
+  if (loading) return <Shell><ScreenLoading /></Shell>;
+  if (error && !loaded) return <Shell><div className="panel" role="alert"><h2>No se pudieron cargar las sedes</h2><p>{error}</p><button className="btn btn-primary" onClick={() => void fetch()}>Reintentar</button></div></Shell>;
+  if (loaded && sedes.length === 0) return <Shell><FirstSedeScreen /></Shell>;
+  return <Shell><Outlet /></Shell>;
+}
+
+function PlatformProtectedRoute() {
+  const authenticated = useAuthStore((s) => s.authenticated);
+  const rol = useAuthStore((s) => s.user?.rol);
+  if (!authenticated) return <Navigate to="/login" replace />;
+  if (!esPlatformAdmin(rol)) return <Navigate to="/app" replace />;
+  return (
+    <PlatformShell>
+      <Outlet />
+    </PlatformShell>
+  );
+}
+
+function PlatformPreviewRoute() {
+  const authenticated = useAuthStore((s) => s.authenticated);
+  const rol = useAuthStore((s) => s.user?.rol);
+  if (!authenticated) return <Navigate to="/login" replace />;
+  if (!esPlatformAdmin(rol)) return <Navigate to="/app" replace />;
+  return <Outlet />;
+}
+
 // ─── Guard: redirige a /app si ya está autenticado ──────────────
 function PublicRoute() {
   const authenticated = useAuthStore((s) => s.authenticated);
-  if (authenticated) return <Navigate to="/app" replace />;
+  const rol = useAuthStore((s) => s.user?.rol);
+  if (authenticated) return <Navigate to={esPlatformAdmin(rol) ? '/platform' : '/app'} replace />;
   return <Outlet />;
 }
 
@@ -136,6 +179,21 @@ export function AppRouter() {
           <Route path="carta" element={<RutaPorRol ruta="carta"><ScreenBoundary modulo="Carta"><CartaScreen /></ScreenBoundary></RutaPorRol>} />
           <Route path="compras" element={<RutaPorRol ruta="compras"><ScreenBoundary modulo="Compras"><ComprasScreen /></ScreenBoundary></RutaPorRol>} />
           <Route path="facturacion" element={<RutaPorRol ruta="facturacion"><ScreenBoundary modulo="Facturación"><FacturacionScreen /></ScreenBoundary></RutaPorRol>} />
+        </Route>
+
+        <Route element={<PlatformPreviewRoute />}>
+          <Route path="/platform/tenants/:tenantId/admin/:view?" element={<ScreenBoundary modulo="Vista del restaurante"><TenantAdminViewScreen /></ScreenBoundary>} />
+        </Route>
+
+        <Route path="/platform" element={<PlatformProtectedRoute />}>
+          <Route index element={<ScreenBoundary modulo="Plataforma"><PlatformDashboardScreen /></ScreenBoundary>} />
+          <Route path="tenants" element={<ScreenBoundary modulo="Restaurantes"><PlatformDashboardScreen /></ScreenBoundary>} />
+          <Route path="tenants/new" element={<ScreenBoundary modulo="Nuevo restaurante"><TenantCreateScreen /></ScreenBoundary>} />
+          <Route path="tenants/:tenantId" element={<ScreenBoundary modulo="Detalle de restaurante"><TenantDetailScreen /></ScreenBoundary>} />
+          <Route path="tenants/:tenantId/observe" element={<ScreenBoundary modulo="Observación"><TenantObserveScreen /></ScreenBoundary>} />
+          <Route path="plans" element={<ScreenBoundary modulo="Planes"><PlatformPlansScreen /></ScreenBoundary>} />
+          <Route path="billing" element={<ScreenBoundary modulo="Cobros"><PlatformBillingScreen /></ScreenBoundary>} />
+          <Route path="admins" element={<ScreenBoundary modulo="Superadministradores"><PlatformAdminsScreen /></ScreenBoundary>} />
         </Route>
 
 

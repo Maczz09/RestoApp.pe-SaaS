@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Body, Query, Param, UseGuards, UseInterceptors } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Query, Param, UseGuards, UseInterceptors, ParseUUIDPipe, Req, ForbiddenException } from '@nestjs/common';
 import { Roles, RolesGuard, TenantActual } from '@org/shared-auth';
 import { IdempotencyInterceptor } from '@org/resiliencia';
 import { AppService } from './app.service';
@@ -19,6 +19,13 @@ import {
 @Controller()
 export class AppController {
   constructor(private readonly appService: AppService) {}
+
+  @Roles('PLATFORM_ADMIN')
+  @Get('platform/tenants/:tenantId/live')
+  observarCaja(@Param('tenantId', ParseUUIDPipe) tenantId: string, @Req() req: { user?: { sessionScope?: string } }) {
+    if (req.user?.sessionScope !== 'PLATFORM') throw new ForbiddenException('Se requiere una sesión de plataforma');
+    return this.appService.resumenPlataforma(tenantId);
+  }
 
   // /api/health lo sirve el HealthController compartido (@org/observabilidad).
 

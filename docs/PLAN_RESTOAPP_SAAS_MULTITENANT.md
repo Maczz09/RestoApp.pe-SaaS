@@ -1,27 +1,46 @@
 # Plan de implementación: RestoApp.pe web SaaS multitenant
 
-Estado: plan aprobado pendiente de ejecución.
+Estado: recuperación correctiva en ejecución sobre `D:\SaaS\RestoApp`.
+
+Última actualización: 22 de septiembre de 2026.
 
 Este documento define cómo convertir el sistema actual en la base limpia de RestoApp.pe, conservar la cobertura funcional de Restaurante Mi Narcita y operar una sola plataforma web para múltiples restaurantes con aislamiento estricto de datos.
 
 ## 1. Decisión recomendada
 
-La base de trabajo debe ser `D:\Restaurantes\App Base\sistema`.
+La base de trabajo y destino de la implementación es `D:\SaaS\RestoApp`.
+
+Esta carpeta ya contiene la migración SaaS iniciada y cinco commits locales por delante de `upstream/main`. No se repetirá la migración sobre otra copia. Se corregirá esta rama conservando lo que esté validado y reemplazando lo incompleto.
 
 Motivos:
 
-- Ya contiene la marca central `RestoApp.pe` en la configuración de frontend y observabilidad.
+- Ya contiene la marca central `RestoApp.pe`, los cinco recursos gráficos entregados y el primer modelo `Tenant`/`Membresia`.
 - Ya tiene los 11 dominios operativos: identidad, mesas, pedidos, cuentas, reservas, inventario, notificaciones, caja, reportes, facturación y compras.
 - Ya incluye soporte multisede, compras reales y el flujo web React/Vite.
-- Es el repositorio core conectado a `sistema-para-restaurantes`.
+- Es el repositorio que el usuario ya está probando como RestoApp SaaS.
 
 Las otras carpetas se usarán como donantes de funciones y evidencia:
 
-- `D:\Restaurantes\mi-narcita`: fuente funcional para recuperar todo lo que todavía no está en App Base.
+- `D:\Restaurantes\App Base\sistema`: referencia del core anterior a la migración.
+- `D:\Restaurantes\mi-narcita`: fuente funcional para recuperar todo lo que todavía no está en RestoApp SaaS.
 - `D:\Restaurantes\la-barra-del-ceviche`: fuente prioritaria para incorporar las mejoras más recientes que todavía no llegaron al core ni a Mi Narcita.
 - `D:\Restaurantes\La barra del ceviche\sistema`: no debe copiarse sobre App Base. La ruta exacta indicada contiene `factuez-grifo-san-jose`, una solución de facturación para grifo basada en Turbo/pnpm, no el sistema restaurantero Nx.
 
-Antes de ejecutar cambios se debe confirmar esta interpretación de las dos carpetas casi homónimas.
+La ruta correcta de La Barra quedó confirmada: `D:\Restaurantes\la-barra-del-ceviche`. La carpeta `D:\Restaurantes\La barra del ceviche\sistema` no es una fuente válida para este trabajo.
+
+### 1.1 Resultado de la auditoría correctiva inicial
+
+- La PWA, Kong y los servicios principales responden actualmente en el entorno local.
+- El login del tenant demo funciona y las rutas de identidad, sedes, mesas, pedidos, inventario, reservas y reportes respondieron correctamente en una verificación directa.
+- La suite actual del frontend está verde: 103 archivos y 879 pruebas.
+- No existe una consola web de superadministrador de plataforma.
+- Existe el rol `PLATFORM_ADMIN` en el backend, pero no tiene rutas ni navegación propias en el frontend y termina usando el fallback de la aplicación operativa.
+- El seed actual no crea un superadministrador de plataforma.
+- Existen `Tenant.slug` y `TenantDomain`, pero el ingreso por hostname/subdominio no está resuelto de extremo a extremo.
+- La migración copió contratos y partes de backend, pero dejó fuera pantallas, flujos y pruebas presentes en Mi Narcita y La Barra.
+- Faltan, entre otros, alertas sonoras, gestión visual completa de tamaños, impresión de cocina web, QR en Inicio, inventario de almacén/cocina, kardex, conteo físico, CRUD completo de mermas, auditoría de anulaciones y edición completa de usuarios.
+
+Este baseline no significa que la migración esté terminada. Solo demuestra que el núcleo actual arranca y permite medir cada corrección sin confundir faltantes funcionales con una caída total de servicios.
 
 ## 2. Estado observado
 
@@ -35,27 +54,29 @@ Antes de ejecutar cambios se debe confirmar esta interpretación de las dos carp
 - JWT RS256 para usuarios y HS256 para comunicación entre servicios.
 - Outbox transaccional, idempotencia, métricas, trazas y pruebas de resiliencia.
 
-### 2.2 No existe multitenancy SaaS todavía
+### 2.2 Multitenancy iniciado, todavía incompleto
 
-El documento actual `docs/operacion/despliegue-multi-cliente.md` define un repositorio, un VPS y una pila completa por cliente. Expresamente indica que no existe multitenancy de infraestructura ni de datos.
+La migración agregó `Tenant`, `TenantDomain`, `Membresia`, `MembresiaSede`, `tenantId` en contratos y varios esquemas, selección de tenant, rooms WebSocket por tenant y envío de `X-Tenant-Id` desde la PWA.
 
-El modelo actual solo separa sedes:
+Todavía no es una implementación SaaS cerrada:
 
-- El JWT contiene `sedeId`, pero no `tenantId`.
-- `Usuario` pertenece como máximo a una sede.
-- `Sede.nombre` y `Usuario.email` son únicos globales.
-- Los servicios filtran por `sedeId` de forma desigual.
-- Notificaciones, eventos, idempotencia, archivos y caché no tienen un límite de tenant común.
+- Varias columnas `tenantId` siguen siendo opcionales y existe fallback al tenant demo.
+- No hay RLS ni rol runtime sin `BYPASSRLS` demostrado por pruebas.
+- No existe resolución obligatoria por hostname y `TenantDomain` no gobierna el login.
+- No existe consola de plataforma para alta, suspensión, reactivación, plan, límites, dominios y auditoría de tenants.
+- No hay seed ni flujo de credenciales para el superadministrador.
+- No está demostrada la cobertura tenant en cada query, evento, idempotency key, job, archivo y caché.
+- La misma PWA mezcla las responsabilidades de plataforma y restaurante.
 
-Una sede no equivale a un tenant. Un tenant representa al restaurante o grupo empresarial; el tenant puede contener varias sedes.
+Una sede no equivale a un tenant. El tenant representa al restaurante o grupo empresarial y contiene una o más sedes. La consola de plataforma no puede reutilizar permisos del administrador de restaurante.
 
-### 2.3 Limpieza de marca pendiente
+### 2.3 Marca integrada, limpieza técnica pendiente
 
-Aunque la UI ya usa parcialmente `RestoApp.pe`, el árbol conserva referencias de clientes y nombres técnicos históricos en código, fixtures, infraestructura, documentación, dominios, nombres de contenedores, volúmenes, credenciales de desarrollo, exchange AMQP, Postman y pruebas.
+Los cinco archivos de marca entregados ya están copiados sin alteración en `apps/pwa-cliente/public/brand` y `apps/pwa-cliente/src/assets/brand`. `BrandLogo` ya se usa en login y navegación.
 
-También existen marcadores de logo con una letra en el login y sidebar. La carpeta pública solo tiene un favicon y todavía no integra los cinco archivos de marca entregados.
+Todavía quedan referencias históricas en fixtures, scripts de compatibilidad, Postman, documentación, dominios de ejemplo y credenciales legacy. Deben quedar fuera del producto, de los seeds finales y de cualquier salida visible. La limpieza se verificará con un gate automatizado sin borrar migraciones ni evidencia histórica necesaria para reconstruir datos.
 
-### 2.4 Funciones de Mi Narcita ausentes o incompletas en App Base
+### 2.4 Funciones de Mi Narcita ausentes o incompletas en RestoApp SaaS
 
 El inventario de archivos detectó funciones que deben portarse y adaptarse, no copiarse en bloque:
 
@@ -75,7 +96,7 @@ El inventario de archivos detectó funciones que deben portarse y adaptarse, no 
 - Estadísticas y top de ventas.
 - Teléfono de usuario y sede.
 
-App Base tiene cambios propios que se deben conservar, entre ellos compras reales, selector de sedes, historial de mermas, PDF de comprobante y mejoras recientes de caja.
+RestoApp SaaS tiene cambios propios que se deben conservar, entre ellos compras reales, selector de sedes, historial de mermas, PDF de comprobante y mejoras recientes de caja.
 
 ### 2.5 Mejoras nuevas de La Barra que deben entrar a RestoApp SaaS
 
@@ -129,6 +150,57 @@ La versión objetivo debe incluir:
 13. Configuración fiscal: más de una empresa o RUC por sede cuando el plan lo permita.
 
 No se traerán datos, secretos, certificados, logos, dominios ni configuración de despliegue de los restaurantes donantes.
+
+### 3.1 Matriz funcional obligatoria por tenant
+
+Cada tenant nuevo debe recibir los módulos, permisos y configuraciones base. No se aceptará una demo especial con más funciones que los tenants creados después.
+
+| Superficie | Comportamiento exigido |
+|---|---|
+| Inicio | Estado crítico, ventas por hora, actividad reciente, salón, cocina, caja, QR público y próximas reservas |
+| Rankings | Top platos y top productos con Hoy, Semana, Mes, Trimestre, Año, Todo, Verano, Otoño, Invierno y Primavera |
+| Mesas | Ubicaciones, alta y edición de ubicaciones, mesas por zona, unir y separar mesas, reservas y toma de pedido |
+| Pedidos | Salón, delivery y para llevar; tablero y lista; estados en vivo; sonido audible en tablet después del primer gesto |
+| Cocina | KDS por estación, sonido de nuevos tickets, SLA, pase e impresión de cocina |
+| Impresión web | Cola por tenant y sede, reintentos, estado, auditoría y fallback de impresión del navegador; sin Tauri ni servidor local obligatorio |
+| Caja | Apertura, movimientos, cuentas, pagos, arqueo, cierre, historial, detalle, impresión y conciliación |
+| Reservas | Crear, confirmar, cancelar, disponibilidad, mesa y correlativo por tenant/sede |
+| Categorías | Área Carta Cocina, Carta Barra o Inventario; jerarquía padre/hija; editar, activar y eliminar con bloqueo o cascade explícito |
+| Carta / Menú | CRUD de platos, categorías, estación, disponibilidad, tamaños, precios por tamaño, orden y filtros completos |
+| Inventario | Productos de venta, almacén, almacén de cocina, insumos, categorías, stock mínimo, movimientos, kardex, conteo, exportación y mermas |
+| Compras | Proveedores, insumos, órdenes, recepción, comprobantes adjuntos y trazabilidad a inventario |
+| Reportes | Ventas, productos/platos, meseros, periodos, sedes, exportaciones y aislamiento por tenant |
+| Usuarios | Alta, edición, teléfono, reset de contraseña, rol, estado, membresía y sedes permitidas |
+| Sedes | Nombre, dirección, teléfono, RUC principal, estado, QR y configuración fiscal |
+| Facturación | Dos o más empresas/RUC por sede, series, correlativos, comprobantes disponibles, notas, SOL, certificado P12 y auditoría |
+| Auditoría | Eliminaciones, anulaciones de pedido/ítem/atención, actor, motivo, tenant, sede, fecha y recurso |
+| Carta pública | URL y QR por tenant/sede, solo datos públicos, tamaños y actualización en vivo |
+
+### 3.2 Consola de superadministrador
+
+El superadministrador de RestoApp debe entrar a una superficie separada de la operación del restaurante. Su ruta inicial será `/platform` y tendrá como mínimo:
+
+- Resumen de tenants activos, suspendidos, en onboarding y con incidencias.
+- Alta de tenant con nombre, slug, plan, administrador propietario y primera sede.
+- Generación y validación del subdominio `{slug}.restoapp.pe`.
+- Edición, suspensión, reactivación y auditoría del tenant.
+- Gestión de planes, entitlements y límites por módulo.
+- Vista de salud de gateway, servicios, colas y bases sin exponer secretos.
+- Acceso de soporte temporal y auditado, sin suplantación silenciosa.
+- Registro de dominio personalizado y validación de propiedad en una fase posterior.
+
+Las credenciales de plataforma se crearán con un seed idempotente para desarrollo y variables obligatorias en producción. No se incluirá una contraseña productiva fija en Git.
+
+### 3.3 Subdominios y resolución de tenant
+
+1. El host se normaliza y valida en gateway y backend.
+2. `app.restoapp.pe` sirve login global y consola de plataforma.
+3. `{slug}.restoapp.pe` resuelve exactamente un `TenantDomain` activo.
+4. El usuario solo puede iniciar o continuar sesión si tiene membresía en ese tenant.
+5. El `tenantId` del token debe coincidir con el tenant resuelto por host.
+6. Headers de tenant enviados por el navegador no pueden cambiar el contexto efectivo.
+7. En desarrollo se soportará `{slug}.localhost` y una alternativa documentada cuando el navegador no resuelva subdominios locales.
+8. La carta pública usará el contexto del tenant y la sede sin exponer endpoints privados.
 
 ## 4. Modelo multitenant objetivo
 
@@ -294,14 +366,14 @@ Los datos demo pasarán a nombres neutrales como `Restaurante Demo`, `Sede Princ
 
 No se reescribirá el historial Git. El árbol de trabajo y los artefactos nuevos sí deben quedar limpios. Este documento es transitorio y se reemplazará por documentación final sin nombres de clientes antes del lanzamiento.
 
-## 6. Estrategia de fusión de App Base, Mi Narcita y La Barra
+## 6. Estrategia de fusión de RestoApp SaaS, App Base, Mi Narcita y La Barra
 
 No se hará una copia de carpetas completa. Cada función se portará por dominio y se adaptará al contrato multitenant.
 
 Orden de precedencia cuando los repositorios discrepen:
 
 1. Ganan las reglas de seguridad, marca y multitenancy definidas para RestoApp SaaS.
-2. Se preserva el comportamiento ya validado en App Base.
+2. Se preserva el comportamiento ya validado en RestoApp SaaS y, como referencia anterior, en App Base.
 3. Se incorpora la mejora más reciente y comprobada de La Barra.
 4. Mi Narcita completa las capacidades que no existan en las otras dos fuentes.
 5. Si dos implementaciones resuelven lo mismo de forma diferente, se escribe una prueba de caracterización y se elige por resultado, no por fecha de archivo.
@@ -321,7 +393,7 @@ Orden recomendado:
 
 Matriz de aceptación:
 
-| Capacidad donante | Resultado exigido en App Base |
+| Capacidad donante | Resultado exigido en RestoApp SaaS |
 |---|---|
 | Carta pública QR | Ruta pública por tenant y sede, sin filtrar datos privados |
 | Facturación completa | Empresa por tenant, credenciales cifradas, notas y comprobantes |
@@ -345,11 +417,11 @@ Una función solo se considera portada cuando backend, UI, permisos, pruebas y d
 
 Entregables:
 
-- Crear rama de migración desde `App Base\sistema`.
+- Trabajar sobre la rama actual de `D:\SaaS\RestoApp` y registrar los cinco commits previos como baseline de la migración fallida.
 - Registrar commit base y estado sucio sin sobrescribir cambios del usuario.
 - Ejecutar build, typecheck, lint y tests existentes mediante Nx.
 - Exportar el grafo de proyectos y una matriz de rutas, APIs, tablas y eventos.
-- Crear inventario de paridad de tres vías: App Base, Mi Narcita y La Barra.
+- Crear inventario de paridad de cuatro vías: RestoApp SaaS, App Base, Mi Narcita y La Barra.
 - Clasificar cada diferencia de La Barra como portar, adaptar a SaaS o excluir por ser escritorio/local/branding.
 - Confirmar qué instalaciones contienen datos reales.
 
@@ -378,7 +450,7 @@ Entregables:
 
 - Portar las capacidades listadas en la sección 2.4.
 - Portar o transformar las mejoras listadas en la sección 2.5.
-- Conservar compras, multisede, historial de mermas, PDF y mejoras de caja de App Base.
+- Conservar compras, multisede, historial de mermas, PDF y mejoras de caja que ya funcionan en RestoApp SaaS.
 - Resolver diferencias por comportamiento, no por fecha de archivo.
 - Crear pruebas de caracterización cuando las dos variantes discrepen.
 
@@ -598,16 +670,67 @@ El proyecto se considera listo cuando:
 - Staging web funciona con backup, restauración y rollback probados.
 - La documentación describe RestoApp.pe SaaS y ya no el modelo de un VPS por cliente.
 
-## 12. Primer lote de implementación
+## 12. Orden de ejecución correctiva
 
-El primer lote debe ser pequeño y verificable:
+Los activos de marca, el baseline y parte de tamaños/facturación ya existen. La recuperación se ejecutará en lotes verticales, cada uno con backend, frontend, permisos, migración, pruebas y evals.
 
-1. Confirmar la carpeta fuente correcta.
-2. Crear baseline de pruebas.
-3. Integrar `BrandLogo` y los activos de marca.
-4. Neutralizar el login, sidebar, PWA y configuración central.
-5. Crear la matriz automatizada de paridad de tres vías.
-6. Incorporar primero tamaños de plato y soporte de dos RUC por sede, porque cambian contratos y modelos que luego recibirán `tenantId`.
-7. Diseñar y probar el contrato `TenantContext` y el envelope de eventos v2 antes de migrar esquemas.
+### Lote A. Acceso SaaS y conectividad
 
-No se debe comenzar el backfill de tenant ni copiar módulos completos hasta que este gate esté verde.
+1. Crear consola `/platform` y guard exclusivo `PLATFORM_ADMIN`.
+2. Añadir endpoints de plataforma para listar, crear, editar, suspender y reactivar tenants.
+3. Crear seed idempotente del superadministrador de desarrollo y documentar credenciales locales.
+4. Resolver tenant por host/subdominio y comprobar coincidencia host, sesión y membresía.
+5. Eliminar el fallback inseguro a tenant demo fuera del entorno de desarrollo.
+6. Agregar health/readiness público limitado y una matriz de smoke tests de Kong a los 11 servicios.
+
+Gate: el superadministrador aterriza en `/platform`; al crear un tenant aparecen su dominio y administrador, pero **ninguna sede**. El propietario crea su primera sede en una pantalla de bienvenida; dos tenants no pueden verse entre sí.
+
+### Lote A2. Consola comercial y auditoría de plataforma
+
+Despliegue VPS (2026-10-26): raíz `restoapp.mavricitas.com`, negocios
+`<slug>.restoapp.mavricitas.com`, DNS Cloudflare y Nginx existente. La release
+reproducible se genera con `scripts/vps/release.mjs --build --save`; incluye
+13 imágenes de aplicación, Compose aislado, TLS wildcard DNS-01 y operaciones
+para crear el primer superadmin sin demo y migrar dominios con snapshot.
+Procedimiento completo: [DESPLIEGUE_VPS_MAVRICITAS.md](DESPLIEGUE_VPS_MAVRICITAS.md).
+
+1. Catálogo de planes administrable (nombre, código, tarifa PEN, duración de ciclo y estado). Los importes iniciales son marcadores de configuración, no precios publicados. Una migración incorpora los códigos heredados ya asignados a tenants (como `ENTERPRISE`) sin cambiarles el plan ni inventar un precio; el superadministrador debe configurar su tarifa.
+2. Cartera con vencidos, próximos siete días, al día y sin fecha. Registrar pagos manuales con referencia y períodos; cada cambio de vencimiento deja auditoría. Una pasarela de cobro, facturación de la suscripción y conciliación bancaria quedan como integración posterior, no se simulan.
+3. Gestión de superadministradores: crear, activar/desactivar y restablecer contraseña, sin permitir autodesactivación ni eliminar el último administrador activo.
+4. La auditoría ofrece dos entradas separadas: `/platform/tenants/:id/observe` mantiene el resumen central y `/platform/tenants/:id/admin/inicio` presenta la navegación y las áreas operativas del negocio en **solo lectura**. Esta última muestra Inicio, Mesas, Pedidos, Cocina, Caja, Reservas, Inventario, Reportes, Usuarios y Sedes con los datos disponibles de los endpoints de plataforma; actualiza cada diez segundos y registra la entrada antes de consultar al tenant. No se expide un token del propietario ni se permiten mutaciones del negocio. Las respuestas de microservicios se validan por contrato y no se guardan en la caché offline. Esta vista no suplanta una sesión ADMIN ni reproduce todavía los formularios de Carta, Compras, Categorías o Facturación: para paridad visual y de detalle total hacen falta consultas de auditoría adicionales por servicio, nunca permisos de escritura por suplantación.
+5. En desarrollo, `localhost` puede resolver el tenant del JWT solo con la bandera del Compose local `TENANT_LOCALHOST_DEV=true`. Producción la omite y exige subdominio/dominio válido. El frontend usa API del mismo origen.
+
+Gate: los planes y estados de cobro persisten en PostgreSQL; un pago ajusta vencimiento de forma transaccional y auditada; el observador nunca puede escribir; un tenant sin sede no queda atrapado en skeleton ni requiere demo.
+
+### Lote B. Paridad operativa de La Barra
+
+1. Alertas sonoras en Pedidos y Cocina, con desbloqueo por primer gesto y preferencia persistente por usuario/tenant/sede.
+2. Gestión completa de tamaños en Carta y Comandero.
+3. QR de carta pública en Inicio.
+4. Cola web de impresión de cocina por tenant/sede, reintentos y auditoría.
+5. Ajuste de navegación, rutas y distribución visual para igualar el flujo operativo de La Barra.
+
+Gate: una tablet de salón y una de cocina reciben pedidos en vivo, emiten sonido y operan la cola de impresión sin Tauri.
+
+### Lote C. Paridad administrativa de Mi Narcita
+
+1. Inventario de almacén y cocina, categorías de insumo, movimientos, kardex, conteo físico y exportación.
+2. CRUD completo de mermas y descarte manual.
+3. Auditoría de anulaciones y eliminaciones.
+4. Edición completa de usuarios.
+5. Impresión de comprobantes y cierre Z.
+6. Correlativos y reconciliación cuenta/mesa.
+
+Gate: la matriz de archivos, rutas, contratos y flujos de Mi Narcita queda cubierta en RestoApp SaaS, con tenant obligatorio.
+
+### Lote D. Fiscal, sedes y endurecimiento
+
+1. Dos o más RUC/empresas por sede.
+2. Configuración SUNAT opcional con SOL, clave cifrada y certificado P12 protegido.
+3. Comprobantes disponibles, series, correlativos, notas y auditoría.
+4. RLS, constraints compuestos, rol runtime restringido y pruebas IDOR/BOLA.
+5. Backups, restauración por tenant, observabilidad y despliegue de staging.
+
+Gate: facturación beta por tenant aprobada, aislamiento negativo verde y restauración ensayada.
+
+No se declarará un lote terminado por cantidad de archivos copiados. El gate exige comportamiento visible, aislamiento, pruebas y evidencia operativa.

@@ -1,4 +1,21 @@
-import { IsEmail, IsString, IsEnum, IsBoolean, IsNotEmpty, MinLength, IsOptional, IsInt, Min, Max, IsArray, ValidateNested, IsDateString } from 'class-validator';
+import {
+  IsArray,
+  IsBoolean,
+  IsDateString,
+  IsEmail,
+  IsEnum,
+  IsIn,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Matches,
+  Max,
+  MaxLength,
+  Min,
+  MinLength,
+  ValidateNested,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export const RolUsuario = {
@@ -164,6 +181,9 @@ export class LoginResponseDto {
   @IsOptional()
   @IsString()
   activeSedeId?: string | null;
+
+  @IsIn(['PLATFORM', 'TENANT'])
+  sessionScope: 'PLATFORM' | 'TENANT';
 }
 
 export class UsuarioListResponse {
@@ -396,4 +416,354 @@ export class UserTenantSummaryDto {
   @ValidateNested({ each: true })
   @Type(() => SedeDto)
   sedes: SedeDto[];
+}
+
+/* ── Consola de plataforma (solo PLATFORM_ADMIN) ───────── */
+
+export const EstadoTenant = {
+  Activo: 'ACTIVO',
+  Suspendido: 'SUSPENDIDO',
+} as const;
+
+export type EstadoTenant = (typeof EstadoTenant)[keyof typeof EstadoTenant];
+
+export class TenantDomainDto {
+  @IsString()
+  id: string;
+
+  @IsString()
+  tenantId: string;
+
+  @IsString()
+  domain: string;
+
+  @IsBoolean()
+  activo: boolean;
+
+  @IsBoolean()
+  principal: boolean;
+
+  @IsString()
+  createdAt: string;
+
+  @IsString()
+  updatedAt: string;
+}
+
+export class PlatformTenantAdminDto {
+  @IsString()
+  id: string;
+
+  @IsString()
+  nombre: string;
+
+  @IsEmail()
+  email: string;
+
+  @IsBoolean()
+  activo: boolean;
+}
+
+export class PlatformTenantDto extends TenantDto {
+  @IsString()
+  updatedAt: string;
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => TenantDomainDto)
+  domains: TenantDomainDto[];
+
+  @IsInt()
+  @Min(0)
+  sedesCount: number;
+
+  @IsInt()
+  @Min(0)
+  usuariosCount: number;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => PlatformTenantAdminDto)
+  admin?: PlatformTenantAdminDto | null;
+}
+
+export class PlatformSummaryDto {
+  @IsInt()
+  @Min(0)
+  totalTenants: number;
+
+  @IsInt()
+  @Min(0)
+  tenantsActivos: number;
+
+  @IsInt()
+  @Min(0)
+  tenantsSuspendidos: number;
+
+  @IsInt()
+  @Min(0)
+  tenantsEnOnboarding: number;
+
+  @IsInt()
+  @Min(0)
+  tenantsConIncidencias: number;
+
+  @IsInt()
+  @Min(0)
+  totalSedes: number;
+
+  @IsInt()
+  @Min(0)
+  totalUsuarios: number;
+
+  @IsInt()
+  @Min(0)
+  totalDomains: number;
+}
+
+export class ListarTenantsPlataformaQuery {
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  @Type(() => Number)
+  limit?: number;
+
+  @IsOptional()
+  @IsString()
+  cursor?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  search?: string;
+
+  @IsOptional()
+  @IsEnum(EstadoTenant)
+  estado?: EstadoTenant;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  plan?: string;
+}
+
+export class PlatformTenantListResponse {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PlatformTenantDto)
+  data: PlatformTenantDto[];
+
+  @IsOptional()
+  @IsString()
+  nextCursor: string | null;
+}
+
+export class CrearAdministradorTenantCommand {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(120)
+  nombre: string;
+
+  @IsEmail()
+  email: string;
+
+  @IsString()
+  @MinLength(12)
+  @MaxLength(128)
+  password: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(30)
+  telefono?: string;
+}
+
+export class CrearSedeTenantCommand {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(120)
+  nombre: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(240)
+  direccion?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{11}$/, { message: 'El RUC debe contener 11 dígitos' })
+  ruc?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(30)
+  telefono?: string;
+}
+
+export class CrearTenantPlataformaCommand {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(120)
+  nombre: string;
+
+  @IsString()
+  @Matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, {
+    message: 'El slug solo admite minúsculas, números y guiones simples',
+  })
+  @MinLength(3)
+  @MaxLength(63)
+  slug: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{11}$/, { message: 'El RUC debe contener 11 dígitos' })
+  ruc?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  plan?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(253)
+  domain?: string;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CrearSedeTenantCommand)
+  sede?: CrearSedeTenantCommand;
+
+  @ValidateNested()
+  @Type(() => CrearAdministradorTenantCommand)
+  administrador: CrearAdministradorTenantCommand;
+}
+
+export class ActualizarTenantPlataformaCommand {
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(120)
+  nombre?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, {
+    message: 'El slug solo admite minúsculas, números y guiones simples',
+  })
+  @MinLength(3)
+  @MaxLength(63)
+  slug?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{11}$/, { message: 'El RUC debe contener 11 dígitos' })
+  ruc?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  plan?: string;
+}
+
+export class CambiarEstadoTenantCommand {
+  @IsBoolean()
+  activo: boolean;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  motivo?: string;
+}
+
+export class CrearTenantDomainCommand {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(253)
+  domain: string;
+
+  @IsOptional()
+  @IsBoolean()
+  principal?: boolean;
+}
+
+export class ActualizarTenantDomainCommand {
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(253)
+  domain?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  activo?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  principal?: boolean;
+}
+
+export class PlatformAuditDto {
+  @IsString()
+  id: string;
+
+  @IsOptional()
+  @IsString()
+  tenantId?: string | null;
+
+  @IsString()
+  accion: string;
+
+  @IsString()
+  usuarioId: string;
+
+  @IsString()
+  servicio: string;
+
+  @IsOptional()
+  @IsString()
+  recurso?: string | null;
+
+  @IsOptional()
+  @IsString()
+  recursoId?: string | null;
+
+  @IsOptional()
+  @IsString()
+  detalle?: string | null;
+
+  @IsString()
+  resultado: string;
+
+  @IsOptional()
+  @IsString()
+  ip?: string | null;
+
+  @IsString()
+  createdAt: string;
+}
+
+export class ListarAuditoriaPlataformaQuery {
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  @Type(() => Number)
+  limit?: number;
+
+  @IsOptional()
+  @IsString()
+  cursor?: string;
+}
+
+export class PlatformAuditListResponse {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PlatformAuditDto)
+  data: PlatformAuditDto[];
+
+  @IsOptional()
+  @IsString()
+  nextCursor: string | null;
 }

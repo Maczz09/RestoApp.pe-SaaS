@@ -28,6 +28,18 @@ export class ReservasService {
     private readonly prisma: PrismaService,
   ) {}
 
+  async resumenPlataforma(tenantId: string) {
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+    const [total, porEstado, proximas] = await Promise.all([
+      this.prisma.reserva.count({ where: { tenantId, fecha: { gte: today } } }),
+      this.prisma.reserva.groupBy({ by: ['estado'], where: { tenantId, fecha: { gte: today } }, _count: { _all: true } }),
+      this.prisma.reserva.findMany({ where: { tenantId, fecha: { gte: today } }, orderBy: [{ fecha: 'asc' }, { hora: 'asc' }], take: 20,
+        select: { id: true, sedeId: true, fecha: true, hora: true, estado: true, numComensales: true } }),
+    ]);
+    return { total, porEstado: Object.fromEntries(porEstado.map((row) => [row.estado, row._count._all])), proximas, observedAt: new Date().toISOString() };
+  }
+
   async listar(
     query: ListarReservasQuery = {},
     usuarioSedeId?: string | null,

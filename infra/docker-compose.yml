@@ -1,4 +1,6 @@
-x-jwt-dev-env: &jwt_dev_env ./secrets/jwt-dev.env
+x-jwt-dev-env: &jwt_dev_env
+  - ./secrets/jwt-dev.env
+  - ./tenant-local-dev.env
 
 # SOLO DESARROLLO. Credenciales debiles a proposito (postgres `secret`,
 # admin `restoapp123`, `SERVICE_JWT_SECRET` fijo). NUNCA usar este archivo en
@@ -1175,6 +1177,8 @@ services:
     build:
       context: ../
       dockerfile: apps/pwa-cliente/Dockerfile
+      args:
+        VITE_API_BASE_URL: ''
     image: restoapp-pwa-cliente
     container_name: restoapp-pwa-cliente
     ports:

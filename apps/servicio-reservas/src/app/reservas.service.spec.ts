@@ -12,6 +12,7 @@ type MockPrismaService = {
     create: ReturnType<typeof jest.fn>;
     update: ReturnType<typeof jest.fn>;
     count: ReturnType<typeof jest.fn>;
+    groupBy: ReturnType<typeof jest.fn>;
   };
   outboxEvent: {
     create: ReturnType<typeof jest.fn>;
@@ -59,6 +60,7 @@ describe('ReservasService — Reservas', () => {
         create: jest.fn(),
         update: jest.fn(),
         count: jest.fn(),
+        groupBy: jest.fn(),
       },
       outboxEvent: {
         create: jest.fn(),
@@ -66,6 +68,17 @@ describe('ReservasService — Reservas', () => {
     });
     mockPrisma.$transaction = jest.fn((callback: unknown) => Promise.resolve((callback as (arg: unknown) => unknown)(mockPrisma)));
     service = new ReservasService(mockPrisma as unknown as PrismaService);
+  });
+
+  it('observa solo las reservas futuras del tenant indicado', async () => {
+    mockPrisma.reserva.count.mockResolvedValue(2);
+    mockPrisma.reserva.groupBy.mockResolvedValue([{ estado: 'PENDIENTE', _count: { _all: 2 } }]);
+    mockPrisma.reserva.findMany.mockResolvedValue([]);
+    const result = await service.resumenPlataforma('tenant-uno');
+    expect(result).toMatchObject({ total: 2, porEstado: { PENDIENTE: 2 } });
+    for (const call of [mockPrisma.reserva.count, mockPrisma.reserva.groupBy, mockPrisma.reserva.findMany]) {
+      expect(call).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ tenantId: 'tenant-uno' }) }));
+    }
   });
 
   describe('listar', () => {

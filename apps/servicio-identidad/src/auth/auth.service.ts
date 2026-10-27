@@ -57,7 +57,7 @@ export class AuthService {
 
   /* ── Login ─────────────────────────────────────────── */
 
-  async login(command: LoginCommand): Promise<LoginResponseDto> {
+  async login(command: LoginCommand, requestedTenantSlug?: string): Promise<LoginResponseDto> {
     const usuario = await this.prisma.usuario.findUnique({
       where: { email: command.email },
     });
@@ -123,20 +123,31 @@ export class AuthService {
     // Multi-tenant memberships resolution
     let tenantSummaries: UserTenantSummaryDto[] = [];
     let activeTenantId: string | null = null;
-    let activeSedeId: string | null = usuario.sedeId;
+    const sessionScope: 'PLATFORM' | 'TENANT' =
+      usuario.rol === 'PLATFORM_ADMIN' ? 'PLATFORM' : 'TENANT';
+    let activeSedeId: string | null = sessionScope === 'PLATFORM' ? null : usuario.sedeId;
     let tokenRol = usuario.rol;
     let membershipId: string | null = null;
-    let allowedSedeIds: string[] = usuario.sedeId ? [usuario.sedeId] : [];
+    let allowedSedeIds: string[] =
+      sessionScope === 'PLATFORM' ? [] : usuario.sedeId ? [usuario.sedeId] : [];
     let tenantSlug: string | null = null;
 
-    if (this.prisma.membresia) {
+    if (sessionScope === 'TENANT' && this.prisma.membresia) {
       const membresias = await this.prisma.membresia.findMany({
-        where: { usuarioId: usuario.id, activo: true, tenant: { activo: true } },
+        where: {
+          usuarioId: usuario.id,
+          activo: true,
+          tenant: { activo: true, ...(requestedTenantSlug ? { slug: requestedTenantSlug } : {}) },
+        },
         include: {
           tenant: true,
           sedes: { include: { sede: true } },
         },
       });
+
+      if (requestedTenantSlug && membresias.length === 0) {
+        throw new UnauthorizedException('El usuario no pertenece a este restaurante');
+      }
 
       if (membresias.length > 0) {
         tenantSummaries = membresias.map((m) => ({
@@ -179,6 +190,7 @@ export class AuthService {
       membershipId,
       allowedSedeIds,
       activeSedeId,
+      sessionScope,
     });
 
     this.logger.log({
@@ -194,11 +206,12 @@ export class AuthService {
         nombre: usuario.nombre,
         email: usuario.email,
         rol: tokenRol as RolUsuario,
-        sedeId: activeSedeId,
+        sedeId: sessionScope === 'PLATFORM' ? null : usuario.sedeId,
       },
       tenants: tenantSummaries,
       activeTenantId,
       activeSedeId,
+      sessionScope,
     };
   }
 
@@ -229,6 +242,7 @@ export class AuthService {
     membershipId?: string | null;
     allowedSedeIds?: string[];
     activeSedeId?: string | null;
+    sessionScope?: 'PLATFORM' | 'TENANT';
   }): string {
     return this.jwt.sign({
       sub: usuario.id,
@@ -241,6 +255,9 @@ export class AuthService {
       membershipId: usuario.membershipId ?? null,
       allowedSedeIds: usuario.allowedSedeIds ?? (usuario.sedeId ? [usuario.sedeId] : []),
       activeSedeId: usuario.activeSedeId ?? usuario.sedeId,
+      sessionScope:
+        usuario.sessionScope ??
+        (usuario.rol === 'PLATFORM_ADMIN' && !usuario.tenantId ? 'PLATFORM' : 'TENANT'),
     });
   }
 
@@ -272,13 +289,14 @@ export class AuthService {
    * Rota un refresh token: valida, emite uno nuevo y revoca el anterior. Si llega
    * un token YA revocado (reuso), revoca toda la cadena del usuario y rechaza.
    */
-  async rotateRefreshToken(rawToken: string): Promise<{
+  async rotateRefreshToken(rawToken: string, requestedTenantSlug?: string): Promise<{
     access_token: string;
     refresh: { token: string; expiresAt: Date };
     usuario: { id: string; nombre: string; email: string; rol: RolUsuario; sedeId: string | null };
     tenants?: UserTenantSummaryDto[];
     activeTenantId?: string | null;
     activeSedeId?: string | null;
+    sessionScope: 'PLATFORM' | 'TENANT';
   }> {
     const tokenHash = this.hashToken(rawToken);
     const existing = await this.prisma.refreshToken.findUnique({ where: { tokenHash } });
@@ -305,6 +323,22 @@ export class AuthService {
 
     const usuario = await this.prisma.usuario.findUnique({ where: { id: existing.userId } });
     if (!usuario?.activo) throw new UnauthorizedException('Usuario no disponible');
+
+    // Valida el host antes de consumir/rotar el refresh token. Un intento desde
+    // otro subdominio no debe quemar una sesión legítima del restaurante.
+    if (requestedTenantSlug && usuario.rol !== 'PLATFORM_ADMIN') {
+      const membership = await this.prisma.membresia.findFirst({
+        where: {
+          usuarioId: usuario.id,
+          activo: true,
+          tenant: { activo: true, slug: requestedTenantSlug },
+        },
+        select: { id: true },
+      });
+      if (!membership) {
+        throw new UnauthorizedException('El usuario no pertenece a este restaurante');
+      }
+    }
 
     // T-34: compare-and-swap — solo un caller puede revocar el token presentado.
     // La revocación condicional atómica reemplaza la secuencia leer→emitir→revocar:
@@ -350,20 +384,31 @@ export class AuthService {
 
     let tenantSummaries: UserTenantSummaryDto[] = [];
     let activeTenantId: string | null = null;
-    let activeSedeId: string | null = usuario.sedeId;
+    const sessionScope: 'PLATFORM' | 'TENANT' =
+      usuario.rol === 'PLATFORM_ADMIN' ? 'PLATFORM' : 'TENANT';
+    let activeSedeId: string | null = sessionScope === 'PLATFORM' ? null : usuario.sedeId;
     let tokenRol = usuario.rol;
     let membershipId: string | null = null;
-    let allowedSedeIds: string[] = usuario.sedeId ? [usuario.sedeId] : [];
+    let allowedSedeIds: string[] =
+      sessionScope === 'PLATFORM' ? [] : usuario.sedeId ? [usuario.sedeId] : [];
     let tenantSlug: string | null = null;
 
-    if (this.prisma.membresia) {
+    if (sessionScope === 'TENANT' && this.prisma.membresia) {
       const membresias = await this.prisma.membresia.findMany({
-        where: { usuarioId: usuario.id, activo: true, tenant: { activo: true } },
+        where: {
+          usuarioId: usuario.id,
+          activo: true,
+          tenant: { activo: true, ...(requestedTenantSlug ? { slug: requestedTenantSlug } : {}) },
+        },
         include: {
           tenant: true,
           sedes: { include: { sede: true } },
         },
       });
+
+      if (requestedTenantSlug && membresias.length === 0) {
+        throw new UnauthorizedException('El usuario no pertenece a este restaurante');
+      }
 
       if (membresias.length > 0) {
         tenantSummaries = membresias.map((m) => ({
@@ -407,12 +452,14 @@ export class AuthService {
         membershipId,
         allowedSedeIds,
         activeSedeId,
+        sessionScope,
       }),
       refresh: { token: nuevo.token, expiresAt: nuevo.expiresAt },
-      usuario: { id: usuario.id, nombre: usuario.nombre, email: usuario.email, rol: tokenRol as RolUsuario, sedeId: activeSedeId },
+      usuario: { id: usuario.id, nombre: usuario.nombre, email: usuario.email, rol: tokenRol as RolUsuario, sedeId: sessionScope === 'PLATFORM' ? null : usuario.sedeId },
       tenants: tenantSummaries,
       activeTenantId,
       activeSedeId,
+      sessionScope,
     };
   }
 
@@ -423,6 +470,7 @@ export class AuthService {
     usuario: Omit<UsuarioDto, 'activo' | 'createdAt'>;
     activeTenantId: string;
     activeSedeId: string | null;
+    sessionScope: 'TENANT';
   }> {
     const usuario = await this.prisma.usuario.findUnique({ where: { id: usuarioId } });
     if (!usuario || !usuario.activo) {
@@ -467,6 +515,7 @@ export class AuthService {
       membershipId: membership.id,
       allowedSedeIds,
       activeSedeId,
+      sessionScope: 'TENANT',
     });
 
     return {
@@ -476,10 +525,11 @@ export class AuthService {
         nombre: usuario.nombre,
         email: usuario.email,
         rol: tokenRol as RolUsuario,
-        sedeId: activeSedeId,
+        sedeId: usuario.sedeId,
       },
       activeTenantId: membership.tenantId,
       activeSedeId,
+      sessionScope: 'TENANT',
     };
   }
 
@@ -488,6 +538,9 @@ export class AuthService {
     tenant: TenantDto;
     sede: SedeDto;
     usuario: Omit<UsuarioDto, 'activo' | 'createdAt'>;
+    activeTenantId: string;
+    activeSedeId: string;
+    sessionScope: 'TENANT';
   }> {
     const slugLimpio = command.slugRestaurante.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-');
     const existingTenant = await this.prisma.tenant.findUnique({ where: { slug: slugLimpio } });
@@ -577,6 +630,7 @@ export class AuthService {
       membershipId: membership.id,
       allowedSedeIds: [sede.id],
       activeSedeId: sede.id,
+      sessionScope: 'TENANT',
     });
 
     return {
@@ -598,6 +652,9 @@ export class AuthService {
         rol: 'ADMIN' as RolUsuario,
         sedeId: sede.id,
       },
+      activeTenantId: tenant.id,
+      activeSedeId: sede.id,
+      sessionScope: 'TENANT' as const,
     };
   }
 
@@ -624,9 +681,11 @@ export class AuthService {
     const baseDto = toUsuarioDto(usuario);
     let tenantSummaries: UserTenantSummaryDto[] = [];
     let activeTenantId: string | null = null;
-    let activeSedeId: string | null = usuario.sedeId;
+    const sessionScope: 'PLATFORM' | 'TENANT' =
+      usuario.rol === 'PLATFORM_ADMIN' ? 'PLATFORM' : 'TENANT';
+    let activeSedeId: string | null = sessionScope === 'PLATFORM' ? null : usuario.sedeId;
 
-    if (this.prisma.membresia) {
+    if (sessionScope === 'TENANT' && this.prisma.membresia) {
       const membresias = await this.prisma.membresia.findMany({
         where: { usuarioId: usuario.id, activo: true, tenant: { activo: true } },
         include: {
@@ -665,6 +724,7 @@ export class AuthService {
       tenants: tenantSummaries,
       activeTenantId,
       activeSedeId,
+      sessionScope,
     };
   }
 
@@ -702,6 +762,7 @@ export class AuthService {
         password: hashedPassword,
         rol: command.rol,
         sedeId,
+        telefono: command.telefono?.trim() || null,
       },
     });
 
@@ -900,8 +961,8 @@ export class AuthService {
 
   /* ── Sedes (T-23: multi-sede, solo ADMIN) ──────────── */
 
-  private toSedeDto(sede: { id: string; nombre: string; direccion: string | null; ruc: string | null; activa: boolean }): SedeDto {
-    return { id: sede.id, nombre: sede.nombre, direccion: sede.direccion, ruc: sede.ruc, activa: sede.activa };
+  private toSedeDto(sede: { id: string; nombre: string; direccion: string | null; ruc: string | null; telefono: string | null; activa: boolean }): SedeDto {
+    return { id: sede.id, nombre: sede.nombre, direccion: sede.direccion, ruc: sede.ruc, telefono: sede.telefono, activa: sede.activa };
   }
 
   async listarSedes(tenantId?: string | null): Promise<{ sedes: SedeDto[] }> {
@@ -915,14 +976,16 @@ export class AuthService {
   // llamar cualquier usuario autenticado — todos necesitan ver su propia
   // sede, no solo el admin general. LENIENT a propósito (nunca lanza si no
   // hay sede resuelta): es un dato cosmético, no un recurso protegido.
-  async sedeActual(usuarioSedeId?: string | null, sedeIdSolicitado?: string): Promise<{ sede: SedeDto | null }> {
+  async sedeActual(usuarioSedeId?: string | null, sedeIdSolicitado?: string, tenantId?: string | null): Promise<{ sede: SedeDto | null }> {
     const sedeId = usuarioSedeId ?? sedeIdSolicitado ?? null;
     if (!sedeId) return { sede: null };
-    const sede = await this.prisma.sede.findUnique({ where: { id: sedeId } });
+    const sede = tenantId
+      ? await this.prisma.sede.findFirst({ where: { id: sedeId, tenantId } })
+      : await this.prisma.sede.findUnique({ where: { id: sedeId } });
     return { sede: sede ? this.toSedeDto(sede) : null };
   }
 
-  async crearSede(command: CrearSedeCommand, tenantId?: string | null): Promise<{ message: string; sede: SedeDto }> {
+  async crearSede(command: CrearSedeCommand, tenantId?: string | null, actorId?: string): Promise<{ message: string; sede: SedeDto }> {
     if (tenantId) {
       const existe = await this.prisma.sede.findFirst({
         where: { tenantId, nombre: command.nombre },
@@ -933,14 +996,28 @@ export class AuthService {
       if (existe) throw new ConflictException(`Ya existe una sede llamada "${command.nombre}".`);
     }
 
-    const sede = await this.prisma.sede.create({
-      data: {
-        nombre: command.nombre,
-        direccion: command.direccion,
-        ruc: command.ruc,
-        tenantId: tenantId ?? null,
-      },
-    });
+    const data = {
+      nombre: command.nombre,
+      direccion: command.direccion,
+      ruc: command.ruc,
+      telefono: command.telefono,
+      tenantId: tenantId ?? null,
+    };
+    const sede = tenantId && actorId
+      ? await this.prisma.$transaction(async (tx) => {
+          const membership = await tx.membresia.findUnique({
+            where: { tenantId_usuarioId: { tenantId, usuarioId: actorId } },
+          });
+          if (!membership || !membership.activo || membership.rol !== 'ADMIN') {
+            throw new UnauthorizedException('No tienes acceso para crear sedes en este restaurante');
+          }
+          const created = await tx.sede.create({ data });
+          await tx.membresiaSede.create({
+            data: { membresiaId: membership.id, sedeId: created.id },
+          });
+          return created;
+        })
+      : await this.prisma.sede.create({ data });
 
     this.logger.log({
       operation: 'crearSede',
@@ -950,8 +1027,10 @@ export class AuthService {
     return { message: 'Sede creada', sede: this.toSedeDto(sede) };
   }
 
-  async actualizarSede(id: string, command: ActualizarSedeCommand): Promise<{ message: string; sede: SedeDto }> {
-    const existe = await this.prisma.sede.findUnique({ where: { id } });
+  async actualizarSede(id: string, command: ActualizarSedeCommand, tenantId?: string | null): Promise<{ message: string; sede: SedeDto }> {
+    const existe = tenantId
+      ? await this.prisma.sede.findFirst({ where: { id, tenantId } })
+      : await this.prisma.sede.findUnique({ where: { id } });
     if (!existe) throw new NotFoundException('Sede no encontrada');
 
     if (command.nombre && command.nombre !== existe.nombre) {
@@ -963,15 +1042,15 @@ export class AuthService {
 
     const sede = await this.prisma.sede.update({
       where: { id },
-      data: { nombre: command.nombre, direccion: command.direccion, ruc: command.ruc, activa: command.activa },
+      data: { nombre: command.nombre, direccion: command.direccion, ruc: command.ruc, telefono: command.telefono, activa: command.activa },
     });
 
     return { message: 'Sede actualizada', sede: this.toSedeDto(sede) };
   }
 
-  async eliminarSede(id: string): Promise<{ message: string }> {
+  async eliminarSede(id: string, tenantId?: string | null): Promise<{ message: string }> {
     const existe = await this.prisma.sede.findUnique({ where: { id }, include: { _count: { select: { usuarios: true } } } });
-    if (!existe) throw new NotFoundException('Sede no encontrada');
+    if (!existe || (tenantId && existe.tenantId !== tenantId)) throw new NotFoundException('Sede no encontrada');
     if (existe._count.usuarios > 0) {
       throw new ConflictException(`No se puede eliminar: ${existe._count.usuarios} usuario(s) siguen asignados a esta sede.`);
     }

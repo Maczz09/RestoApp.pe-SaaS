@@ -13,6 +13,7 @@ function createMockPrismaService(overrides: Record<string, unknown> = {}): any {
       findUnique: jest.fn(),
       findUniqueOrThrow: jest.fn(),
       findMany: jest.fn(),
+      count: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
       updateMany: jest.fn(),
@@ -34,6 +35,7 @@ function createMockPrismaService(overrides: Record<string, unknown> = {}): any {
     },
     merma: {
       findMany: jest.fn(),
+      count: jest.fn(),
       findUnique: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
@@ -93,6 +95,17 @@ describe('AppService — Inventario (comprehensive)', () => {
     jest.clearAllMocks();
     mockPrisma = createMockPrismaService();
     service = new AppService(mockPrisma);
+  });
+
+  it('observa solo el inventario y mermas del tenant indicado', async () => {
+    mockPrisma.producto.count.mockResolvedValueOnce(8).mockResolvedValueOnce(2).mockResolvedValueOnce(1);
+    mockPrisma.merma.findMany.mockResolvedValue([]);
+    const result = await service.resumenPlataforma('tenant-uno');
+    expect(result).toMatchObject({ productos: 8, agotados: 2, noDisponibles: 1 });
+    expect(mockPrisma.producto.count).toHaveBeenCalledTimes(3);
+    for (const call of [mockPrisma.producto.count, mockPrisma.merma.findMany]) {
+      for (const [args] of call.mock.calls) expect(args.where.tenantId).toBe('tenant-uno');
+    }
   });
 
   // ─── getHello ─────────────────────────────────────────────────────────────

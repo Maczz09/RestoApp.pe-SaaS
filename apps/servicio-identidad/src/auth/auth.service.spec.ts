@@ -235,6 +235,40 @@ describe('AuthService — Identidad', () => {
   });
 
   describe('login — T-03 lockout', () => {
+    it('PLATFORM_ADMIN inicia en scope de plataforma sin tenant demo ni membresía', async () => {
+      mockPrisma.usuario.findUnique.mockResolvedValue({
+        ...usuarioBase,
+        id: 'platform-1',
+        email: 'superadmin@restoapp.local',
+        rol: 'PLATFORM_ADMIN',
+        sedeId: 'sede-demo-obsoleta',
+      });
+      mockPrisma.usuario.update.mockResolvedValue({});
+      mockPrisma.auditoriaLog.create.mockResolvedValue({});
+
+      const result = await service.login({
+        email: 'superadmin@restoapp.local',
+        password: 'clave-correcta',
+      });
+
+      expect(result).toMatchObject({
+        sessionScope: 'PLATFORM',
+        activeTenantId: null,
+        activeSedeId: null,
+        tenants: [],
+        usuario: { rol: 'PLATFORM_ADMIN', sedeId: null },
+      });
+      expect(mockPrisma.membresia.findMany).not.toHaveBeenCalled();
+      expect(mockJwt.sign).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sessionScope: 'PLATFORM',
+          tenantId: null,
+          activeSedeId: null,
+          allowedSedeIds: [],
+        }),
+      );
+    });
+
     it('rechaza usuario con lockedUntil en el futuro', async () => {
       mockPrisma.usuario.findUnique.mockResolvedValue({
         ...usuarioBase,
@@ -288,6 +322,49 @@ describe('AuthService — Identidad', () => {
         (c: any) => c[0].data.failedLoginAttempts === 0,
       );
       expect(resetCall?.[0]?.data).toMatchObject({ failedLoginAttempts: 0, lockedUntil: null });
+    });
+
+    it('selecciona únicamente la membresía correspondiente al subdominio', async () => {
+      mockPrisma.usuario.findUnique.mockResolvedValue({ ...usuarioBase, sedeId: null });
+      mockPrisma.usuario.update.mockResolvedValue({});
+      mockPrisma.auditoriaLog.create.mockResolvedValue({});
+      mockPrisma.membresia.findMany.mockResolvedValue([{
+        id: 'mem-tenant-1',
+        tenantId: 'tenant-1',
+        rol: 'ADMIN',
+        tenant: {
+          id: 'tenant-1', nombre: 'Mi Restaurante', slug: 'mi-restaurante',
+          ruc: null, activo: true, plan: 'ESTANDAR', createdAt: new Date('2026-01-01'),
+        },
+        sedes: [],
+      }]);
+
+      const result = await service.login(
+        { email: usuarioBase.email, password: 'ok' },
+        'mi-restaurante',
+      );
+
+      expect(mockPrisma.membresia.findMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({
+          tenant: { activo: true, slug: 'mi-restaurante' },
+        }),
+      }));
+      expect(result.activeTenantId).toBe('tenant-1');
+      expect(mockJwt.sign).toHaveBeenCalledWith(expect.objectContaining({
+        tenantId: 'tenant-1', tenantSlug: 'mi-restaurante', sessionScope: 'TENANT',
+      }));
+    });
+
+    it('rechaza credenciales válidas cuando no pertenecen al subdominio', async () => {
+      mockPrisma.usuario.findUnique.mockResolvedValue({ ...usuarioBase });
+      mockPrisma.usuario.update.mockResolvedValue({});
+      mockPrisma.auditoriaLog.create.mockResolvedValue({});
+      mockPrisma.membresia.findMany.mockResolvedValue([]);
+
+      await expect(service.login(
+        { email: usuarioBase.email, password: 'ok' },
+        'otro-restaurante',
+      )).rejects.toThrow('no pertenece');
     });
   });
 

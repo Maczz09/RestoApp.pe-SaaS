@@ -98,7 +98,9 @@ describe('JwtAuthGuard compartido', () => {
           contextFor({
             method,
             path: '/api/recurso',
-            headers: { 'x-csrf-token': 'csrf-token-mucho-mas-largo-que-la-cookie' },
+            headers: {
+              'x-csrf-token': 'csrf-token-mucho-mas-largo-que-la-cookie',
+            },
             cookies: { [CSRF_COOKIE_NAME]: 'csrf-token' },
           }),
         ),
@@ -121,20 +123,43 @@ describe('JwtAuthGuard compartido', () => {
 
   it('permite /api/telemetry/metrics sin autenticación', async () => {
     await expect(
-      guard.canActivate(contextFor({ path: '/api/telemetry/metrics', method: 'GET', headers: {}, cookies: {} }))
+      guard.canActivate(
+        contextFor({
+          path: '/api/telemetry/metrics',
+          method: 'GET',
+          headers: {},
+          cookies: {},
+        }),
+      ),
     ).resolves.toBe(true);
   });
 
   it('permite /telemetry/metrics sin autenticación', async () => {
     await expect(
-      guard.canActivate(contextFor({ path: '/telemetry/metrics', method: 'GET', headers: {}, cookies: {} }))
+      guard.canActivate(
+        contextFor({
+          path: '/telemetry/metrics',
+          method: 'GET',
+          headers: {},
+          cookies: {},
+        }),
+      ),
     ).resolves.toBe(true);
   });
 
   it('permite /api/carta-publica sin autenticación', async () => {
-    await expect(
-      guard.canActivate(contextFor({ path: '/api/carta-publica', method: 'GET', headers: {}, cookies: {} }))
-    ).resolves.toBe(true);
+    const request: Record<string, unknown> = {
+      path: '/api/carta-publica',
+      method: 'GET',
+      headers: { host: 'resto-publico.restoapp.pe' },
+      cookies: {},
+    };
+    await expect(guard.canActivate(contextFor(request))).resolves.toBe(true);
+    expect(request.tenantHost).toEqual({
+      hostname: 'resto-publico.restoapp.pe',
+      tenantSlug: 'resto-publico',
+      scope: 'tenant',
+    });
   });
 
   it('permite ruta marcada con @Public() vía Reflector', async () => {
@@ -147,9 +172,50 @@ describe('JwtAuthGuard compartido', () => {
         getHandler: () => ({}),
         getClass: () => ({}),
         switchToHttp: () => ({
-          getRequest: () => ({ path: '/api/privado', method: 'GET', headers: {}, cookies: {} }),
+          getRequest: () => ({
+            path: '/api/privado',
+            method: 'GET',
+            headers: {},
+            cookies: {},
+          }),
         }),
-      } as any)
+      } as any),
+    ).resolves.toBe(true);
+  });
+
+  it('rechaza una sesión de otro tenant en un subdominio protegido', async () => {
+    await expect(
+      guard.canActivate(
+        contextFor({
+          method: 'GET',
+          path: '/api/mesas',
+          headers: { host: 'tenant-destino.restoapp.pe' },
+          cookies: {},
+          user: {
+            rol: 'ADMIN',
+            tenantId: 'tenant-origen-id',
+            tenantSlug: 'tenant-origen',
+          },
+        }),
+      ),
+    ).rejects.toThrow('no coincide con el subdominio');
+  });
+
+  it('acepta una sesión cuyo slug firmado coincide con el subdominio', async () => {
+    await expect(
+      guard.canActivate(
+        contextFor({
+          method: 'GET',
+          path: '/api/mesas',
+          headers: { host: 'tenant-destino.localhost:8000' },
+          cookies: {},
+          user: {
+            rol: 'ADMIN',
+            tenantId: 'tenant-destino-id',
+            tenantSlug: 'tenant-destino',
+          },
+        }),
+      ),
     ).resolves.toBe(true);
   });
 
@@ -159,12 +225,14 @@ describe('JwtAuthGuard compartido', () => {
   });
 
   it('handleRequest lanza UnauthorizedException cuando err está presente', () => {
-    expect(() => guard.handleRequest(new Error('bad'), null))
-      .toThrow('Token inválido o expirado');
+    expect(() => guard.handleRequest(new Error('bad'), null)).toThrow(
+      'Token inválido o expirado',
+    );
   });
 
   it('handleRequest lanza UnauthorizedException cuando user es null', () => {
-    expect(() => guard.handleRequest(null, null))
-      .toThrow('Token inválido o expirado');
+    expect(() => guard.handleRequest(null, null)).toThrow(
+      'Token inválido o expirado',
+    );
   });
 });

@@ -57,6 +57,17 @@ describe('AppService — Mesas', () => {
     service = new AppService(mockPrisma);
   });
 
+  it('observación de plataforma filtra todos los agregados por tenant', async () => {
+    mockPrisma.mesa.count = jest.fn().mockResolvedValue(2);
+    mockPrisma.mesa.groupBy = jest.fn().mockResolvedValue([{ estado: 'LIBRE', _count: { _all: 2 } }]);
+    mockPrisma.mesa.findMany.mockResolvedValue([]);
+    const result = await service.resumenPlataforma('tenant-1');
+    expect(result.total).toBe(2);
+    expect(mockPrisma.mesa.count).toHaveBeenCalledWith({ where: { tenantId: 'tenant-1' } });
+    expect(mockPrisma.mesa.groupBy).toHaveBeenCalledWith(expect.objectContaining({ where: { tenantId: 'tenant-1' } }));
+    expect(mockPrisma.mesa.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { tenantId: 'tenant-1' } }));
+  });
+
   describe('listarMesas', () => {
     it('debe retornar todas las mesas ordenadas por numero, con el nombre de ubicación resuelto', async () => {
       mockPrisma.mesa.findMany.mockResolvedValue([mesaBase]);

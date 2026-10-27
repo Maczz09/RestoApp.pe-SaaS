@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Patch, Delete, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Patch, Delete, Query, UseGuards, ParseUUIDPipe, Req, ForbiddenException } from '@nestjs/common';
 import { Roles, RolesGuard, TenantActual } from '@org/shared-auth';
 import { UsuarioActual } from '@org/observabilidad';
 import { AppService } from './app.service';
@@ -33,6 +33,13 @@ import {
 @Controller()
 export class AppController {
   constructor(private readonly appService: AppService) {}
+
+  @Roles('PLATFORM_ADMIN')
+  @Get('platform/tenants/:tenantId/live')
+  observarInventario(@Param('tenantId', ParseUUIDPipe) tenantId: string, @Req() req: { user?: { sessionScope?: string } }) {
+    if (req.user?.sessionScope !== 'PLATFORM') throw new ForbiddenException('Se requiere una sesión de plataforma');
+    return this.appService.resumenPlataforma(tenantId);
+  }
 
   @Get()
   getData() {

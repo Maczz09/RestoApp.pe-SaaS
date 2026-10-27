@@ -76,7 +76,7 @@ async function bootstrap() {
           maxAge: PERSIST_MAX_AGE_MS,
           // Solo se restauran queries de lectura ya resueltas con éxito; los
           // errores y las mutaciones no se persisten.
-          dehydrateOptions: { shouldDehydrateQuery: (query) => query.state.status === 'success' },
+          dehydrateOptions: { shouldDehydrateQuery: (query) => query.state.status === 'success' && !(query.queryKey[0] === 'platform' && query.queryKey[1] === 'observe-live') },
         }}
       >
         <ToastProvider>

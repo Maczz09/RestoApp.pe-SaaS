@@ -54,6 +54,28 @@ describe('AuthController', () => {
     );
   });
 
+  it('login usa el subdominio para seleccionar la membresía correcta', async () => {
+    const authService = {
+      login: jest.fn().mockResolvedValue({
+        access_token: 'jwt-tenant',
+        usuario: { id: 'user-1', email: 'admin@test.com', rol: 'ADMIN' },
+      }),
+      issueRefreshToken: jest.fn().mockResolvedValue({ token: 'refresh-1', expiresAt: new Date() }),
+    };
+    const controller = new AuthController(authService as never);
+
+    await controller.login(
+      { email: 'admin@test.com', password: 'secret' },
+      createResponse() as never,
+      { headers: { host: 'mi-restaurante.restoapp.pe' } } as never,
+    );
+
+    expect(authService.login).toHaveBeenCalledWith(
+      { email: 'admin@test.com', password: 'secret' },
+      'mi-restaurante',
+    );
+  });
+
   it('refresh rota el token y devuelve un nuevo access', async () => {
     const authService = {
       rotateRefreshToken: jest.fn().mockResolvedValue({
@@ -75,6 +97,25 @@ describe('AuthController', () => {
     expect(result.access_token).toBe('new-access');
     expect(typeof result.expires_in).toBe('number');
     expect(response.cookie).toHaveBeenCalledWith('refresh_token', 'refresh-2', expect.any(Object));
+  });
+
+  it('refresh conserva el tenant indicado por el subdominio', async () => {
+    const authService = {
+      rotateRefreshToken: jest.fn().mockResolvedValue({
+        access_token: 'new-access',
+        refresh: { token: 'refresh-2', expiresAt: new Date() },
+        usuario: { id: 'user-1' },
+      }),
+    };
+    const controller = new AuthController(authService as never);
+
+    await controller.refresh(
+      { cookies: { refresh_token: 'refresh-1' }, headers: { host: 'mi-restaurante.restoapp.pe' } } as never,
+      {},
+      createResponse() as never,
+    );
+
+    expect(authService.rotateRefreshToken).toHaveBeenCalledWith('refresh-1', 'mi-restaurante');
   });
 
   it('refresh sin token responde 401', async () => {

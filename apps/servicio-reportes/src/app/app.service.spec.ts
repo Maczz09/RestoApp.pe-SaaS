@@ -40,7 +40,7 @@ describe('AppService — Reportes', () => {
     });
   });
 
-  it('resume ingresos, horas y top productos del dia', async () => {
+  it('resume ingresos, horas y separa platos preparados de productos directos', async () => {
     jest.useFakeTimers();
     jest.setSystemTime(new Date('2026-01-02T15:00:00.000Z'));
     prisma.ventaDiaria.findMany.mockResolvedValue([
@@ -49,7 +49,7 @@ describe('AppService — Reportes', () => {
         fecha: new Date('2026-01-02T18:10:00.000Z'),
         items: [
           { productoId: 'prod-1', nombre: 'Nachos', cantidad: 2, precioUnitario: 20 },
-          { productoId: 'prod-2', nombre: 'Limonada', cantidad: 1, precioUnitario: 40 },
+          { productoId: 'prod-2', nombre: 'Limonada', cantidad: 1, precioUnitario: 40, area: 'DIRECTO' },
         ],
       },
       {
@@ -61,8 +61,7 @@ describe('AppService — Reportes', () => {
 
     const resumen = await service.obtenerResumenDiario();
 
-    const inicioDiaLocal = new Date('2026-01-02T15:00:00.000Z');
-    inicioDiaLocal.setHours(0, 0, 0, 0);
+    const inicioDiaLocal = new Date('2026-01-02T00:00:00.000-05:00');
     expect(prisma.ventaDiaria.findMany).toHaveBeenCalledWith({
       where: { fecha: { gte: inicioDiaLocal, lte: new Date('2026-01-02T15:00:00.000Z') } },
     });
@@ -74,11 +73,17 @@ describe('AppService — Reportes', () => {
       hora: '13:00',
       total: 100,
     });
-    expect(resumen.topProductos[0]).toEqual({
+    expect(resumen.topPlatos[0]).toEqual({
       productoId: 'prod-1',
       nombre: 'Nachos',
       cantidad: 3,
       ingresos: 60,
+    });
+    expect(resumen.topProductos[0]).toEqual({
+      productoId: 'prod-2',
+      nombre: 'Limonada',
+      cantidad: 1,
+      ingresos: 40,
     });
 
     jest.useRealTimers();

@@ -23,6 +23,15 @@ export class AppService {
     private readonly prisma: PrismaService,
   ) {}
 
+  async resumenPlataforma(tenantId: string) {
+    const [total, porEstado, recientes] = await Promise.all([
+      this.prisma.mesa.count({ where: { tenantId } }),
+      this.prisma.mesa.groupBy({ by: ['estado'], where: { tenantId }, _count: { _all: true } }),
+      this.prisma.mesa.findMany({ where: { tenantId }, orderBy: { updatedAt: 'desc' }, take: 20, select: { id: true, sedeId: true, numero: true, estado: true, updatedAt: true } }),
+    ]);
+    return { total, porEstado: Object.fromEntries(porEstado.map((row) => [row.estado, row._count._all])), recientes, observedAt: new Date().toISOString() };
+  }
+
   private toMesaDto(mesa: MesaConUbicacion): MesaDto {
     const { ubicacion, ...resto } = mesa;
     return { ...resto, ubicacion: ubicacion.nombre };

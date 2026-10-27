@@ -23,9 +23,6 @@ RUN mkdir /out && \
 FROM node:22-alpine@sha256:968df39aedcea65eeb078fb336ed7191baf48f972b4479711397108be0966920 AS builder
 WORKDIR /usr/src/app
 
-ARG APP_NAME
-ENV APP_NAME=${APP_NAME}
-
 COPY package.json package-lock.json nx.json tsconfig.base.json ./
 COPY --from=pruner /out ./
 
@@ -37,13 +34,16 @@ RUN --mount=type=cache,target=/root/.npm \
     npm ci --ignore-scripts && \
     npm rebuild bcrypt --build-from-source
 
+ARG APP_NAME
+ENV APP_NAME=${APP_NAME}
+
 COPY libs/ ./libs/
 COPY apps/${APP_NAME} ./apps/${APP_NAME}
 
 # El cliente se genera en apps/<app>/src/generated y el build lo copia al dist.
 RUN npx prisma generate --schema=./apps/${APP_NAME}/prisma/schema.prisma
 
-RUN npx nx build ${APP_NAME} --configuration=production
+RUN NX_DAEMON=false NX_ISOLATE_PLUGINS=false npx nx build ${APP_NAME} --configuration=production
 
 # ── Etapa proddeps: node_modules solo de producción ──────────────────────────
 FROM node:22-alpine@sha256:968df39aedcea65eeb078fb336ed7191baf48f972b4479711397108be0966920 AS proddeps
@@ -76,6 +76,7 @@ COPY --chown=node:node --from=builder /usr/src/app/apps/${APP_NAME}/prisma ./app
 COPY --chown=node:node --from=builder /usr/src/app/apps/${APP_NAME}/package.json ./apps/${APP_NAME}/package.json
 
 COPY --chown=node:node infra/entrypoint.sh ./entrypoint.sh
+COPY --chown=node:node scripts/vps ./ops
 RUN sed -i 's/\r$//' ./entrypoint.sh && chmod +x ./entrypoint.sh
 
 # Punto de montaje de adjuntos (servicio-compras). Docker inicializa un volumen

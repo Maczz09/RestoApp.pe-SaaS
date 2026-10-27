@@ -39,6 +39,7 @@ interface AccesoRol {
 
 // Para ajustar qué ve cada rol, edita SOLO este mapa.
 export const ACCESO_POR_ROL: Record<RolUsuario, AccesoRol> = {
+  PLATFORM_ADMIN: { home: 'inicio', rutas: [] },
   ADMIN: { home: 'inicio', rutas: TODAS_LAS_RUTAS },
   SISTEMA: { home: 'usuarios', rutas: TODAS_LAS_RUTAS },
   GERENCIA: {
@@ -50,6 +51,10 @@ export const ACCESO_POR_ROL: Record<RolUsuario, AccesoRol> = {
   MESERO: { home: 'mesas', rutas: ['mesas', 'pedidos', 'reservas'] },
   RECEPCION: { home: 'reservas', rutas: ['reservas', 'mesas'] },
 };
+
+export function esPlatformAdmin(rol: string | null | undefined): boolean {
+  return rol === 'PLATFORM_ADMIN';
+}
 
 /** Fallback seguro si el rol viene desconocido o nulo. */
 const ACCESO_FALLBACK: AccesoRol = { home: 'inicio', rutas: ['inicio'] };

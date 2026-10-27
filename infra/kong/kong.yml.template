@@ -103,6 +103,7 @@ services:
     url: http://localhost:1  # nunca alcanzado; request-termination responde antes
     routes:
       - name: block-telemetry-metrics
+        preserve_host: true
         paths:
           - ~/.*\/telemetry\/metrics$
         strip_path: false
@@ -121,6 +122,7 @@ services:
     retries: 1
     routes:
       - name: identidad-login
+        preserve_host: true
         paths:
           - /identidad/auth/login
           - /v1/identidad/auth/login
@@ -144,6 +146,7 @@ services:
     retries: 1
     routes:
       - name: identidad-refresh
+        preserve_host: true
         paths:
           - /identidad/auth/refresh
           - /v1/identidad/auth/refresh
@@ -175,6 +178,7 @@ services:
             - access_token
     routes:
       - name: identidad-logout
+        preserve_host: true
         paths:
           - /identidad/auth/logout
           - /v1/identidad/auth/logout
@@ -206,6 +210,7 @@ services:
             - access_token
     routes:
       - name: identidad
+        preserve_host: true
         paths: [/identidad, /v1/identidad]
         strip_path: true
 
@@ -226,6 +231,7 @@ services:
             - access_token
     routes:
       - name: mesas
+        preserve_host: true
         paths: [/mesas, /v1/mesas]
         strip_path: true
 
@@ -246,6 +252,7 @@ services:
             - access_token
     routes:
       - name: pedidos
+        preserve_host: true
         paths: [/pedidos, /v1/pedidos]
         strip_path: true
 
@@ -266,6 +273,7 @@ services:
             - access_token
     routes:
       - name: cuentas
+        preserve_host: true
         paths: [/cuentas, /v1/cuentas]
         strip_path: true
 
@@ -286,6 +294,7 @@ services:
             - access_token
     routes:
       - name: reservas
+        preserve_host: true
         paths: [/reservas, /v1/reservas]
         strip_path: true
 
@@ -306,6 +315,7 @@ services:
             - access_token
     routes:
       - name: inventario
+        preserve_host: true
         paths: [/inventario, /v1/inventario]
         strip_path: true
 
@@ -326,6 +336,7 @@ services:
             - access_token
     routes:
       - name: notificaciones
+        preserve_host: true
         paths: [/notificaciones, /v1/notificaciones]
         strip_path: true
 
@@ -346,6 +357,7 @@ services:
             - access_token
     routes:
       - name: caja
+        preserve_host: true
         paths: [/caja, /v1/caja]
         strip_path: true
 
@@ -366,6 +378,7 @@ services:
             - access_token
     routes:
       - name: reportes
+        preserve_host: true
         paths: [/reportes, /v1/reportes]
         strip_path: true
 
@@ -386,6 +399,7 @@ services:
             - access_token
     routes:
       - name: facturacion
+        preserve_host: true
         paths: [/facturacion, /v1/facturacion]
         strip_path: true
 
@@ -413,6 +427,7 @@ services:
           size_unit: megabytes
     routes:
       - name: compras
+        preserve_host: true
         paths: [/compras, /v1/compras]
         strip_path: true
 
@@ -425,5 +440,6 @@ services:
     retries: 1
     routes:
       - name: pwa
+        preserve_host: true
         paths: [/]
         strip_path: false

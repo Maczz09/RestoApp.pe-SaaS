@@ -8,7 +8,7 @@ import { Server, Socket } from 'socket.io';
 import { Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { OperableLog } from '@org/observabilidad';
-import { getJwtPublicKey, getServiceJwtSecret } from '@org/shared-auth';
+import { assertTenantHostAccess, getJwtPublicKey, getServiceJwtSecret, parseCorsOrigins, type TenantHostUser } from '@org/shared-auth';
 import {
   wsRoomForRole,
   wsRoomsForPattern,
@@ -25,9 +25,9 @@ export interface NotificacionEvento {
   sedeId?: string;
 }
 
-export function resolveWsCorsOrigins(): string[] {
+export function resolveWsCorsOrigins(): Array<string | RegExp> {
   if (process.env.CORS_ORIGIN) {
-    return process.env.CORS_ORIGIN.split(',').map((o) => o.trim());
+    return parseCorsOrigins(process.env.CORS_ORIGIN);
   }
   if (process.env.NODE_ENV === 'production') {
     throw new Error('CORS_ORIGIN environment variable is required in production');
@@ -66,7 +66,14 @@ export class NotificationsGateway
       const token = this.extractToken(client);
       if (!token) throw new Error('missing token');
 
-      const user = (await this.verifyToken(token)) as { rol?: string; tenantId?: string; sedeId?: string };
+      const user = (await this.verifyToken(token)) as TenantHostUser & { sedeId?: string };
+      if (process.env.NODE_ENV === 'production') {
+        assertTenantHostAccess(client.handshake.headers.host, user, {
+          nodeEnv: 'production',
+          serviceName: process.env.SERVICE_NAME,
+          allowLocalhostTenant: process.env.TENANT_LOCALHOST_DEV === 'true',
+        });
+      }
       (client.data as Record<string, unknown>).user = user;
       // T-19: unir al room por rol para emisión dirigida en vez de broadcast global.
       if (user?.rol) {

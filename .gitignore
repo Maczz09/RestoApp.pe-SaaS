@@ -61,6 +61,7 @@ testem.log
 Thumbs.db
 
 .nx/cache
+.nx/
 .nx/workspace-data
 .cursor/rules/nx-rules.mdc
 .github/instructions/nx.instructions.md
@@ -84,6 +85,8 @@ test-output
 **/src/generated/prisma
 
 .env
+.env.vps
+artifacts/
 # SonarQube token local
 infra/sonarqube/.sonar-token.local
 

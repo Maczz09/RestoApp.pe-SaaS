@@ -18,7 +18,7 @@ import { NestFactory } from '@nestjs/core';
 import { Transport } from '@nestjs/microservices';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
-import { buildHelmetOptions } from '@org/shared-auth';
+import { buildHelmetOptions, parseCorsOrigins } from '@org/shared-auth';
 import { GlobalExceptionFilter } from './lib/global-exception.filter';
 import { shutdownTracing } from './lib/tracing';
 import { OperableLog } from './lib/operable-log';
@@ -102,7 +102,7 @@ export async function bootstrapRestoAppService(options: BootstrapOptions): Promi
   app.use(helmet(buildHelmetOptions()));
 
   app.enableCors({
-    origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ['http://localhost:4200'],
+    origin: process.env.CORS_ORIGIN ? parseCorsOrigins(process.env.CORS_ORIGIN) : ['http://localhost:4200'],
     credentials: true,
   });
 
@@ -196,4 +196,3 @@ export async function bootstrapRestoAppService(options: BootstrapOptions): Promi
 
 /** @deprecated Mantener alias hacia bootstrapRestoAppService */
 export const bootstrapNachoppsService = bootstrapRestoAppService;
-

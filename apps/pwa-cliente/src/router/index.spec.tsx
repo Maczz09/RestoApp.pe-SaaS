@@ -11,11 +11,16 @@ vi.mock('../store/auth.store', () => ({
 
 vi.mock('../auth/permisos', () => ({
   homeDeRol: vi.fn(),
-  puedeAcceder: vi.fn()
+  puedeAcceder: vi.fn(),
+  esPlatformAdmin: vi.fn((rol: string) => rol === 'PLATFORM_ADMIN')
 }));
 
 vi.mock('../components/layout/Shell', () => ({
   Shell: ({ children }: any) => <div data-testid="shell">{children}</div>
+}));
+
+vi.mock('../screens/platform/PlatformShell', () => ({
+  PlatformShell: ({ children }: any) => <div data-testid="platform-shell">{children}</div>
 }));
 
 vi.mock('../components/ui/ErrorBoundary', () => ({
@@ -34,6 +39,10 @@ vi.mock('../screens/reportes/ReportesScreen', () => ({ ReportesScreen: () => <di
 vi.mock('../screens/admin/UsuariosScreen', () => ({ UsuariosScreen: () => <div data-testid="UsuariosScreen">UsuariosScreen</div> }));
 vi.mock('../screens/carta/CartaScreen', () => ({ CartaScreen: () => <div data-testid="CartaScreen">CartaScreen</div> }));
 vi.mock('../screens/compras/ComprasScreen', () => ({ ComprasScreen: () => <div data-testid="ComprasScreen">ComprasScreen</div> }));
+vi.mock('../screens/platform/PlatformDashboardScreen', () => ({ PlatformDashboardScreen: () => <div data-testid="PlatformDashboardScreen">PlatformDashboardScreen</div> }));
+vi.mock('../screens/platform/TenantCreateScreen', () => ({ TenantCreateScreen: () => <div data-testid="TenantCreateScreen">TenantCreateScreen</div> }));
+vi.mock('../screens/platform/TenantDetailScreen', () => ({ TenantDetailScreen: () => <div data-testid="TenantDetailScreen">TenantDetailScreen</div> }));
+vi.mock('../screens/platform/TenantAdminViewScreen', () => ({ TenantAdminViewScreen: () => <div data-testid="TenantAdminViewScreen">TenantAdminViewScreen</div> }));
 
 describe('AppRouter', () => {
   beforeEach(() => {
@@ -52,6 +61,32 @@ describe('AppRouter', () => {
     await waitFor(() => {
       expect(window.location.pathname).toBe('/app');
     });
+  });
+
+  it('redirects PLATFORM_ADMIN from login to /platform', async () => {
+    setupAuth(true, { rol: 'PLATFORM_ADMIN' });
+    window.history.pushState({}, 'Test', '/login');
+    render(<AppRouter />);
+    await waitFor(() => expect(window.location.pathname).toBe('/platform'));
+  });
+
+  it('renders the isolated platform shell for PLATFORM_ADMIN', async () => {
+    setupAuth(true, { rol: 'PLATFORM_ADMIN' });
+    window.history.pushState({}, 'Test', '/platform');
+    render(<AppRouter />);
+    await waitFor(() => {
+      expect(screen.getByTestId('platform-shell')).toBeInTheDocument();
+      expect(screen.getByTestId('PlatformDashboardScreen')).toBeInTheDocument();
+    });
+  });
+
+  it('permite la vista del negocio solo a superadministradores, sin abrir el Shell del tenant', async () => {
+    setupAuth(true, { rol: 'PLATFORM_ADMIN' });
+    window.history.pushState({}, 'Test', '/platform/tenants/tenant-1/admin/inicio');
+    render(<AppRouter />);
+    await waitFor(() => expect(screen.getByTestId('TenantAdminViewScreen')).toBeInTheDocument());
+    expect(screen.queryByTestId('shell')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('platform-shell')).not.toBeInTheDocument();
   });
 
   it('should render LoginScreen if not authenticated and on /login', async () => {

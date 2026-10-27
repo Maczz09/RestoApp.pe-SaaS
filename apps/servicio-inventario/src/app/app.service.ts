@@ -40,6 +40,17 @@ export class AppService {
 
   constructor(private readonly prisma: PrismaService) {}
 
+  async resumenPlataforma(tenantId: string) {
+    const [productos, agotados, noDisponibles, mermasRecientes] = await Promise.all([
+      this.prisma.producto.count({ where: { tenantId } }),
+      this.prisma.producto.count({ where: { tenantId, stockActual: { lte: 0 } } }),
+      this.prisma.producto.count({ where: { tenantId, disponible: false } }),
+      this.prisma.merma.findMany({ where: { tenantId }, orderBy: { createdAt: 'desc' }, take: 20,
+        select: { id: true, cantidad: true, motivo: true, origen: true, createdAt: true, producto: { select: { nombre: true } } } }),
+    ]);
+    return { productos, agotados, noDisponibles, mermasRecientes, observedAt: new Date().toISOString() };
+  }
+
   getHello(): { message: string; service: string } {
     return { message: 'Servicio de Inventario activo', service: 'servicio-inventario' };
   }

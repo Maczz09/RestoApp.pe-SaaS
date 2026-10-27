@@ -20,6 +20,8 @@ export interface JwtPayload {
   sedeId?: string | null;
   // SaaS Multitenancy:
   tenantId?: string;
+  tenantSlug?: string | null;
+  sessionScope?: 'PLATFORM' | 'TENANT';
   membershipId?: string;
   permissions?: string[];
   allowedSedeIds?: string[];
@@ -27,7 +29,9 @@ export interface JwtPayload {
   sessionVersion?: number;
 }
 
-const cookieExtractor: JwtFromRequestFunction = (req: Request & { cookies?: Record<string, string> }) => {
+const cookieExtractor: JwtFromRequestFunction = (
+  req: Request & { cookies?: Record<string, string> },
+) => {
   return (req?.cookies?.['access_token'] as string | undefined) ?? null;
 };
 
@@ -42,7 +46,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       ]),
       ignoreExpiration: false,
       // Verifica RS256 (usuario, clave pública) y HS256 (servicio, secreto).
-      secretOrKeyProvider: makeJwtSecretOrKeyProvider(getJwtPublicKey(), getServiceJwtSecret()),
+      secretOrKeyProvider: makeJwtSecretOrKeyProvider(
+        getJwtPublicKey(),
+        getServiceJwtSecret(),
+      ),
       algorithms: [...JWT_VERIFY_ALGORITHMS],
     });
   }
@@ -54,7 +61,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (payload.rol === 'SISTEMA') {
       const expected = process.env.SERVICE_NAME;
       if (expected && payload.aud !== expected) {
-        throw new UnauthorizedException('Audiencia del token de servicio inválida');
+        throw new UnauthorizedException(
+          'Audiencia del token de servicio inválida',
+        );
       }
     }
     const effectiveSedeId = payload.activeSedeId ?? payload.sedeId ?? null;
@@ -65,9 +74,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       nombre: payload.nombre,
       sedeId: effectiveSedeId,
       tenantId: payload.tenantId,
+      tenantSlug: payload.tenantSlug ?? null,
+      sessionScope: payload.sessionScope,
       membershipId: payload.membershipId,
       permissions: payload.permissions ?? [],
-      allowedSedeIds: payload.allowedSedeIds ?? (effectiveSedeId ? [effectiveSedeId] : []),
+      allowedSedeIds:
+        payload.allowedSedeIds ?? (effectiveSedeId ? [effectiveSedeId] : []),
       activeSedeId: effectiveSedeId,
       sessionVersion: payload.sessionVersion,
     };

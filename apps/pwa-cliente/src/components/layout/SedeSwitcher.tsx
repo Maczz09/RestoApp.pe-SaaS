@@ -7,11 +7,13 @@
 import { useRef, useState } from 'react';
 import { useSedesQuery, useSedeActualQuery } from '../../hooks/queries/useSedesQuery';
 import { queryClient } from '../../api/queryClient';
-import { setSedeSeleccionada } from '../../api/client';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { Icons } from '../ui/icons';
+import { useAuthStore } from '../../store/auth.store';
 
 export function SedeSwitcher() {
+  const activeTenantId = useAuthStore((state) => state.activeTenantId);
+  const switchTenant = useAuthStore((state) => state.switchTenant);
   const { sedes, loading } = useSedesQuery();
   const [open, setOpen] = useState(false);
   const popRef = useRef<HTMLDivElement>(null);
@@ -23,8 +25,9 @@ export function SedeSwitcher() {
   const { sede: sedeActual } = useSedeActualQuery();
   const seleccionId = sedeActual?.id ?? null;
 
-  const elegir = (id: string) => {
-    setSedeSeleccionada(id);
+  const elegir = async (id: string) => {
+    if (!activeTenantId) return;
+    await switchTenant(activeTenantId, id);
     setOpen(false);
     void queryClient.invalidateQueries();
   };
@@ -75,7 +78,7 @@ export function SedeSwitcher() {
                       style={{ justifyContent: 'flex-start', opacity: sede.activa ? 1 : 0.55 }}
                       disabled={!sede.activa}
                       title={sede.activa ? undefined : 'Sede inactiva'}
-                      onClick={() => elegir(sede.id)}
+                      onClick={() => void elegir(sede.id)}
                     >
                       {sede.id === seleccionId ? <Icons.Check s={14} /> : <Icons.Sede s={14} />}
                       {sede.nombre}

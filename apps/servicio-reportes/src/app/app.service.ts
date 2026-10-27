@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { OperableLog } from '@org/observabilidad';
 import { SEDE_PRINCIPAL_ID } from '@org/shared-auth';
 import { PrismaService } from '../prisma/prisma.service';
-import { CuentaCerradaPayload, PedidoSnapshotItem } from '@org/contracts';
+import { CuentaCerradaPayload, ItemArea, PedidoSnapshotItem } from '@org/contracts';
 
 @Injectable()
 export class AppService {
@@ -88,14 +88,22 @@ export class AppService {
         lte: query.hasta ? this.parseFechaLimite(query.hasta, 'fin') : new Date(),
       };
     }
-    const hoy = new Date();
-    hoy.setHours(0, 0, 0, 0);
-    return { gte: hoy, lte: new Date() };
+    const hoyLima = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Lima' }).format(new Date());
+    return { gte: this.parseFechaLimite(hoyLima, 'inicio'), lte: new Date() };
+  }
+
+  private horaLima(fecha: Date): number {
+    const horaStr = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Lima',
+      hour: '2-digit',
+      hour12: false,
+    }).format(fecha);
+    return Number(horaStr) % 24;
   }
 
   /** Deriva el turno a partir de la hora de la venta (plan 6.3). */
   private turnoDe(fecha: Date): 'ALMUERZO' | 'CENA' | 'OTRO' {
-    const h = fecha.getHours();
+    const h = this.horaLima(fecha);
     if (h >= 12 && h < 17) return 'ALMUERZO';
     if (h >= 18) return 'CENA';
     return 'OTRO';
@@ -225,8 +233,7 @@ export class AppService {
     }
     
     for (const v of ventas) {
-      const fechaVenta = new Date(v.fecha);
-      const hora = fechaVenta.getHours();
+      const hora = this.horaLima(new Date(v.fecha));
       const horaKey = `${String(hora).padStart(2, '0')}:00`;
       
       horasMap.set(horaKey, (horasMap.get(horaKey) || 0) + Number(v.total));
@@ -237,23 +244,26 @@ export class AppService {
       total,
     }));
 
-    // 2. Generar Ranking de Productos determinista según ventas reales del día
-    const productStats = new Map<string, { nombre: string; cantidad: number; ingresos: number }>();
+    // 2. Separar platos preparados (cocina/barra) de productos de reventa
+    // directa. Así cada ranking responde a una decisión operativa distinta.
+    const platoStats = new Map<string, { nombre: string; cantidad: number; ingresos: number }>();
+    const inventarioStats = new Map<string, { nombre: string; cantidad: number; ingresos: number }>();
 
     for (const v of ventas) {
       if (Array.isArray(v.items)) {
         for (const item of v.items as PedidoSnapshotItem[]) {
           const pid = item.productoId;
           if (!pid) continue;
-          const current = productStats.get(pid) || { nombre: item.nombre || pid, cantidad: 0, ingresos: 0 };
+          const stats = item.area === ItemArea.Directo ? inventarioStats : platoStats;
+          const current = stats.get(pid) || { nombre: item.nombre || pid, cantidad: 0, ingresos: 0 };
           current.cantidad += Number(item.cantidad || 0);
           current.ingresos += Number(item.cantidad || 0) * Number(item.precioUnitario || 0);
-          productStats.set(pid, current);
+          stats.set(pid, current);
         }
       }
     }
 
-    const topProductos = Array.from(productStats.entries())
+    const ranking = (stats: Map<string, { nombre: string; cantidad: number; ingresos: number }>) => Array.from(stats.entries())
       .map(([productoId, stats]) => ({
         productoId,
         nombre: stats.nombre,
@@ -264,12 +274,16 @@ export class AppService {
       .sort((a, b) => b.cantidad - a.cantidad)
       .slice(0, 10);
 
+    const topPlatos = ranking(platoStats);
+    const topProductos = ranking(inventarioStats);
+
     return {
       fecha: gte,
       hasta: lte,
       totalVentas: ventas.length,
       ingresosTotales: totalIngresos,
       ventasPorHora,
+      topPlatos,
       topProductos,
     };
   }

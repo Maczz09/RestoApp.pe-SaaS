@@ -34,6 +34,7 @@ export async function login(req: LoginRequest): Promise<UserDto> {
       ...response.usuario,
       tenants: response.tenants ?? response.usuario.tenants,
       activeTenantId: response.activeTenantId ?? response.usuario.activeTenantId,
+      activeSedeId: response.activeSedeId ?? response.usuario.activeSedeId,
     };
   }
   return response;
@@ -80,4 +81,3 @@ export function logout(): Promise<{ success: boolean; message: string }> {
     '/identidad/auth/logout',
   );
 }
-

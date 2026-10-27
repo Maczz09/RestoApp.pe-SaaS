@@ -1,6 +1,8 @@
 node_modules
 dist
 .nx/cache
+**/src/generated
+**/.nx
 .git
 .vscode
 .cursor
@@ -9,6 +11,14 @@ coverage
 tmp
 stress-tests
 scripts
+!scripts/
+scripts/*
+!scripts/vps/
+artifacts
+.env*
+**/.env
+**/.env.*.local
+infra/secrets
 logs
 *.log
 apps/*-e2e

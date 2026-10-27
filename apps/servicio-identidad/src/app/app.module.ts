@@ -7,6 +7,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuthModule } from '../auth/auth.module';
 import { ObservabilidadModule, HealthModule } from '@org/observabilidad';
 import { RoutingKeys } from '@org/contracts';
+import { PlatformModule } from '../platform/platform.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { RoutingKeys } from '@org/contracts';
       bindings: [RoutingKeys.TurnoCajaAbierto, RoutingKeys.TurnoCajaCerrado],
     }),
     AuthModule,
+    PlatformModule,
   ],
   providers: [],
 })

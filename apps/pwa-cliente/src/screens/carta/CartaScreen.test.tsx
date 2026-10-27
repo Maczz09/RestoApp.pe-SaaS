@@ -1,11 +1,14 @@
 // @vitest-environment jsdom
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { CartaScreen } from './CartaScreen';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import { useInventarioQuery } from '../../hooks/queries/useInventarioQuery';
 import { useAuthStore } from '../../store/auth.store';
 import { useToast } from '../../components/ui/ToastProvider';
+import { useTamanosPlatoQuery } from '../../hooks/queries/useTamanosPlatoQuery';
+
+vi.mock('../../hooks/queries/useTamanosPlatoQuery');
 
 const mockNavigate = vi.fn();
 vi.mock('react-router-dom', () => ({
@@ -53,7 +56,9 @@ vi.mock('../../components/ui/icons', () => ({
     Check: () => <svg data-testid="icon-check" />,
     Pedidos: () => <svg data-testid="icon-pedidos" />,
     Close: () => <svg data-testid="icon-close" />,
-    Layers: () => <svg data-testid="icon-layers" />
+    Layers: () => <svg data-testid="icon-layers" />,
+    Cocina: () => <svg data-testid="icon-cocina" />,
+    Drink: () => <svg data-testid="icon-drink" />
   }
 }));
 
@@ -62,13 +67,18 @@ vi.mock('../../components/ui/Stat', () => ({
 }));
 
 const mockCategorias = [
-  { id: 'cat1', nombre: 'Platos de Fondo' },
-  { id: 'cat2', nombre: 'Bebidas' }
+  { id: 'cat1', nombre: 'Platos de Fondo', area: 'COCINA' },
+  { id: 'cat2', nombre: 'Bebidas', area: 'BARRA' }
 ];
 
 const mockProductos = [
   { id: 'p1', nombre: 'Lomo Saltado', descripcion: 'Rico', categoriaId: 'cat1', categoriaNombre: 'Platos de Fondo', precio: 25.5, precioLabel: 'S/ 25.50', disponible: true },
   { id: 'p2', nombre: 'Chicha', descripcion: '', categoriaId: 'cat2', categoriaNombre: 'Bebidas', precio: 5, precioLabel: 'S/ 5.00', disponible: false }
+];
+const tamanos = [
+  { id: 'personal', nombre: 'Personal', orden: 10, activo: true },
+  { id: 'familiar', nombre: 'Familiar', orden: 30, activo: true },
+  { id: 'antiguo', nombre: 'Antiguo', orden: 40, activo: false },
 ];
 
 describe('CartaScreen', () => {
@@ -79,6 +89,10 @@ describe('CartaScreen', () => {
     vi.mocked(useOnlineStatus).mockReturnValue(true);
     (useAuthStore as any).mockReturnValue('ADMIN'); // rol
     vi.mocked(useToast).mockReturnValue({ toast: toastMock } as any);
+    vi.mocked(useTamanosPlatoQuery).mockReturnValue({
+      tamanos, loading: false, saving: false, error: null,
+      crearTamano: vi.fn(), actualizarTamano: vi.fn(), eliminarTamano: vi.fn(), fetch: vi.fn(), clearFeedback: vi.fn(),
+    });
     vi.mocked(useInventarioQuery).mockReturnValue({
       categorias: mockCategorias,
       productos: mockProductos,
@@ -103,6 +117,31 @@ describe('CartaScreen', () => {
     
     // Search
     fireEvent.change(screen.getByPlaceholderText('Buscar plato…'), { target: { value: 'Lomo' } });
+  });
+
+  it('el filtro de estación (Cocina/Barra) oculta las categorías y platos de la otra área', () => {
+    render(<CartaScreen />);
+
+    // Ambas categorías visibles con "Todas las estaciones"
+    expect(screen.getAllByText(/Platos de Fondo/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Bebidas/i).length).toBeGreaterThan(0);
+    expect(screen.getByText('Lomo Saltado')).toBeInTheDocument();
+    expect(screen.getByText('Chicha')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Cocina/i }));
+
+    // Solo la categoría/plato de Cocina queda visible
+    expect(screen.getAllByText(/Platos de Fondo/i).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Bebidas/i)).not.toBeInTheDocument();
+    expect(screen.getByText('Lomo Saltado')).toBeInTheDocument();
+    expect(screen.queryByText('Chicha')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /^Barra$/i }));
+
+    expect(screen.queryByText(/Platos de Fondo/i)).not.toBeInTheDocument();
+    expect(screen.getAllByText(/Bebidas/i).length).toBeGreaterThan(0);
+    expect(screen.queryByText('Lomo Saltado')).not.toBeInTheDocument();
+    expect(screen.getByText('Chicha')).toBeInTheDocument();
   });
 
   it('muestra "Padre › Hijo" para platos en una subcategoría', () => {
@@ -200,7 +239,7 @@ describe('CartaScreen', () => {
     fireEvent.click(screen.getByRole('button', { name: /Guardar cambios/i }));
 
     await waitFor(() => {
-      expect(actualizarProducto).toHaveBeenCalledWith('p1', { nombre: 'Lomo Saltado Editado', descripcion: 'Rico', categoriaId: 'cat1', precio: 25.5, disponible: true });
+      expect(actualizarProducto).toHaveBeenCalledWith('p1', { nombre: 'Lomo Saltado Editado', descripcion: 'Rico', categoriaId: 'cat1', tamanoId: null, precio: 25.5, disponible: true });
     });
     
     await waitFor(() => {
@@ -239,7 +278,7 @@ describe('CartaScreen', () => {
     fireEvent.click(screen.getByRole('button', { name: /Crear plato/i }));
 
     await waitFor(() => {
-      expect(crearProducto).toHaveBeenCalledWith({ nombre: 'Ceviche', descripcion: undefined, categoriaId: 'cat2', precio: 35, disponible: false });
+      expect(crearProducto).toHaveBeenCalledWith({ nombre: 'Ceviche', descripcion: undefined, categoriaId: 'cat2', tamanoId: null, precio: 35, disponible: false });
     });
   });
 
@@ -319,5 +358,66 @@ describe('CartaScreen', () => {
     render(<CartaScreen />);
     fireEvent.click(screen.getByRole('button', { name: /Gestionar categorías/i }));
     expect(mockNavigate).toHaveBeenCalledWith('/app/categorias');
+  });
+
+  it('crea el plato con el tamaño elegido y nombre base separado', async () => {
+    const crearProducto = vi.fn().mockResolvedValue({});
+    const base = vi.mocked(useInventarioQuery)();
+    vi.mocked(useInventarioQuery).mockReturnValue({ ...base, crearProducto });
+    render(<CartaScreen />);
+    fireEvent.click(screen.getByRole('button', { name: /Nuevo plato/i }));
+    fireEvent.change(screen.getByLabelText('Nombre'), { target: { value: 'Ceviche' } });
+    fireEvent.change(screen.getByLabelText('Precio de venta'), { target: { value: '45' } });
+    fireEvent.change(screen.getByLabelText('Tamaño del plato'), { target: { value: 'familiar' } });
+    expect(within(screen.getByLabelText('Tamaño del plato')).queryByRole('option', { name: /Antiguo/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Crear plato' }));
+    await waitFor(() => expect(crearProducto).toHaveBeenCalledWith(expect.objectContaining({ nombre: 'Ceviche', tamanoId: 'familiar', precio: 45 })));
+  });
+
+  it('muestra tamaños y ordena Personal antes de Familiar, luego sin tamaño; permite filtrar', () => {
+    const base = vi.mocked(useInventarioQuery)();
+    vi.mocked(useInventarioQuery).mockReturnValue({ ...base, productos: [
+      { ...mockProductos[0], id: 'fam', nombre: 'Arroz familiar', tamanoId: 'familiar', tamano: tamanos[1] },
+      { ...mockProductos[0], id: 'sin', nombre: 'Acompañamiento' },
+      { ...mockProductos[0], id: 'per', nombre: 'Ceviche personal', tamanoId: 'personal', tamano: tamanos[0] },
+    ] } as any);
+    render(<CartaScreen />);
+    const rows = screen.getAllByRole('row').slice(1);
+    expect(rows[0]).toHaveTextContent('Ceviche personal');
+    expect(rows[0]).toHaveTextContent('Personal');
+    expect(rows[1]).toHaveTextContent('Arroz familiar');
+    expect(rows[2]).toHaveTextContent('Acompañamiento');
+    fireEvent.change(screen.getByLabelText('Filtrar por tamaño'), { target: { value: 'familiar' } });
+    expect(screen.getByText('Arroz familiar')).toBeInTheDocument();
+    expect(screen.queryByText('Ceviche personal')).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Filtrar por tamaño'), { target: { value: 'SIN_TAMANO' } });
+    expect(screen.getByText('Acompañamiento')).toBeInTheDocument();
+    expect(screen.queryByText('Arroz familiar')).not.toBeInTheDocument();
+  });
+
+  it('precarga tamaño inactivo existente y permite quitarlo sin perder datos', async () => {
+    const base = vi.mocked(useInventarioQuery)();
+    const actualizarProducto = vi.fn().mockResolvedValue({});
+    vi.mocked(useInventarioQuery).mockReturnValue({ ...base, actualizarProducto, productos: [{ ...mockProductos[0], tamanoId: 'antiguo', tamano: tamanos[2] }] } as any);
+    render(<CartaScreen />);
+    fireEvent.click(screen.getByText('Lomo Saltado'));
+    expect(screen.getByLabelText('Tamaño del plato')).toHaveValue('antiguo');
+    expect(within(screen.getByLabelText('Tamaño del plato')).getByRole('option', { name: 'Antiguo (inactivo)' })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Tamaño del plato'), { target: { value: '' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }));
+    await waitFor(() => expect(actualizarProducto).toHaveBeenCalledWith('p1', expect.objectContaining({ nombre: 'Lomo Saltado', tamanoId: null, precio: 25.5 })));
+  });
+
+  it('abre gestión de tamaños y no la ofrece a cocina', () => {
+    const { unmount } = render(<CartaScreen />);
+    fireEvent.click(screen.getByRole('button', { name: 'Tamaños' }));
+    expect(screen.getByRole('dialog', { name: 'Tamaños de platos' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Cerrar tamaños' }));
+    unmount();
+    (useAuthStore as any).mockReturnValue('COCINA');
+    render(<CartaScreen />);
+    expect(screen.queryByRole('button', { name: 'Tamaños' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Nuevo plato' })).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Filtrar por tamaño')).toBeInTheDocument();
   });
 });

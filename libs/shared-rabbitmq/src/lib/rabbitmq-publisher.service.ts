@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger, OnModuleInit, Optional } from '@nestjs/common';
 import {
-  NACHOPPS_EXCHANGE,
+  RESTOAPP_EXCHANGE,
   RoutingKey,
 } from '@org/contracts';
 import * as amqp from 'amqp-connection-manager';
@@ -23,30 +23,32 @@ export class RabbitMQPublisherService implements OnModuleInit {
   ) {}
 
   onModuleInit() {
+    const exchange = process.env.RABBITMQ_EXCHANGE || RESTOAPP_EXCHANGE;
+    const dlx = process.env.RABBITMQ_DLX || 'RESTOAPP_DLX';
     this.channelWrapper = this.connection.createChannel({
       json: true,
       setup: async (channel: ConfirmChannel) => {
-        await channel.assertExchange('NACHOPPS_DLX', 'topic', { durable: true });
-        this.logger.log(`Exchange "NACHOPPS_DLX" declarado`);
+        await channel.assertExchange(dlx, 'topic', { durable: true });
+        this.logger.log(`Exchange "${dlx}" declarado`);
 
-        await channel.assertExchange(NACHOPPS_EXCHANGE, 'topic', { durable: true });
-        this.logger.log(`Exchange "${NACHOPPS_EXCHANGE}" declarado`);
+        await channel.assertExchange(exchange, 'topic', { durable: true });
+        this.logger.log(`Exchange "${exchange}" declarado`);
 
         if (this.options?.queue && this.options?.bindings?.length) {
           const dlq = `dlq.${this.options.queue}`;
           await channel.assertQueue(dlq, { durable: true });
-          await channel.bindQueue(dlq, 'NACHOPPS_DLX', dlq);
+          await channel.bindQueue(dlq, dlx, dlq);
 
           await channel.assertQueue(this.options.queue, { 
             durable: true,
             arguments: {
-              'x-dead-letter-exchange': 'NACHOPPS_DLX',
+              'x-dead-letter-exchange': dlx,
               'x-dead-letter-routing-key': dlq,
             }
           });
           
           for (const routingKey of this.options.bindings) {
-            await channel.bindQueue(this.options.queue, NACHOPPS_EXCHANGE, routingKey);
+            await channel.bindQueue(this.options.queue, exchange, routingKey);
             this.logger.log(`Cola "${this.options.queue}" atada a "${routingKey}"`);
           }
         }
@@ -93,7 +95,7 @@ export class RabbitMQPublisherService implements OnModuleInit {
     // así el consumidor siempre tiene una clave con la que deduplicar.
     carrier['x-event-id'] = eventId ?? randomUUID();
 
-    await this.channelWrapper.publish(NACHOPPS_EXCHANGE, routingKey, {
+    await this.channelWrapper.publish(process.env.RABBITMQ_EXCHANGE || RESTOAPP_EXCHANGE, routingKey, {
       pattern: routingKey,
       data,
     }, {

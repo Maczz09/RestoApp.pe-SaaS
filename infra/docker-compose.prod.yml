@@ -214,6 +214,7 @@ services:
       CORS_ORIGIN: ${CORS_ORIGIN:?CORS_ORIGIN es obligatorio, p.ej. https://app.tudominio.com}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-15m}
       REFRESH_TOKEN_TTL_DAYS: ${REFRESH_TOKEN_TTL_DAYS:-7}
+      TENANT_ROOT_DOMAINS: ${TENANT_ROOT_DOMAINS:-restoapp.pe}
       JWT_PRIVATE_KEY: ${JWT_PRIVATE_KEY:?JWT_PRIVATE_KEY es obligatorio en identidad (PEM RS256)}
     healthcheck:
       test: ['CMD', 'wget', '-qO-', 'http://localhost:3000/api/health/live']

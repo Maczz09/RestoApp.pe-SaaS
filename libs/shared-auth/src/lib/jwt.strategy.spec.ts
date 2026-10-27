@@ -21,16 +21,22 @@ describe('JwtStrategy (shared-auth)', () => {
     process.env.SERVICE_JWT_SECRET = 'dummy-service';
 
     const strategy = new JwtStrategy();
-    const payload = { sub: 'u1', email: 'a@b.com', rol: 'ADMIN', nombre: 'Ana', extra: 'ignored' };
-    expect(
-      strategy.validate(payload),
-    ).toEqual({
+    const payload = {
+      sub: 'u1',
+      email: 'a@b.com',
+      rol: 'ADMIN',
+      nombre: 'Ana',
+      extra: 'ignored',
+    };
+    expect(strategy.validate(payload)).toEqual({
       sub: 'u1',
       email: 'a@b.com',
       rol: 'ADMIN',
       nombre: 'Ana',
       sedeId: null,
       tenantId: undefined,
+      tenantSlug: null,
+      sessionScope: undefined,
       membershipId: undefined,
       permissions: [],
       allowedSedeIds: [],
@@ -45,6 +51,8 @@ describe('JwtStrategy (shared-auth)', () => {
       rol: 'ADMIN',
       nombre: 'Dueño',
       tenantId: 'tenant-100',
+      tenantSlug: 'resto-demo',
+      sessionScope: 'TENANT' as const,
       membershipId: 'mem-100',
       permissions: ['MESAS_ADMIN'],
       allowedSedeIds: ['sede-1', 'sede-2'],
@@ -58,6 +66,8 @@ describe('JwtStrategy (shared-auth)', () => {
       nombre: 'Dueño',
       sedeId: 'sede-1',
       tenantId: 'tenant-100',
+      tenantSlug: 'resto-demo',
+      sessionScope: 'TENANT',
       membershipId: 'mem-100',
       permissions: ['MESAS_ADMIN'],
       allowedSedeIds: ['sede-1', 'sede-2'],
@@ -70,48 +80,109 @@ describe('JwtStrategy (shared-auth)', () => {
   });
 
   describe('T-17: audiencia de tokens S2S (rol SISTEMA)', () => {
-    const withEnv = (env: Record<string, string | undefined>, fn: () => void) => {
+    const withEnv = (
+      env: Record<string, string | undefined>,
+      fn: () => void,
+    ) => {
       const prev: Record<string, string | undefined> = {};
-      for (const k of Object.keys(env)) { prev[k] = process.env[k]; if (env[k] === undefined) delete process.env[k]; else process.env[k] = env[k]; }
-      try { fn(); } finally {
-        for (const k of Object.keys(prev)) { if (prev[k] === undefined) delete process.env[k]; else process.env[k] = prev[k]; }
+      for (const k of Object.keys(env)) {
+        prev[k] = process.env[k];
+        if (env[k] === undefined) delete process.env[k];
+        else process.env[k] = env[k];
+      }
+      try {
+        fn();
+      } finally {
+        for (const k of Object.keys(prev)) {
+          if (prev[k] === undefined) delete process.env[k];
+          else process.env[k] = prev[k];
+        }
       }
     };
 
     it('acepta un token de servicio con aud === SERVICE_NAME', () => {
-      withEnv({ JWT_PUBLIC_KEY: 'x', SERVICE_JWT_SECRET: 'y', SERVICE_NAME: 'servicio-inventario', SERVICE_AUD_ENFORCE: 'true' }, () => {
-        const strategy = new JwtStrategy();
-        expect(
-          strategy.validate({ sub: 'servicio-pedidos', rol: 'SISTEMA', aud: 'servicio-inventario' }),
-        ).toMatchObject({ rol: 'SISTEMA' });
-      });
+      withEnv(
+        {
+          JWT_PUBLIC_KEY: 'x',
+          SERVICE_JWT_SECRET: 'y',
+          SERVICE_NAME: 'servicio-inventario',
+          SERVICE_AUD_ENFORCE: 'true',
+        },
+        () => {
+          const strategy = new JwtStrategy();
+          expect(
+            strategy.validate({
+              sub: 'servicio-pedidos',
+              rol: 'SISTEMA',
+              aud: 'servicio-inventario',
+            }),
+          ).toMatchObject({ rol: 'SISTEMA' });
+        },
+      );
     });
 
     it('rechaza (estricto) un token de servicio con aud incorrecta', () => {
-      withEnv({ JWT_PUBLIC_KEY: 'x', SERVICE_JWT_SECRET: 'y', SERVICE_NAME: 'servicio-cuentas', SERVICE_AUD_ENFORCE: 'true' }, () => {
-        const strategy = new JwtStrategy();
-        expect(() =>
-          strategy.validate({ sub: 'servicio-pedidos', rol: 'SISTEMA', aud: 'servicio-inventario' }),
-        ).toThrow(/[Aa]udiencia/);
-      });
+      withEnv(
+        {
+          JWT_PUBLIC_KEY: 'x',
+          SERVICE_JWT_SECRET: 'y',
+          SERVICE_NAME: 'servicio-cuentas',
+          SERVICE_AUD_ENFORCE: 'true',
+        },
+        () => {
+          const strategy = new JwtStrategy();
+          expect(() =>
+            strategy.validate({
+              sub: 'servicio-pedidos',
+              rol: 'SISTEMA',
+              aud: 'servicio-inventario',
+            }),
+          ).toThrow(/[Aa]udiencia/);
+        },
+      );
     });
 
     it('rechaza aud incorrecta aunque SERVICE_AUD_ENFORCE no este definida', () => {
-      withEnv({ JWT_PUBLIC_KEY: 'x', SERVICE_JWT_SECRET: 'y', SERVICE_NAME: 'servicio-cuentas', SERVICE_AUD_ENFORCE: undefined }, () => {
-        const strategy = new JwtStrategy();
-        expect(() =>
-          strategy.validate({ sub: 'servicio-pedidos', rol: 'SISTEMA', aud: 'servicio-inventario' }),
-        ).toThrow(/[Aa]udiencia/);
-      });
+      withEnv(
+        {
+          JWT_PUBLIC_KEY: 'x',
+          SERVICE_JWT_SECRET: 'y',
+          SERVICE_NAME: 'servicio-cuentas',
+          SERVICE_AUD_ENFORCE: undefined,
+        },
+        () => {
+          const strategy = new JwtStrategy();
+          expect(() =>
+            strategy.validate({
+              sub: 'servicio-pedidos',
+              rol: 'SISTEMA',
+              aud: 'servicio-inventario',
+            }),
+          ).toThrow(/[Aa]udiencia/);
+        },
+      );
     });
 
     it('un token de USUARIO (RS256, sin aud) pasa aunque haya enforce', () => {
-      withEnv({ JWT_PUBLIC_KEY: 'x', SERVICE_JWT_SECRET: 'y', SERVICE_NAME: 'servicio-cuentas', SERVICE_AUD_ENFORCE: 'true' }, () => {
-        const strategy = new JwtStrategy();
-        expect(
-          strategy.validate({ sub: 'u1', email: 'a@b.com', rol: 'MESERO', nombre: 'Ana' }),
-        ).toMatchObject({ rol: 'MESERO' });
-      });
+      withEnv(
+        {
+          JWT_PUBLIC_KEY: 'x',
+          SERVICE_JWT_SECRET: 'y',
+          SERVICE_NAME: 'servicio-cuentas',
+          SERVICE_AUD_ENFORCE: 'true',
+        },
+        () => {
+          const strategy = new JwtStrategy();
+          expect(
+            strategy.validate({
+              sub: 'u1',
+              email: 'a@b.com',
+              rol: 'MESERO',
+              nombre: 'Ana',
+            }),
+          ).toMatchObject({ rol: 'MESERO' });
+        },
+      );
     });
   });
 });

@@ -66,12 +66,13 @@ export function useSedesQuery(options: { enabled?: boolean } = {}) {
   return {
     sedes: sedesQuery.data ?? ([] as SedeDto[]),
     loading: sedesQuery.isLoading,
+    loaded: sedesQuery.isSuccess,
     saving,
     error: error ? error.message : null,
     success,
     fetch: sedesQuery.refetch,
     crearSede: async (payload: CrearSedePayload) => {
-      await mutationCrear.mutateAsync(payload);
+      return mutationCrear.mutateAsync(payload);
     },
     actualizarSede: async (id: string, payload: ActualizarSedePayload) => {
       await mutationActualizar.mutateAsync({ id, payload });

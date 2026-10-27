@@ -16,7 +16,7 @@ interface AuthState {
 }
 
 interface AuthActions {
-  login: (req: LoginRequest) => Promise<void>;
+  login: (req: LoginRequest) => Promise<UserDto>;
   logout: () => void;
   expireSession: () => void;
   restore: () => Promise<void>;
@@ -38,8 +38,10 @@ export const useAuthStore = create<AuthStore>((set) => ({
     const tenants = user.tenants ?? [];
     setTenantId(activeTenantId);
     setUsuarioSedeId(user.sedeId ?? null);
+    setSedeSeleccionada(user.activeSedeId ?? user.sedeId ?? null);
     set({ user, authenticated: true, activeTenantId, tenants });
-    void socketService.connect();
+    if (user.rol !== 'PLATFORM_ADMIN') void socketService.connect();
+    return user;
   },
 
   logout: () => {
@@ -73,11 +75,13 @@ export const useAuthStore = create<AuthStore>((set) => ({
       const tenants = user.tenants ?? [];
       setTenantId(activeTenantId);
       setUsuarioSedeId(user.sedeId ?? null);
+      setSedeSeleccionada(user.activeSedeId ?? user.sedeId ?? null);
       set({ user, authenticated: true, loading: false, activeTenantId, tenants });
-      void socketService.connect();
+      if (user.rol !== 'PLATFORM_ADMIN') void socketService.connect();
     } catch {
       clearAuthToken();
       setUsuarioSedeId(null);
+      setSedeSeleccionada(null);
       setTenantId(null);
       queryClient.clear();
       socketService.disconnect();
@@ -90,7 +94,7 @@ export const useAuthStore = create<AuthStore>((set) => ({
     const effectiveTenantId = res.activeTenantId ?? tenantId;
     setTenantId(effectiveTenantId);
     const targetSedeId = res.activeSedeId ?? res.usuario.sedeId ?? null;
-    setUsuarioSedeId(targetSedeId);
+    setUsuarioSedeId(res.usuario.sedeId ?? null);
     setSedeSeleccionada(targetSedeId);
 
     // CRITICAL (Phase 5 Gate): Limpiar toda la caché de React Query para
@@ -106,10 +110,10 @@ export const useAuthStore = create<AuthStore>((set) => ({
         ...(state.user ?? {}),
         ...res.usuario,
         activeTenantId: effectiveTenantId,
-        sedeId: targetSedeId,
+        sedeId: res.usuario.sedeId ?? null,
+        activeSedeId: targetSedeId,
       } as UserDto,
       activeTenantId: effectiveTenantId,
     }));
   },
 }));
-

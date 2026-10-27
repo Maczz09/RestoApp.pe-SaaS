@@ -6,6 +6,7 @@ export interface ResumenDto {
   totalVentas: number;
   ingresosTotales: number;
   ventasPorHora?: Array<{ hora: string; total: number; ingresos?: number }>;
+  topPlatos?: Array<{ productoId?: string; nombre: string; cantidad: number; ingresos?: number }>;
   topProductos?: Array<{ productoId?: string; nombre: string; cantidad: number; ingresos?: number }>;
 }
 
@@ -27,5 +28,6 @@ export interface ResumenVM {
   ticketPromedio: number | null;
   ticketPromedioLabel: string;
   ventasPorHora: Array<{ hora: string; total: number; ingresos?: number }>;
+  topPlatos: Array<{ productoId?: string; nombre: string; cantidad: number; ingresos?: number }>;
   topProductos: Array<{ productoId?: string; nombre: string; cantidad: number; ingresos?: number }>;
 }

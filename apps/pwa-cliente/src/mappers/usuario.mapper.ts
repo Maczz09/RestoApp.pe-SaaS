@@ -1,6 +1,7 @@
 import type { RolUsuario, UsuarioDto, UsuarioVM } from '../types/usuario.types';
 
 const ROLE_LABELS: Record<RolUsuario, string> = {
+  PLATFORM_ADMIN: 'Superadministrador',
   ADMIN: 'Admin',
   CAJERO: 'Cajero',
   COCINA: 'Cocina',

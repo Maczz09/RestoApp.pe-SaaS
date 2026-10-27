@@ -28,6 +28,7 @@ interface AuthenticatedRequest extends ExpressRequest {
     membershipId?: string | null;
     allowedSedeIds?: string[];
     activeSedeId?: string | null;
+    sessionScope: 'PLATFORM' | 'TENANT';
   };
 }
 import { randomBytes } from 'node:crypto';
@@ -44,7 +45,7 @@ import {
   OnboardingCommand,
   SelectTenantCommand,
 } from '@org/contracts';
-import { JwtAuthGuard, RolesGuard, Roles, CSRF_COOKIE_NAME } from '@org/shared-auth';
+import { JwtAuthGuard, RolesGuard, Roles, CSRF_COOKIE_NAME, resolveTenantHost } from '@org/shared-auth';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 
 const COOKIE_SAME_SITE = (process.env.COOKIE_SAMESITE ?? 'strict') as
@@ -103,8 +104,12 @@ export class AuthController {
   async login(
     @Body() command: LoginCommand,
     @Res({ passthrough: true }) res: Response,
+    @Req() req?: ExpressRequest,
   ) {
-    const result = await this.authService.login(command);
+    const tenantSlug = resolveTenantHost(req?.headers?.host).tenantSlug;
+    const result = tenantSlug
+      ? await this.authService.login(command, tenantSlug)
+      : await this.authService.login(command);
     const refresh = await this.authService.issueRefreshToken(result.usuario.id);
     this.setAuthCookies(res, result.access_token, refresh.token);
     return { ...result, expires_in: ACCESS_TTL_SECONDS };
@@ -145,9 +150,20 @@ export class AuthController {
   ) {
     const raw = (req.cookies as Record<string, string>)?.['refresh_token'] ?? body?.refresh_token;
     if (!raw) throw new UnauthorizedException('No hay refresh token');
-    const result = await this.authService.rotateRefreshToken(raw);
+    const tenantSlug = resolveTenantHost(req.headers?.host).tenantSlug;
+    const result = tenantSlug
+      ? await this.authService.rotateRefreshToken(raw, tenantSlug)
+      : await this.authService.rotateRefreshToken(raw);
     this.setAuthCookies(res, result.access_token, result.refresh.token);
-    return { access_token: result.access_token, expires_in: ACCESS_TTL_SECONDS, usuario: result.usuario };
+    return {
+      access_token: result.access_token,
+      expires_in: ACCESS_TTL_SECONDS,
+      usuario: result.usuario,
+      tenants: result.tenants,
+      activeTenantId: result.activeTenantId,
+      activeSedeId: result.activeSedeId,
+      sessionScope: result.sessionScope,
+    };
   }
 
   @HttpCode(200)
@@ -235,7 +251,7 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @Get('sedes/actual')
   async sedeActual(@Req() req: AuthenticatedRequest, @Query('sedeId') sedeId?: string) {
-    return this.authService.sedeActual(req.user.sedeId, sedeId);
+    return this.authService.sedeActual(req.user.sedeId, sedeId, req.user.tenantId);
   }
 
   /* ── Sedes (T-23: multi-sede, solo ADMIN) ──────────── */
@@ -251,20 +267,20 @@ export class AuthController {
   @Roles('ADMIN')
   @Post('sedes')
   async crearSede(@Request() req: AuthenticatedRequest, @Body() command: CrearSedeCommand) {
-    return this.authService.crearSede(command, req.user.tenantId);
+    return this.authService.crearSede(command, req.user.tenantId, req.user.sub);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN')
   @Patch('sedes/:id')
-  async actualizarSede(@Param('id') id: string, @Body() command: ActualizarSedeCommand) {
-    return this.authService.actualizarSede(id, command);
+  async actualizarSede(@Request() req: AuthenticatedRequest, @Param('id') id: string, @Body() command: ActualizarSedeCommand) {
+    return this.authService.actualizarSede(id, command, req.user.tenantId);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN')
   @Delete('sedes/:id')
-  async eliminarSede(@Param('id') id: string) {
-    return this.authService.eliminarSede(id);
+  async eliminarSede(@Request() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.authService.eliminarSede(id, req.user.tenantId);
   }
 }

@@ -56,6 +56,18 @@ export class AppService {
     private readonly cuentasHttp: CuentasHttpClient,
   ) {}
 
+  async resumenPlataforma(tenantId: string) {
+    const since = new Date(Date.now() - 86_400_000);
+    const [turnosAbiertos, pagos, totalPagos, recientes] = await Promise.all([
+      this.prisma.turnoCaja.count({ where: { tenantId, estado: 'ABIERTA' } }),
+      this.prisma.transaccion.count({ where: { tenantId, createdAt: { gte: since } } }),
+      this.prisma.transaccion.aggregate({ where: { tenantId, createdAt: { gte: since } }, _sum: { monto: true } }),
+      this.prisma.turnoCaja.findMany({ where: { tenantId }, orderBy: { updatedAt: 'desc' }, take: 20,
+        select: { id: true, sedeId: true, cajaNombre: true, estado: true, abiertoAt: true, cerradoAt: true } }),
+    ]);
+    return { turnosAbiertos, pagosUltimas24h: pagos, ingresosUltimas24h: Number(totalPagos._sum.monto ?? 0), recientes, observedAt: new Date().toISOString() };
+  }
+
   private usuario(usuarioId?: string | null) {
     return usuarioId ?? 'sistema';
   }

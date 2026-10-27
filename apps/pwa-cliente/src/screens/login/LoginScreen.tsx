@@ -26,8 +26,8 @@ export function LoginScreen() {
     setLoading(true);
 
     try {
-      await login({ email, password });
-      navigate('/app', { replace: true });
+      const user = await login({ email, password });
+      navigate(user.rol === 'PLATFORM_ADMIN' ? '/platform' : '/app', { replace: true });
     } catch (err) {
       if (err instanceof ApiError) {
         if (err.status === 401) {

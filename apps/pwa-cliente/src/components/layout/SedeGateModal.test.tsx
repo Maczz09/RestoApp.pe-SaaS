@@ -1,9 +1,9 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { SedeGateModal } from './SedeGateModal';
 import { useAuthStore } from '../../store/auth.store';
 import { useSedesQuery } from '../../hooks/queries/useSedesQuery';
-import { getSedeSeleccionada, setSedeSeleccionada } from '../../api/client';
+import { getSedeSeleccionada } from '../../api/client';
 import { queryClient } from '../../api/queryClient';
 
 vi.mock('../../hooks/useFocusTrap', () => ({ useFocusTrap: vi.fn() }));
@@ -37,7 +37,7 @@ describe('SedeGateModal', () => {
     sedes = [sedeA, sedeB],
     loading = false,
   }: { sedeId?: string | null; seleccionActual?: string | null; sedes?: typeof sedeA[]; loading?: boolean } = {}) {
-    vi.mocked(useAuthStore).mockImplementation((selector: any) => selector({ user: { rol: 'ADMIN', sedeId } }));
+    vi.mocked(useAuthStore).mockImplementation((selector: any) => selector({ user: { rol: 'ADMIN', sedeId }, activeTenantId: 'tenant-1', switchTenant: vi.fn().mockResolvedValue(undefined) }));
     vi.mocked(useSedesQuery).mockReturnValue({ sedes, loading } as any);
     vi.mocked(getSedeSeleccionada).mockReturnValue(seleccionActual);
   }
@@ -75,13 +75,12 @@ describe('SedeGateModal', () => {
     expect(screen.queryByText('Sede Cerrada')).not.toBeInTheDocument();
   });
 
-  it('elegir una sede la guarda, invalida las queries y cierra el modal', () => {
+  it('elegir una sede cambia el contexto del token e invalida las queries', async () => {
     setup();
     render(<SedeGateModal />);
     fireEvent.click(screen.getByText('Salitral 1'));
 
-    expect(setSedeSeleccionada).toHaveBeenCalledWith('s1');
-    expect(queryClient.invalidateQueries).toHaveBeenCalled();
+    await waitFor(() => expect(queryClient.invalidateQueries).toHaveBeenCalled());
     expect(screen.queryByText('¿Con qué sede vas a trabajar?')).not.toBeInTheDocument();
   });
 });
