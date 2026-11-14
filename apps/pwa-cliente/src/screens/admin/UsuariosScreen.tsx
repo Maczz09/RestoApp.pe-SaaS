@@ -48,6 +48,7 @@ export function UsuariosScreen() {
   const puedeGestionar = useAuthStore((s) => s.user?.rol) === 'ADMIN';
   const usuarioActualId = useAuthStore((s) => s.user?.id);
   const [form, setForm] = useState<CrearUsuarioPayload>(INITIAL_FORM);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [rolFiltro, setRolFiltro] = useState<string>('');
 
@@ -70,6 +71,7 @@ export function UsuariosScreen() {
     fetch,
     fetchMore,
     crear,
+    editar,
     cambiarRol,
     cambiarEstado,
     clearFeedback,
@@ -101,13 +103,24 @@ export function UsuariosScreen() {
     event.preventDefault();
     if (!online) return;
     if (sedeRequerida && !form.sedeId) return;
-    await crear({
+    const payload = {
       ...form,
       nombre: form.nombre.trim(),
       email: form.email.trim(),
       sedeId: form.rol === 'ADMIN' ? undefined : form.sedeId,
-    });
-    setForm(INITIAL_FORM);
+    };
+    try {
+      if (editingId) {
+        const { password, ...details } = payload;
+        await editar(editingId, { ...details, ...(password ? { password } : {}) });
+      } else {
+        await crear(payload);
+      }
+      setForm(INITIAL_FORM);
+      setEditingId(null);
+    } catch {
+      // The query hook displays the error; retain the user's input to retry.
+    }
   };
 
   const updateForm = (key: keyof CrearUsuarioPayload, value: string) => {
@@ -221,6 +234,7 @@ export function UsuariosScreen() {
                       <th className="col-mobile-hidden">Creado</th>
                       {puedeGestionar && <th className="cell-action">Cambiar rol</th>}
                       {puedeGestionar && <th className="cell-action">Acceso</th>}
+                      {puedeGestionar && <th className="cell-action">Editar</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -278,6 +292,17 @@ export function UsuariosScreen() {
                             </button>
                           </td>
                         )}
+                        {puedeGestionar && (
+                          <td className="cell-action">
+                            <button className="btn btn-ghost btn-sm" disabled={saving || !online}
+                              aria-label={`Editar a ${usuario.nombre}`}
+                              onClick={() => {
+                                clearFeedback();
+                                setEditingId(usuario.id);
+                                setForm({ nombre: usuario.nombre, email: usuario.email, password: '', rol: usuario.rol, sedeId: usuario.sedeId ?? '' });
+                              }}>Editar</button>
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
@@ -300,7 +325,7 @@ export function UsuariosScreen() {
             <section className="panel">
               <div className="panel-h">
                 <Icons.Plus s={16} />
-                <h3>Nuevo usuario</h3>
+                <h3>{editingId ? 'Editar usuario' : 'Nuevo usuario'}</h3>
               </div>
               <form className="form-stack" onSubmit={(e) => void handleCrear(e)}>
                 <div className="field">
@@ -318,9 +343,9 @@ export function UsuariosScreen() {
                 <div className="field">
                   <label htmlFor="nu-pass">Contraseña</label>
                   <div className="input">
-                    <input id="nu-pass" required minLength={8} type="password" value={form.password} onChange={(event) => updateForm('password', event.target.value)} aria-describedby="nu-pass-hint" />
+                    <input id="nu-pass" required={!editingId} minLength={8} type="password" autoComplete="new-password" value={form.password} onChange={(event) => updateForm('password', event.target.value)} aria-describedby="nu-pass-hint" />
                   </div>
-                  <span id="nu-pass-hint" className="hint">Mínimo 8 caracteres.</span>
+                  <span id="nu-pass-hint" className="hint">{editingId ? 'Déjala vacía para conservar la contraseña actual. Mínimo 8 caracteres si la cambias.' : 'Mínimo 8 caracteres.'}</span>
                 </div>
                 <div className="field">
                   <label htmlFor="nu-rol">Rol</label>
@@ -348,8 +373,9 @@ export function UsuariosScreen() {
                 )}
                 <button className="btn btn-primary btn-block" disabled={saving || !online || (sedeRequerida && !form.sedeId)} type="submit">
                   {saving ? <span className="spinner" /> : <Icons.Plus s={16} />}
-                  Crear usuario
+                  {editingId ? 'Guardar cambios' : 'Crear usuario'}
                 </button>
+                {editingId && <button className="btn btn-ghost btn-block" type="button" disabled={saving} onClick={() => { setEditingId(null); setForm(INITIAL_FORM); clearFeedback(); }}>Cancelar edición</button>}
               </form>
             </section>
           </aside>

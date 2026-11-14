@@ -11,6 +11,7 @@ import React from 'react';
 vi.mock('../../api/usuarios.api', () => ({
   getPage: vi.fn(),
   crear: vi.fn(),
+  editar: vi.fn(),
   cambiarRol: vi.fn(),
   cambiarEstado: vi.fn(),
 }));
@@ -42,6 +43,15 @@ const createWrapper = () => {
 describe('useUsuariosQuery', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it('actualiza el usuario y refresca el equipo al guardar', async () => {
+    vi.mocked(usuariosApi.getPage).mockResolvedValue({ data: [], nextCursor: null });
+    vi.mocked(usuariosApi.editar).mockResolvedValue({ id: 'u1' } as any);
+    const { result } = renderHook(() => useUsuariosQuery(), { wrapper: createWrapper() });
+    await result.current.editar('u1', { nombre: 'Equipo', email: 'equipo@test.com', rol: 'ADMIN' as any });
+    expect(usuariosApi.editar).toHaveBeenCalledWith('u1', { nombre: 'Equipo', email: 'equipo@test.com', rol: 'ADMIN' });
+    expect(queryClient.invalidateQueries).toHaveBeenCalledWith(expect.objectContaining({ queryKey: USUARIOS_QUERY_KEY }));
   });
 
   it('should fetch and map usuarios page', async () => {

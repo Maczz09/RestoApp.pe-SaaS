@@ -36,6 +36,7 @@ import { AuthService } from './auth.service';
 import {
   LoginCommand,
   CrearUsuarioCommand,
+  EditarUsuarioCommand,
   CambiarRolCommand,
   CambiarEstadoUsuarioCommand,
   ListarUsuariosQuery,
@@ -208,8 +209,15 @@ export class AuthController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN')
   @Post('usuarios')
-  async crearUsuario(@Body() command: CrearUsuarioCommand) {
-    return this.authService.crearUsuario(command);
+  async crearUsuario(@Body() command: CrearUsuarioCommand, @Request() req?: AuthenticatedRequest) {
+    return this.authService.crearUsuario(command, req?.user.tenantId);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @Patch('usuarios/:id')
+  async editarUsuario(@Param('id') id: string, @Body() command: EditarUsuarioCommand, @Request() req: AuthenticatedRequest) {
+    return this.authService.editarUsuario(id, command, req.user.sub, req.user.tenantId);
   }
 
   // Lectura del equipo: visible para administración, sistema y gerencia
@@ -221,7 +229,7 @@ export class AuthController {
     @Query() query: ListarUsuariosQuery,
     @Request() req: AuthenticatedRequest,
   ): Promise<UsuarioListResponse> {
-    return this.authService.listarUsuarios(query, req.user.sedeId);
+    return this.authService.listarUsuarios(query, req.user.rol === 'ADMIN' ? null : req.user.sedeId, req.user.tenantId);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -232,7 +240,7 @@ export class AuthController {
     @Body() command: CambiarRolCommand,
     @Request() req: AuthenticatedRequest,
   ) {
-    return this.authService.cambiarRol(id, command, req.user.sub);
+    return this.authService.cambiarRol(id, command, req.user.sub, req.user.tenantId);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -243,7 +251,7 @@ export class AuthController {
     @Body() command: CambiarEstadoUsuarioCommand,
     @Request() req: AuthenticatedRequest,
   ) {
-    return this.authService.cambiarEstado(id, command, req.user.sub);
+    return this.authService.cambiarEstado(id, command, req.user.sub, req.user.tenantId);
   }
 
   /* ── Sede propia (cualquier usuario autenticado) ─────── */

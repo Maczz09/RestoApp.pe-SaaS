@@ -318,5 +318,37 @@ describe('UsuariosScreen', () => {
     
     expect(screen.queryByText('Nuevo usuario')).toBeNull();
     expect(screen.queryByLabelText('Cambiar rol de Admin User')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Editar a Admin User' })).toBeNull();
+  });
+
+  it('edita los datos sin enviar una contraseña vacía y permite cancelar', async () => {
+    const editar = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(useUsuariosQuery).mockReturnValue({ ...useUsuariosQuery(), editar } as any);
+    render(<UsuariosScreen />);
+    fireEvent.click(screen.getByRole('button', { name: 'Editar a Admin User' }));
+    expect(screen.getByLabelText('Nombre')).toHaveValue('Admin User');
+    expect(screen.getByLabelText('Contraseña')).toHaveValue('');
+    fireEvent.change(screen.getByLabelText('Nombre'), { target: { value: 'Admin actualizado' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }));
+    await waitFor(() => expect(editar).toHaveBeenCalledWith('1', {
+      nombre: 'Admin actualizado', email: 'admin@test.com', rol: 'ADMIN', sedeId: undefined,
+    }));
+    await waitFor(() => expect(screen.getByText('Nuevo usuario')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Editar a Admin User' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar edición' }));
+    expect(screen.getByLabelText('Nombre')).toHaveValue('');
+    expect(editar).toHaveBeenCalledTimes(1);
+  });
+
+  it('conserva la edición y contraseña nueva cuando falla la actualización', async () => {
+    const editar = vi.fn().mockRejectedValue(new Error('No se pudo guardar'));
+    vi.mocked(useUsuariosQuery).mockReturnValue({ ...useUsuariosQuery(), editar } as any);
+    render(<UsuariosScreen />);
+    fireEvent.click(screen.getByRole('button', { name: 'Editar a Admin User' }));
+    fireEvent.change(screen.getByLabelText('Contraseña'), { target: { value: 'NuevaClave123' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }));
+    await waitFor(() => expect(editar).toHaveBeenCalledWith('1', expect.objectContaining({ password: 'NuevaClave123' })));
+    expect(screen.getByLabelText('Contraseña')).toHaveValue('NuevaClave123');
+    expect(screen.getByRole('button', { name: 'Guardar cambios' })).toBeInTheDocument();
   });
 });

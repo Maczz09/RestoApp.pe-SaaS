@@ -135,6 +135,34 @@ export class CambiarRolCommand {
   rol: RolUsuario;
 }
 
+export class EditarUsuarioCommand {
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  nombre?: string;
+
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(8)
+  password?: string;
+
+  @IsOptional()
+  @IsEnum(RolUsuario)
+  rol?: RolUsuario;
+
+  @IsOptional()
+  @IsString()
+  sedeId?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  activo?: boolean;
+}
+
 export class CambiarEstadoUsuarioCommand {
   @IsBoolean()
   activo: boolean;

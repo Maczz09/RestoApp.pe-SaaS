@@ -5,6 +5,7 @@ import { mapUsuario, mapUsuarios } from '../../mappers/usuario.mapper';
 import { primerMensaje } from '../../utils/feedback';
 import type {
   CrearUsuarioPayload,
+  EditarUsuarioPayload,
   RolUsuario,
   UsuarioVM,
 } from '../../types/usuario.types';
@@ -100,9 +101,17 @@ export function useUsuariosQuery(filters: UsuariosFilters = {}) {
     },
   });
 
-  const saving = mutationCrear.isPending || mutationCambiarRol.isPending || mutationCambiarEstado.isPending;
-  const error = usuariosQuery.error || mutationCrear.error || mutationCambiarRol.error || mutationCambiarEstado.error;
+  const mutationEditar = useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: EditarUsuarioPayload }) => usuariosApi.editar(id, payload),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: USUARIOS_QUERY_KEY, exact: false, refetchType: 'active' });
+    },
+  });
+
+  const saving = mutationCrear.isPending || mutationEditar.isPending || mutationCambiarRol.isPending || mutationCambiarEstado.isPending;
+  const error = usuariosQuery.error || mutationCrear.error || mutationEditar.error || mutationCambiarRol.error || mutationCambiarEstado.error;
   const success = primerMensaje(
+    [mutationEditar.isSuccess, 'Usuario actualizado.'],
     [mutationCrear.isSuccess, 'Usuario creado.'],
     [mutationCambiarRol.isSuccess, 'Rol actualizado.'],
     [mutationCambiarEstado.isSuccess, 'Estado actualizado.'],
@@ -125,6 +134,9 @@ export function useUsuariosQuery(filters: UsuariosFilters = {}) {
     crear: async (payload: CrearUsuarioPayload) => {
       await mutationCrear.mutateAsync(payload);
     },
+    editar: async (id: string, payload: EditarUsuarioPayload) => {
+      await mutationEditar.mutateAsync({ id, payload });
+    },
     cambiarRol: async (id: string, rol: RolUsuario) => {
       await mutationCambiarRol.mutateAsync({ id, rol });
     },
@@ -132,6 +144,7 @@ export function useUsuariosQuery(filters: UsuariosFilters = {}) {
       await mutationCambiarEstado.mutateAsync({ id, activo });
     },
     clearFeedback: () => {
+      mutationEditar.reset();
       mutationCrear.reset();
       mutationCambiarRol.reset();
       mutationCambiarEstado.reset();

@@ -161,7 +161,7 @@ describe('AuthController', () => {
       items: [],
       total: 0,
     });
-    expect(authService.listarUsuarios).toHaveBeenCalledWith({ limit: 10 }, null);
+    expect(authService.listarUsuarios).toHaveBeenCalledWith({ limit: 10 }, null, undefined);
     expect(
       await controller.cambiarRol('user-1', { rol: 'ADMIN' } as never, { user: { sub: 'admin-1' } } as any),
     ).toEqual({
@@ -171,6 +171,6 @@ describe('AuthController', () => {
     expect(
       await controller.cambiarEstado('user-1', { activo: false } as never, { user: { sub: 'admin-1' } } as any),
     ).toEqual({ id: 'user-1', activo: false });
-    expect(authService.cambiarEstado).toHaveBeenCalledWith('user-1', { activo: false }, 'admin-1');
+    expect(authService.cambiarEstado).toHaveBeenCalledWith('user-1', { activo: false }, 'admin-1', undefined);
   });
 });

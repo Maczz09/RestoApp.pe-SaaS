@@ -15,6 +15,7 @@ export type UsuarioDto = ContractUsuarioDto;
 export type ListarUsuariosQuery = ContractListarUsuariosQuery;
 export type UsuarioListResponse = ContractUsuarioListResponse;
 export type CrearUsuarioPayload = ContractCrearUsuarioCommand;
+export type EditarUsuarioPayload = Omit<CrearUsuarioPayload, 'password'> & { password?: string };
 export type CambiarRolPayload = ContractCambiarRolCommand;
 export type CambiarEstadoPayload = ContractCambiarEstadoUsuarioCommand;
 

@@ -12,6 +12,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import * as bcrypt from 'bcrypt';
 import {
   CrearUsuarioCommand,
+  EditarUsuarioCommand,
   LoginCommand,
   LoginResponseDto,
   CambiarRolCommand,
@@ -59,7 +60,7 @@ export class AuthService {
 
   async login(command: LoginCommand, requestedTenantSlug?: string): Promise<LoginResponseDto> {
     const usuario = await this.prisma.usuario.findUnique({
-      where: { email: command.email },
+      where: { email: command.email.trim().toLowerCase() },
     });
 
     if (!usuario?.activo) {
@@ -730,9 +731,11 @@ export class AuthService {
 
   /* ── CRUD de usuarios (solo ADMIN) ─────────────────── */
 
-  async crearUsuario(command: CrearUsuarioCommand) {
+  async crearUsuario(command: CrearUsuarioCommand, tenantId?: string | null) {
+    if (!command.nombre.trim()) throw new BadRequestException('Indica el nombre del usuario');
+    this.validarRolEquipo(command.rol);
     const existe = await this.prisma.usuario.findUnique({
-      where: { email: command.email },
+      where: { email: command.email.trim().toLowerCase() },
     });
 
     if (existe) {
@@ -747,7 +750,7 @@ export class AuthService {
         throw new BadRequestException('Indica la sede (sedeId) para este rol.');
       }
       const sede = await this.prisma.sede.findUnique({ where: { id: command.sedeId } });
-      if (!sede || !sede.activa) {
+      if (!sede || !sede.activa || (tenantId && sede.tenantId !== tenantId)) {
         throw new BadRequestException('La sede indicada no existe o está inactiva.');
       }
       sedeId = sede.id;
@@ -755,18 +758,21 @@ export class AuthService {
 
     const hashedPassword = await bcrypt.hash(command.password, SALT_ROUNDS);
 
-    const usuario = await this.prisma.usuario.create({
-      data: {
-        nombre: command.nombre,
-        email: command.email,
-        password: hashedPassword,
-        rol: command.rol,
-        sedeId,
-        telefono: command.telefono?.trim() || null,
-      },
+    const usuario = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.usuario.create({
+        data: { nombre: command.nombre.trim(), email: command.email.trim().toLowerCase(),
+          password: hashedPassword, rol: command.rol, sedeId,
+          telefono: command.telefono?.trim() || null },
+      });
+      if (tenantId) {
+        await tx.membresia.create({ data: {
+          tenantId, usuarioId: created.id, rol: command.rol,
+          ...(sedeId ? { sedes: { create: { sedeId } } } : {}),
+        } });
+      }
+      await tx.auditoriaLog.create({ data: { accion: 'CREAR_USUARIO', usuarioId: created.id, servicio: 'servicio-identidad', tenantId } });
+      return created;
     });
-
-    await this.registrarAuditoria('CREAR_USUARIO', usuario.id, 'servicio-identidad');
 
     this.logger.log({
       operation: 'crearUsuario',
@@ -777,12 +783,13 @@ export class AuthService {
     return toUsuarioDto(usuario);
   }
 
-  async listarUsuarios(query: ListarUsuariosQuery = {}, usuarioSedeId?: string | null): Promise<UsuarioListResponse> {
+  async listarUsuarios(query: ListarUsuariosQuery = {}, usuarioSedeId?: string | null, tenantId?: string | null): Promise<UsuarioListResponse> {
     const limit = this.normalizeLimit(query.limit);
     // T-23: un usuario pineado a una sede solo ve el equipo de esa sede; el
     // admin general (sin sede fija) puede filtrar por sedeId o ver todas.
     const sedeIdEfectiva = usuarioSedeId ?? query.sedeId;
     const where: Prisma.UsuarioWhereInput = {
+      ...(tenantId ? { membresias: { some: { tenantId } } } : {}),
       ...(sedeIdEfectiva ? { sedeId: sedeIdEfectiva } : {}),
       ...(query.rol ? { rol: query.rol } : {}),
       ...(query.search
@@ -820,7 +827,9 @@ export class AuthService {
     return Math.min(Math.max(Math.trunc(parsed), 1), 100);
   }
 
-  async cambiarRol(id: string, command: CambiarRolCommand, ejecutadoPor: string) {
+  async cambiarRol(id: string, command: CambiarRolCommand, ejecutadoPor: string, tenantId?: string | null) {
+    this.validarRolEquipo(command.rol);
+    if (tenantId) return this.editarUsuario(id, { rol: command.rol }, ejecutadoPor, tenantId);
     const usuario = await this.prisma.usuario.findUnique({ where: { id } });
     if (!usuario) {
       throw new NotFoundException('Usuario no encontrado');
@@ -881,7 +890,8 @@ export class AuthService {
    * AuditoriaLog.usuarioId y RefreshToken.userId no tienen FK con cascada,
    * un DELETE dejaría el historial de auditoría huérfano.
    */
-  async cambiarEstado(id: string, command: CambiarEstadoUsuarioCommand, ejecutadoPor: string) {
+  async cambiarEstado(id: string, command: CambiarEstadoUsuarioCommand, ejecutadoPor: string, tenantId?: string | null) {
+    if (tenantId) return this.editarUsuario(id, { activo: command.activo }, ejecutadoPor, tenantId);
     const usuario = await this.prisma.usuario.findUnique({ where: { id } });
     if (!usuario) {
       throw new NotFoundException('Usuario no encontrado');
@@ -949,6 +959,59 @@ export class AuthService {
       message: 'Estado de usuario actualizado.',
     } satisfies OperableLog);
     return toUsuarioDto(actualizado);
+  }
+
+  private validarRolEquipo(rol?: string) {
+    if (rol && !['ADMIN', 'GERENCIA', 'CAJERO', 'MESERO', 'COCINA', 'RECEPCION'].includes(rol)) {
+      throw new BadRequestException('Rol no permitido para el equipo del restaurante');
+    }
+  }
+
+  async editarUsuario(id: string, command: EditarUsuarioCommand, actorId: string, tenantId?: string | null) {
+    if (!tenantId) throw new BadRequestException('Selecciona un restaurante para editar usuarios');
+    if (command.nombre !== undefined && !command.nombre.trim()) throw new BadRequestException('Indica el nombre del usuario');
+    this.validarRolEquipo(command.rol);
+    const password = command.password ? await bcrypt.hash(command.password, SALT_ROUNDS) : undefined;
+    return this.prisma.$transaction(async (tx) => {
+      // Serialize team changes within this restaurant, including last-admin checks.
+      await tx.$queryRaw`SELECT id FROM tenants WHERE id = ${tenantId} FOR UPDATE`;
+      const member = await tx.membresia.findUnique({ where: { tenantId_usuarioId: { tenantId, usuarioId: id } } });
+      if (!member) throw new NotFoundException('Usuario no encontrado en este restaurante');
+      const user = await tx.usuario.findUnique({ where: { id }, include: { membresias: true } });
+      if (!user || user.rol === 'PLATFORM_ADMIN' || user.rol === 'SISTEMA') throw new NotFoundException('Usuario no encontrado');
+      if (user.membresias.some((m) => m.tenantId !== tenantId)) {
+        throw new ConflictException('Esta cuenta pertenece a varios restaurantes; requiere gestión de plataforma');
+      }
+      const rol = command.rol ?? member.rol;
+      const activo = command.activo ?? user.activo;
+      if (id === actorId && (rol !== 'ADMIN' || !activo)) throw new ConflictException('No puedes quitarte el acceso de administrador');
+      if (member.rol === 'ADMIN' && (rol !== 'ADMIN' || !activo)) {
+        const admins = await tx.membresia.count({ where: { tenantId, rol: 'ADMIN', activo: true, usuario: { activo: true } } });
+        if (admins <= 1) throw new ConflictException('Debe quedar al menos un administrador activo en este restaurante');
+      }
+      const sedeId = rol === 'ADMIN' ? null : command.sedeId ?? user.sedeId;
+      if (rol !== 'ADMIN') {
+        const sede = sedeId ? await tx.sede.findFirst({ where: { id: sedeId, tenantId, activa: true } }) : null;
+        if (!sede) throw new BadRequestException('Elige una sede activa de este restaurante');
+      }
+      const email = command.email?.trim().toLowerCase();
+      if (email && email !== user.email) {
+        const duplicate = await tx.usuario.findUnique({ where: { email } });
+        if (duplicate) throw new ConflictException('Ya existe un usuario con ese email');
+      }
+      const updated = await tx.usuario.update({ where: { id }, data: {
+        nombre: command.nombre?.trim(), email, password, rol, activo, sedeId,
+        ...(password ? { failedLoginAttempts: 0, lockedUntil: null } : {}),
+      } });
+      await tx.membresia.update({ where: { id: member.id }, data: { rol, activo,
+        sedes: { deleteMany: {}, ...(sedeId ? { create: { sedeId } } : {}) },
+      } });
+      // Revoke sessions when access, credentials or branch assignment changes.
+      await tx.refreshToken.updateMany({ where: { userId: id, revokedAt: null }, data: { revokedAt: new Date() } });
+      await tx.auditoriaLog.create({ data: { tenantId, usuarioId: id, servicio: 'servicio-identidad',
+        accion: `EDITAR_USUARIO:por:${actorId}${password ? ':PASSWORD_RESTABLECIDA' : ''}` } });
+      return toUsuarioDto(updated);
+    });
   }
 
   /* ── Auditoría ─────────────────────────────────────── */
