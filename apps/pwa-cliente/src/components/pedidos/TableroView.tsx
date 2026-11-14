@@ -2,13 +2,14 @@ import { Icons } from '../ui/icons';
 import { fmt, elapsedMin, elapsedLabel } from '../../utils/format';
 import { ETAPAS_PRODUCCION as ETAPAS, SLA_MIN } from '../../domain/pedido.flow';
 import type { PedidoVM } from '../../types/pedido.types';
+import { itemsEnEtapa, tieneEtapa } from '../../domain/pedido.partes';
 import { CANAL_META, nextLabelFor, type ViewProps } from './pedidos.meta';
 
 export function TableroView({ pedidos, onAvanzar, onDetalle, actionLoading, online, now }: Readonly<ViewProps>) {
   return (
     <div className="ped-board">
       {ETAPAS.map((et) => {
-        const cards = pedidos.filter((p) => p.estado === et.estado);
+        const cards = pedidos.filter((p) => tieneEtapa(p, et.estado));
         return (
           <div className="ped-col" key={et.estado}>
             <div className="ped-col-h">
@@ -21,7 +22,7 @@ export function TableroView({ pedidos, onAvanzar, onDetalle, actionLoading, onli
                 ? <div className="ped-col-empty">Sin pedidos</div>
                 : cards.map((p) => (
                   <PedidoCard
-                    key={p.id} p={p}
+                    key={`${p.id}:${et.estado}`} p={p} etapa={et.estado}
                     onAvanzar={onAvanzar} onDetalle={onDetalle}
                     actionLoading={actionLoading} online={online} now={now}
                   />
@@ -43,11 +44,12 @@ function destino(p: PedidoVM) {
   );
 }
 
-function PedidoCard({ p, onAvanzar, onDetalle, actionLoading, online, now }: { p: PedidoVM } & Omit<ViewProps, 'pedidos'>) {
+function PedidoCard({ p, etapa, onAvanzar, onDetalle, actionLoading, online, now }: { p: PedidoVM; etapa: string } & Omit<ViewProps, 'pedidos'>) {
+  const items = itemsEnEtapa(p, etapa);
   const meta = CANAL_META[p.canal];
   const mins = elapsedMin(p.createdAt, now);
   const tardio = mins >= SLA_MIN;
-  const nextLabel = nextLabelFor(p);
+  const nextLabel = p.estado === etapa ? nextLabelFor(p) : null;
   const Ic = Icons[meta.ic];
 
   return (
@@ -69,18 +71,20 @@ function PedidoCard({ p, onAvanzar, onDetalle, actionLoading, online, now }: { p
       </div>
       <div className="pc-where">{destino(p)}</div>
       <div className="pc-items">
-        {p.items.slice(0, 3).map((it) => (
+        {items.map((it) => (
           <div className="pc-item" key={it.id}>
             <span className="pc-q">{it.cantidad}×</span>
-            <span className="pc-n">{it.nombre}</span>
+            <span className="pc-n">
+              {it.nombre}
+              {it.notas && <span className="pc-sub" style={{ display: 'block', whiteSpace: 'normal' }}>{it.notas}</span>}
+            </span>
           </div>
         ))}
-        {p.items.length > 3 && <div className="pc-more">+{p.items.length - 3} más</div>}
       </div>
       <div className="pc-foot">
         {p.canal === 'DELIVERY' && p.proveedor
           ? <span className="pill-soft">{p.proveedor}</span>
-          : <span className="mono pc-total">{fmt(p.total)}</span>}
+          : <span className="mono pc-total" title="Total del pedido completo">Total pedido: {fmt(p.total)}</span>}
         <span className="spacer" />
         {nextLabel && (
           <button

@@ -11,6 +11,8 @@ export interface CartLine {
   producto: ProductoVM;
   cantidad: number;
   notas: string;
+  /** One entry per physical unit; omitted on legacy/grouped lines. */
+  notasPorUnidad?: string[];
   noteOpen: boolean;
 }
 
@@ -24,14 +26,18 @@ const IGV_FACTOR = 1.18;
 // ─── Reducers de líneas (puros: reciben y devuelven CartLine[]) ──────────────
 export function addProducto(lines: CartLine[], prod: ProductoVM): CartLine[] {
   const ex = lines.find((l) => l.producto.id === prod.id);
-  if (ex) return lines.map((l) => (l === ex ? { ...l, cantidad: l.cantidad + 1 } : l));
+  if (ex) return incLine(lines, prod.id, 1);
   return [...lines, { producto: prod, cantidad: 1, notas: '', noteOpen: false }];
 }
 
 export function incLine(lines: CartLine[], id: string, d: number): CartLine[] {
   return lines.flatMap((l) => {
     if (l.producto.id !== id) return [l];
-    return l.cantidad + d <= 0 ? [] : [{ ...l, cantidad: l.cantidad + d }];
+    const cantidad = l.cantidad + d;
+    if (cantidad <= 0) return [];
+    const prev = l.notasPorUnidad ?? Array.from({ length: l.cantidad }, () => l.notas);
+    const notasPorUnidad = Array.from({ length: cantidad }, (_, index) => prev[index] ?? '');
+    return [{ ...l, cantidad, notas: notasPorUnidad[0] ?? '', notasPorUnidad }];
   });
 }
 
@@ -40,7 +46,17 @@ export function delLine(lines: CartLine[], id: string): CartLine[] {
 }
 
 export function setNota(lines: CartLine[], id: string, notas: string): CartLine[] {
-  return lines.map((l) => (l.producto.id === id ? { ...l, notas } : l));
+  return setNotaUnidad(lines, id, 0, notas);
+}
+
+export function setNotaUnidad(lines: CartLine[], id: string, unidad: number, notas: string): CartLine[] {
+  return lines.map((l) => {
+    if (l.producto.id !== id || unidad < 0 || unidad >= l.cantidad) return l;
+    const notasPorUnidad = Array.from({ length: l.cantidad }, (_, index) =>
+      index === unidad ? notas : l.notasPorUnidad?.[index] ?? l.notas,
+    );
+    return { ...l, notas: notasPorUnidad[0], notasPorUnidad };
+  });
 }
 
 export function toggleNote(lines: CartLine[], id: string): CartLine[] {
@@ -84,12 +100,19 @@ export function contextoValido(canal: Canal, c: ContextoCampos): boolean {
 
 // ─── Armado del payload de envío ─────────────────────────────────────────────
 export function buildItems(lines: CartLine[]): CrearPedidoItemPayload[] {
-  return lines.map((l) => ({
+  return lines.flatMap((l) => l.notasPorUnidad
+    ? Array.from({ length: l.cantidad }, (_, index) => ({
+        productoId: l.producto.id,
+        cantidad: 1,
+        area: l.producto.categoriaNombre === 'Bebidas' ? 'BAR' as const : 'COCINA' as const,
+        notas: l.notasPorUnidad?.[index] ?? '',
+      }))
+    : [{
     productoId: l.producto.id,
     cantidad: l.cantidad,
     area: l.producto.categoriaNombre === 'Bebidas' ? 'BAR' : 'COCINA',
     notas: l.notas || '',
-  }));
+  }]);
 }
 
 /** Resuelve la mesa destino (física en SALON, virtual en DELIVERY/LLEVAR). */

@@ -51,19 +51,29 @@ export function ComandaCart({ cmd, modoAgregar }: Readonly<ComandaCartProps>) {
                 <span className="qv">{l.cantidad}</span>
                 <button onClick={() => cmd.incLine(l.producto.id, 1)}><Icons.Plus s={13} /></button>
               </div>
-              <button className={`cmd-note-btn ${l.notas ? 'has' : ''}`} onClick={() => cmd.toggleNote(l.producto.id)} title="Nota"><Icons.Note s={14} /> Nota</button>
+              <button className={`cmd-note-btn ${l.notas || l.notasPorUnidad?.some(Boolean) ? 'has' : ''}`} onClick={() => cmd.toggleNote(l.producto.id)} title="Nota"><Icons.Note s={14} /> {l.cantidad > 1 ? 'Notas por unidad' : 'Nota'}</button>
               <button className="cmd-del" onClick={() => cmd.delLine(l.producto.id)} title="Quitar"><Icons.Close s={14} /></button>
             </div>
-            {(l.noteOpen || l.notas) && (
+            {(l.noteOpen || l.notas || l.notasPorUnidad?.some(Boolean)) && (
               <div className="cmd-note-row">
-                <div className="input" style={{ height: 32 }}>
-                  <input value={l.notas} autoFocus={l.noteOpen} onChange={(e) => cmd.setNota(l.producto.id, e.target.value)} placeholder="Nota para cocina (ej. sin cebolla)" />
-                </div>
-                <div className="cmd-note-chips">
-                  {NOTAS_RAPIDAS.slice(0, 4).map((n) => (
-                    <button key={n} className="chip" onClick={() => cmd.setNota(l.producto.id, appendNotaRapida(l.notas, n))}>{n}</button>
-                  ))}
-                </div>
+                {Array.from({ length: l.cantidad }, (_, unidad) => {
+                  const nota = l.notasPorUnidad?.[unidad] ?? l.notas;
+                  const label = `Nota de ${l.producto.nombre}, unidad ${unidad + 1}`;
+                  return (
+                    <div key={unidad} style={{ marginBottom: unidad < l.cantidad - 1 ? 10 : 0 }}>
+                      {l.cantidad > 1 && <label className="hint" htmlFor={`nota-${l.producto.id}-${unidad}`}>Unidad {unidad + 1}</label>}
+                      <div className="input" style={{ height: 32 }}>
+                        <input id={`nota-${l.producto.id}-${unidad}`} aria-label={label} value={nota} autoFocus={l.noteOpen && unidad === 0}
+                          onChange={(e) => cmd.setNotaUnidad(l.producto.id, unidad, e.target.value)} placeholder="Nota para cocina (ej. sin cebolla)" />
+                      </div>
+                      <div className="cmd-note-chips">
+                        {NOTAS_RAPIDAS.slice(0, 4).map((n) => (
+                          <button key={n} className="chip" onClick={() => cmd.setNotaUnidad(l.producto.id, unidad, appendNotaRapida(nota, n))}>{n}</button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

@@ -1,6 +1,7 @@
 import { Icons } from '../ui/icons';
 import { fmt, elapsedLabel } from '../../utils/format';
 import type { PedidoVM } from '../../types/pedido.types';
+import { unidadesListas } from '../../domain/pedido.partes';
 import { CANAL_META, nextLabelFor, type ViewProps } from './pedidos.meta';
 
 export function ListaView({ pedidos, onAvanzar, onDetalle, actionLoading, online, now }: Readonly<ViewProps>) {
@@ -40,7 +41,10 @@ function ListaRow({ p, onAvanzar, onDetalle, actionLoading, online, now }: { p: 
       <td><span className="mono">{p.cantidadItems}</span></td>
       <td><strong className="mono">{fmt(p.total)}</strong></td>
       <td><span className="muted">{elapsedLabel(p.createdAt, now)}</span></td>
-      <td><span className={`badge dot ${p.estadoClass}`}>{p.estadoLabel}</span></td>
+      <td>
+        <span className={`badge dot ${p.estadoClass}`}>{p.estadoLabel}</span>
+        {unidadesListas(p) > 0 && <div className="pc-sub">{unidadesListas(p)} platos listos para recoger</div>}
+      </td>
       <td style={{ textAlign: 'right' }}>
         {nextLabel && (
           <button

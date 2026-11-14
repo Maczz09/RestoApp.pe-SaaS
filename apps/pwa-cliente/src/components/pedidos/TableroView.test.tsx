@@ -55,7 +55,7 @@ describe('TableroView', () => {
     expect(screen.getByText('Dir 1')).toBeInTheDocument();
     expect(screen.getByText('Rappi')).toBeInTheDocument();
     expect(screen.getByText('Cliente')).toBeInTheDocument();
-    expect(screen.getAllByText('+1 más').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('D').length).toBe(3);
 
     // click detail
     fireEvent.click(screen.getAllByRole('button', { name: /Ver detalle/i })[0]);

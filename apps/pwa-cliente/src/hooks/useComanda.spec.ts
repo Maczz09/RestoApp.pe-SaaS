@@ -71,6 +71,24 @@ describe('useComanda', () => {
     expect(defaultParams.onClose).toHaveBeenCalled();
   });
 
+  it('envía dos unidades del mismo plato con sus notas independientes', async () => {
+    const { result } = renderHook(() => useComanda(defaultParams as any));
+    act(() => {
+      result.current.addProducto({ id: 'cabrito', nombre: 'Cabrito', precio: 35 } as any);
+      result.current.addProducto({ id: 'cabrito', nombre: 'Cabrito', precio: 35 } as any);
+      result.current.setNotaUnidad('cabrito', 0, 'parte pierna');
+      result.current.setNotaUnidad('cabrito', 1, 'sin ají');
+    });
+    await act(async () => { await result.current.enviar(); });
+    expect(defaultParams.crear).toHaveBeenCalledWith(expect.objectContaining({
+      items: [
+        { productoId: 'cabrito', cantidad: 1, area: 'COCINA', notas: 'parte pierna' },
+        { productoId: 'cabrito', cantidad: 1, area: 'COCINA', notas: 'sin ají' },
+      ],
+    }));
+    expect(result.current.subtotal).toBe(70);
+  });
+
   it('should not allow enviar if context is invalid', async () => {
     const params = { ...defaultParams, initialCanal: 'DELIVERY' as const, mesaLock: false };
     const { result } = renderHook(() => useComanda(params as any));

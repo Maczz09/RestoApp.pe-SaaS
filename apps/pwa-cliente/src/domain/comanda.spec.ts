@@ -93,6 +93,33 @@ describe('domain/comanda — contextoValido', () => {
 });
 
 describe('domain/comanda — buildItems', () => {
+  it('mantiene notas independientes para dos unidades del mismo plato y conserva los totales', () => {
+    let lines = comanda.addProducto([], producto('cabrito', 35));
+    lines = comanda.setNota(lines, 'cabrito', 'parte pierna');
+    lines = comanda.addProducto(lines, producto('cabrito', 35));
+    expect(lines[0].notasPorUnidad).toEqual(['parte pierna', '']);
+    lines = comanda.setNotaUnidad(lines, 'cabrito', 1, 'sin ají');
+    expect(comanda.buildItems(lines)).toEqual([
+      { productoId: 'cabrito', cantidad: 1, area: 'COCINA', notas: 'parte pierna' },
+      { productoId: 'cabrito', cantidad: 1, area: 'COCINA', notas: 'sin ají' },
+    ]);
+    expect(comanda.calcTotales(lines)).toMatchObject({ subtotal: 70, totalItems: 2 });
+    lines = comanda.incLine(lines, 'cabrito', -1);
+    expect(comanda.buildItems(lines)).toEqual([
+      { productoId: 'cabrito', cantidad: 1, area: 'COCINA', notas: 'parte pierna' },
+    ]);
+    lines = comanda.incLine(lines, 'cabrito', 1);
+    expect(lines[0].notasPorUnidad).toEqual(['parte pierna', '']);
+  });
+
+  it('no altera otras variantes ni muta notas al editar una unidad', () => {
+    const original = comanda.incLine([line('grande', 40, 1, 'sin sal'), line('personal', 20, 1, 'con ají')], 'grande', 1);
+    const updated = comanda.setNotaUnidad(original, 'grande', 1, 'pierna');
+    expect(original[0].notasPorUnidad).toEqual(['sin sal', '']);
+    expect(updated[1]).toBe(original[1]);
+    expect(comanda.setNotaUnidad(original, 'grande', 99, 'ignorar')).toEqual(original);
+  });
+
   it('mapea a payload con área BAR para Bebidas y COCINA para el resto', () => {
     const items = comanda.buildItems([
       line('a', 10, 2, 'sin hielo', 'Bebidas'),

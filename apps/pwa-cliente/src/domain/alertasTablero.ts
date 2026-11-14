@@ -24,6 +24,10 @@ export function snapshotPedidos(pedidos: PedidoVM[]): SnapshotTablero {
   const snapshot: SnapshotTablero = new Map();
   pedidos.forEach((pedido) => {
     if (esEtapaSonora(pedido.estado)) snapshot.set(pedido.id, pedido.estado);
+    // An individual dish can reach the pass while the order remains in preparation.
+    if (esEtapaSonora(pedido.estado)) pedido.items.forEach((item) => {
+      if (item.estado === 'LISTO') snapshot.set(`${pedido.id}::${item.id}`, 'LISTO');
+    });
   });
   return snapshot;
 }

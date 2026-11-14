@@ -50,6 +50,7 @@ export function useComanda(p: UseComandaParams) {
   const incLine = (id: string, d: number) => setLines((ls) => comanda.incLine(ls, id, d));
   const delLine = (id: string) => setLines((ls) => comanda.delLine(ls, id));
   const setNota = (id: string, notas: string) => setLines((ls) => comanda.setNota(ls, id, notas));
+  const setNotaUnidad = (id: string, unidad: number, notas: string) => setLines((ls) => comanda.setNotaUnidad(ls, id, unidad, notas));
   const toggleNote = (id: string) => setLines((ls) => comanda.toggleNote(ls, id));
   const vaciar = () => setLines([]);
 
@@ -100,7 +101,7 @@ export function useComanda(p: UseComandaParams) {
 
   return {
     canal, setCanal,
-    lines, addProducto, incLine, delLine, setNota, toggleNote, vaciar,
+    lines, addProducto, incLine, delLine, setNota, setNotaUnidad, toggleNote, vaciar,
     selMesaId, setSelMesaId,
     comensales, setComensales,
     cliente, setCliente, tel, setTel, dir, setDir,
