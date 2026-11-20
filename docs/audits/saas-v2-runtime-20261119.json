@@ -1,0 +1,19 @@
+{
+  "at": "2026-11-20T00:28:04.753Z",
+  "project": "restoapp-vps-qa-v2-20261119",
+  "cases": [
+    "Dos tenants, login y aislamiento de mesas y unión antigua",
+    "Usuario del restaurante creado e inicio de sesión del mesero",
+    "Notas independientes y actualización de un plato sin completar todo el pedido",
+    "Unión de mesas ocupadas, suma exacta y nueva comanda desde mesa secundaria",
+    "Solicitud de cuenta idempotente e identificación del grupo unido",
+    "S/200 con tres medios, ticket propio sin SUNAT, cierre y liberación de todo el grupo",
+    "Corrección del medio conserva el documento y actualiza el arqueo",
+    "Tres emisores SUNAT en la misma sede con certificados cifrados",
+    "Nuevos consumos amplían la división sin alterar la primera parte pagada",
+    "División persistente entre tres con céntimos exactos y documentos independientes",
+    "Outbox de emisión, XML firmado, SOAP y lectura del CDR sin SUNAT real",
+    "División por unidades y arqueo final S/430 desglosado por medios"
+  ],
+  "scope": "Local QA containers; SOAP SUNAT simulated; no production writes"
+}

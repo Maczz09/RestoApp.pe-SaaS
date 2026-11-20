@@ -2,13 +2,14 @@ import { Controller, Get, Post, Body, Param, Patch, Delete, ParseUUIDPipe, UseGu
 import { Roles, RolesGuard, TenantActual } from '@org/shared-auth';
 import { UsuarioActual } from '@org/observabilidad';
 import { AppService } from './app.service';
+import { MesaTenantGuard } from './mesa-tenant.guard';
 import { CrearMesaCommand, ActualizarEstadoMesaCommand, CrearUbicacionCommand, ActualizarUbicacionCommand, UnirMesasCommand } from '@org/contracts';
 
 // Salón: lo consultan/operan mesero, cajero y recepción (mapa de roles del PWA).
 // T-23 (multi-sede): las rutas de listado/alta reciben `sedeId` por query —
 // el servicio la resuelve contra `req.user.sedeId` (usuario pineado gana
 // siempre; el admin general debe indicarla).
-@UseGuards(RolesGuard)
+@UseGuards(RolesGuard, MesaTenantGuard)
 @Roles('ADMIN', 'SISTEMA', 'CAJERO', 'MESERO', 'RECEPCION')
 @Controller()
 export class AppController {

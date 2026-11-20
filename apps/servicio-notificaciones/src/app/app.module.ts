@@ -4,6 +4,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { NotificationsGateway } from './notifications.gateway';
+import { CartaGateway } from './carta.gateway';
 import { PrismaModule } from '../prisma/prisma.module';
 import { PrismaService } from '../prisma/prisma.service';
 import { ObservabilidadModule, HealthModule } from '@org/observabilidad';
@@ -25,6 +26,7 @@ import { RoutingKeys } from '@org/contracts';
       queue: 'notificaciones_queue',
       bindings: [
         RoutingKeys.PedidoCreado,
+        RoutingKeys.ProductoActualizado,
         RoutingKeys.PedidoActualizado,
         RoutingKeys.PedidoListo,
         RoutingKeys.PedidoItemAnulado,
@@ -41,6 +43,7 @@ import { RoutingKeys } from '@org/contracts';
   providers: [
     AppService,
     NotificationsGateway,
+    CartaGateway,
     { provide: APP_GUARD, useClass: JwtAuthGuard },
   ],
 })

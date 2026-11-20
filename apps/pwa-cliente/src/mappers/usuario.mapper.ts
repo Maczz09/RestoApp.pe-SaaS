@@ -15,6 +15,7 @@ export function mapUsuario(dto: UsuarioDto): UsuarioVM {
   return {
     id: dto.id,
     nombre: dto.nombre,
+    telefono: dto.telefono ?? null,
     email: dto.email,
     rol: dto.rol,
     rolLabel: ROLE_LABELS[dto.rol] ?? dto.rol,

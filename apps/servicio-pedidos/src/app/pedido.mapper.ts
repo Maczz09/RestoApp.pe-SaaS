@@ -5,6 +5,8 @@ import { PedidoEntity } from './types';
 export function mapPedidoToDto(p: PedidoEntity): PedidoDto {
   return {
     id: p.id,
+    cuentaId: p.cuentaId ?? undefined,
+    ...(p.tenantId ? { tenantId: p.tenantId } : {}),
     mesaId: p.mesaId,
     sedeId: p.sedeId,
     numeroMesa: p.numeroMesa ?? undefined,
@@ -17,6 +19,7 @@ export function mapPedidoToDto(p: PedidoEntity): PedidoDto {
     modalidad: p.modalidad ?? undefined,
     meseroId: p.meseroId ?? undefined,
     meseroNombre: p.meseroNombre ?? undefined,
+    cuentaCorrelativo: p.cuentaCorrelativo ?? undefined,
     createdAt: p.createdAt.toISOString(),
     items: p.items.map(i => ({
       id: i.id,

@@ -11,6 +11,7 @@ const InicioScreen = lazy(() => import('../screens/inicio/InicioScreen').then(m 
 const MesasScreen = lazy(() => import('../screens/ops/MesasScreen').then(m => ({ default: m.MesasScreen })));
 const PedidosScreen = lazy(() => import('../screens/ops/PedidosScreen').then(m => ({ default: m.PedidosScreen })));
 const CocinaScreen = lazy(() => import('../screens/ops/CocinaScreen').then(m => ({ default: m.CocinaScreen })));
+const KitchenPrintScreen = lazy(() => import('../screens/ops/KitchenPrintScreen').then(m => ({ default: m.KitchenPrintScreen })));
 const CajaScreen = lazy(() => import('../screens/caja/CajaScreen').then(m => ({ default: m.CajaScreen })));
 const HistorialCajaScreen = lazy(() => import('../screens/caja/HistorialCajaScreen').then(m => ({ default: m.HistorialCajaScreen })));
 const ReservasScreen = lazy(() => import('../screens/reservas/ReservasScreen').then(m => ({ default: m.ReservasScreen })));
@@ -22,8 +23,13 @@ const SedesScreen = lazy(() => import('../screens/sedes/SedesScreen').then(m => 
 const CartaScreen = lazy(() => import('../screens/carta/CartaScreen').then(m => ({ default: m.CartaScreen })));
 const ComprasScreen = lazy(() => import('../screens/compras/ComprasScreen').then(m => ({ default: m.ComprasScreen })));
 const FacturacionScreen = lazy(() => import('../screens/facturacion/FacturacionScreen').then(m => ({ default: m.FacturacionScreen })));
+const MermasScreen = lazy(() => import('../screens/inventario/MermasScreen').then(m => ({ default: m.MermasScreen })));
+const AuditoriaAnulacionesScreen = lazy(() => import('../screens/admin/AuditoriaAnulacionesScreen').then(m => ({ default: m.AuditoriaAnulacionesScreen })));
+const BookCartaScreen = lazy(() => import('../screens/carta-publica/BookCartaScreen').then(m => ({ default: m.BookCartaScreen })));
 const PublicCartaScreen = lazy(() => import('../screens/carta-publica/PublicCartaScreen').then(m => ({ default: m.PublicCartaScreen })));
 const TicketPrintPage = lazy(() => import('../screens/print/TicketPrintPage').then(m => ({ default: m.TicketPrintPage })));
+const ComprobantePrintPage = lazy(() => import('../screens/print/ComprobantePrintPage').then(m => ({ default: m.ComprobantePrintPage })));
+const ZTicketPrintPage = lazy(() => import('../screens/print/ZTicketPrintPage').then(m => ({ default: m.ZTicketPrintPage })));
 const PlatformDashboardScreen = lazy(() => import('../screens/platform/PlatformDashboardScreen').then(m => ({ default: m.PlatformDashboardScreen })));
 const TenantCreateScreen = lazy(() => import('../screens/platform/TenantCreateScreen').then(m => ({ default: m.TenantCreateScreen })));
 const TenantDetailScreen = lazy(() => import('../screens/platform/TenantDetailScreen').then(m => ({ default: m.TenantDetailScreen })));
@@ -150,8 +156,11 @@ export function AppRouter() {
             de localStorage, ver utils/ticketPrint.ts) — así Chrome imprime
             solo el ticket, no el layout completo de la app alrededor. */}
         <Route path="/imprimir/boleta" element={<Suspense fallback={null}><TicketPrintPage /></Suspense>} />
+        <Route path="/imprimir/comprobante" element={<Suspense fallback={null}><ComprobantePrintPage /></Suspense>} />
+        <Route path="/imprimir/cierre" element={<Suspense fallback={null}><ZTicketPrintPage /></Suspense>} />
         {/* Carta pública/QR sin auth ni Shell */}
-        <Route path="/carta/:sedeId" element={<Suspense fallback={null}><PublicCartaScreen /></Suspense>} />
+        <Route path="/carta/:sedeId" element={<Suspense fallback={null}><BookCartaScreen /></Suspense>} />
+        <Route path="/carta/:sedeId/lista" element={<Suspense fallback={null}><PublicCartaScreen /></Suspense>} />
 
         {/* Rutas públicas */}
         <Route element={<PublicRoute />}>
@@ -165,12 +174,15 @@ export function AppRouter() {
           <Route path="mesas" element={<RutaPorRol ruta="mesas"><ScreenBoundary modulo="Mesas"><MesasScreen /></ScreenBoundary></RutaPorRol>} />
           <Route path="pedidos" element={<RutaPorRol ruta="pedidos"><ScreenBoundary modulo="Pedidos"><PedidosScreen /></ScreenBoundary></RutaPorRol>} />
           <Route path="cocina" element={<RutaPorRol ruta="cocina"><ScreenBoundary modulo="Cocina"><CocinaScreen /></ScreenBoundary></RutaPorRol>} />
+            <Route path="impresion-cocina" element={<RutaPorRol ruta="impresion-cocina"><ScreenBoundary modulo="Impresión de cocina"><KitchenPrintScreen /></ScreenBoundary></RutaPorRol>} />
           {/* "delivery" y "crear-pedido" se fusionaron en el hub Pedidos + Comandero */}
           <Route path="delivery" element={<Navigate to="/app/pedidos" replace />} />
           <Route path="crear-pedido" element={<Navigate to="/app/pedidos" replace />} />
           <Route path="caja" element={<RutaPorRol ruta="caja"><ScreenBoundary modulo="Caja"><CajaScreen /></ScreenBoundary></RutaPorRol>} />
           <Route path="historial-caja" element={<RutaPorRol ruta="historial-caja"><ScreenBoundary modulo="Historial de caja"><HistorialCajaScreen /></ScreenBoundary></RutaPorRol>} />
           <Route path="reservas" element={<RutaPorRol ruta="reservas"><ScreenBoundary modulo="Reservas"><ReservasScreen /></ScreenBoundary></RutaPorRol>} />
+          <Route path="mermas" element={<RutaPorRol ruta="mermas"><ScreenBoundary modulo="Mermas"><MermasScreen /></ScreenBoundary></RutaPorRol>} />
+          <Route path="auditoria-anulaciones" element={<RutaPorRol ruta="auditoria-anulaciones"><ScreenBoundary modulo="Auditoría de anulaciones"><AuditoriaAnulacionesScreen /></ScreenBoundary></RutaPorRol>} />
           <Route path="inventario" element={<RutaPorRol ruta="inventario"><ScreenBoundary modulo="Inventario"><InventarioScreen /></ScreenBoundary></RutaPorRol>} />
           <Route path="categorias" element={<RutaPorRol ruta="categorias"><ScreenBoundary modulo="Categorías"><CategoriasScreen /></ScreenBoundary></RutaPorRol>} />
           <Route path="reportes" element={<RutaPorRol ruta="reportes"><ScreenBoundary modulo="Reportes"><ReportesScreen /></ScreenBoundary></RutaPorRol>} />

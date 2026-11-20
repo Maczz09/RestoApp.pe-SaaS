@@ -32,7 +32,7 @@ export function BoletaInterna({ ticket, transaccion, mesaNumero, propina, sede, 
           className="btn btn-primary"
           onClick={() => abrirTicketParaImprimir({ ticket, transaccion, mesaNumero, propina, sede })}
         >
-          <Icons.Print s={16} /> Imprimir boleta
+          <Icons.Print s={16} /> Imprimir ticket
         </button>
       </div>
     </div>

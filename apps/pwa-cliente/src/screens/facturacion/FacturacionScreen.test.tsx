@@ -524,11 +524,11 @@ describe('FacturacionScreen', () => {
       expect(screen.getByRole('button', { name: 'Configurar SUNAT' })).toBeInTheDocument();
     });
 
-    it('con los 2 slots ocupados, no ofrece agregar una tercera empresa', () => {
+    it('permite agregar más emisores en el SaaS', () => {
       const empresa2 = { id: 'e2', slot: 2, ruc: '20999999999', razonSocial: 'Otra SAC', activo: true };
       vi.mocked(useFacturacionQuery).mockReturnValue(baseMock({ empresas: [empresa, empresa2] }) as any);
       render(<FacturacionScreen />);
-      expect(screen.queryByRole('button', { name: /Configurar SUNAT|Agregar otra empresa/i })).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Agregar otra empresa/i })).toBeInTheDocument();
     });
 
     it('mientras se cargan las empresas, no muestra el aviso de "sin configurar" (evita el flash)', () => {

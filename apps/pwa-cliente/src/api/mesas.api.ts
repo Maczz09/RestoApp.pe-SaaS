@@ -64,7 +64,7 @@ export async function eliminarUbicacion(id: string): Promise<void> {
 
 /** POST /mesas/unir — Unir 2+ mesas en un solo grupo con cuenta compartida */
 export async function unirMesas(payload: UnirMesasPayload): Promise<MesaDto[]> {
-  const response = await client.post<MesaDto[] | { mesas: MesaDto[] }>('/mesas/unir', payload);
+  const response = await client.post<MesaDto[] | { mesas: MesaDto[] }>(payload.maestraMesaId ? '/mesas/fusiones' : '/mesas/unir', payload);
   return unwrapArray<MesaDto>(response, 'mesas');
 }
 
@@ -72,4 +72,8 @@ export async function unirMesas(payload: UnirMesasPayload): Promise<MesaDto[]> {
 export async function separarMesas(id: string): Promise<MesaDto[]> {
   const response = await client.post<MesaDto[] | { mesas: MesaDto[] }>(`/mesas/${id}/separar`);
   return unwrapArray<MesaDto>(response, 'mesas');
+}
+
+export function fusionarCuentasMesas(payload: UnirMesasPayload): Promise<{ mesas: MesaDto[]; estado: string; message: string }> {
+  return client.post('/mesas/fusiones', payload);
 }

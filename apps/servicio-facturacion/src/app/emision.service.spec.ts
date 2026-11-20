@@ -9,7 +9,7 @@ import { CertificadoService } from '../sunat/certificado.service';
 describe('EmisionService — sede (T-23 Fase 2)', () => {
   const prisma = {
     comprobantePago: { findUnique: jest.fn() },
-    empresa: { findUnique: jest.fn() },
+    empresa: { findFirst: jest.fn() },
   };
 
   let service: EmisionService;
@@ -31,14 +31,14 @@ describe('EmisionService — sede (T-23 Fase 2)', () => {
     await expect(
       service.emitir('c-1', { tipoComprobante: 'BOLETA' } as never, 'sede-001'),
     ).rejects.toThrow(NotFoundException);
-    expect(prisma.empresa.findUnique).not.toHaveBeenCalled();
+    expect(prisma.empresa.findFirst).not.toHaveBeenCalled();
   });
 
   it('permite emitir cuando el comprobante de pago es de la sede del cajero', async () => {
     prisma.comprobantePago.findUnique.mockResolvedValue({
       id: 'cp-1', cuentaId: 'c-1', sedeId: 'sede-001', estado: 'DISPONIBLE',
     });
-    prisma.empresa.findUnique.mockResolvedValue(null);
+    prisma.empresa.findFirst.mockResolvedValue(null);
 
     // Falla más adelante (empresa no configurada) pero YA pasó el guard de sede.
     await expect(
@@ -50,7 +50,7 @@ describe('EmisionService — sede (T-23 Fase 2)', () => {
     prisma.comprobantePago.findUnique.mockResolvedValue({
       id: 'cp-1', cuentaId: 'c-1', sedeId: 'sede-002', estado: 'DISPONIBLE',
     });
-    prisma.empresa.findUnique.mockResolvedValue(null);
+    prisma.empresa.findFirst.mockResolvedValue(null);
 
     await expect(
       service.emitir('c-1', { tipoComprobante: 'BOLETA', empresaRuc: '20123456789' } as never, null),
@@ -61,7 +61,7 @@ describe('EmisionService — sede (T-23 Fase 2)', () => {
     prisma.comprobantePago.findUnique.mockResolvedValue({
       id: 'cp-1', cuentaId: 'c-1', sedeId: 'sede-001', estado: 'DISPONIBLE',
     });
-    prisma.empresa.findUnique.mockResolvedValue({
+    prisma.empresa.findFirst.mockResolvedValue({
       id: 'e-2', ruc: '20999999999', sedeId: 'sede-002', activo: true,
     });
 

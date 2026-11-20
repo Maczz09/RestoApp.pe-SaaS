@@ -10,6 +10,7 @@ import {
   CerrarTurnoCajaCommand,
   CrearMovimientoCajaCommand,
   PagarCuentaCajaCommand,
+  PagarCuentaCombinadoCommand,
   RegistrarArqueoCajaCommand,
 } from './caja.dto';
 
@@ -54,6 +55,25 @@ export class AppController {
       usuarioId,
       usuarioNombre ?? usuarioEmail ?? usuarioId,
       usuarioSedeId,
+    );
+  }
+
+  @UseInterceptors(IdempotencyInterceptor)
+  @Post('pagos/combinado')
+  registrarPagoCombinado(
+    @Body() body: PagarCuentaCombinadoCommand,
+    @UsuarioActual() usuarioId: string | null,
+    @UsuarioActual('nombre') usuarioNombre: string | null,
+    @UsuarioActual('email') usuarioEmail: string | null,
+    @UsuarioActual('sedeId') usuarioSedeId: string | null,
+    @TenantActual() tenantId?: string | null,
+  ) {
+    return this.appService.registrarPagoCombinado(
+      body,
+      usuarioId,
+      usuarioNombre ?? usuarioEmail ?? usuarioId,
+      usuarioSedeId,
+      tenantId,
     );
   }
 
@@ -142,9 +162,10 @@ export class AppController {
     @Param('id') id: string,
     @UsuarioActual('sedeId') usuarioSedeId: string | null,
     @TenantActual() tenantId?: string | null,
+    @Query('search') search?: string,
   ) {
-    if (tenantId !== undefined) {
-      return this.appService.listarMovimientosTurno(id, usuarioSedeId, tenantId);
+    if (tenantId !== undefined || search !== undefined) {
+      return this.appService.listarMovimientosTurno(id, usuarioSedeId, tenantId, search);
     }
     return this.appService.listarMovimientosTurno(id, usuarioSedeId);
   }
@@ -192,6 +213,15 @@ export class AppController {
 
   // Detalle/edición de una transacción — después de las rutas 'turnos/*'
   // para que ':id' no las capture (mismo orden de ruteo que el resto).
+  @Get('transacciones/:id/ticket')
+  obtenerTicketInterno(@Param('id', ParseUUIDPipe) id: string, @TenantActual() tenantId?: string | null, @UsuarioActual('sedeId') sedeId?: string | null) {
+    return this.appService.obtenerTicketInterno(id, tenantId, sedeId);
+  }
+  @Get('transacciones/:id/documento')
+  obtenerDocumento(@Param('id', ParseUUIDPipe) id: string, @TenantActual() tenantId?: string | null, @UsuarioActual('sedeId') sedeId?: string | null) {
+    return this.appService.obtenerDocumentoCobro(id, tenantId, sedeId);
+  }
+
   @Get(':id')
   obtenerTransaccion(
     @Param('id') id: string,

@@ -4,7 +4,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { PedidosScreen } from './PedidosScreen';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
-import { usePedidosQuery } from '../../hooks/queries/usePedidosQuery';
+import { usePedidosQuery, useAnularPedidoMutation } from '../../hooks/queries/usePedidosQuery';
 import type { PedidoVM } from '../../types/pedido.types';
 
 vi.mock('../../hooks/useOnlineStatus');
@@ -23,6 +23,7 @@ vi.mock('../../components/comandero/Comandero', () => ({
 describe('PedidosScreen', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(useAnularPedidoMutation).mockReturnValue({ saving: false, anularPedido: vi.fn() } as any);
     (useOnlineStatus as any).mockReturnValue(true);
     (usePedidosQuery as any).mockReturnValue({
       pedidos: [], nextCursor: null, loading: false, loadingMore: false, error: null,
@@ -55,7 +56,7 @@ describe('PedidosScreen', () => {
     });
 
     render(<PedidosScreen />);
-    
+
     // Test canal filter
     fireEvent.click(screen.getByRole('button', { name: /Salón/ }));
     fireEvent.click(screen.getByRole('button', { name: /Delivery/ }));
@@ -78,11 +79,11 @@ describe('PedidosScreen', () => {
     // Click avanzar to cover logic
     const detailBtn = screen.getAllByRole('button', { name: /Ver detalle/ })[0];
     fireEvent.click(detailBtn);
-    
+
     // We expect the dialog to open, let's close it
     fireEvent.click(screen.getByRole('button', { name: 'Cerrar detalle' }));
   });
-  
+
   it('advances pedido from detail view', async () => {
     const avanzarEstado = vi.fn().mockResolvedValue(true);
     const p1: PedidoVM = { id: 'p1', estado: 'PENDIENTE', canal: 'SALON', items: [], total: 0, createdAt: new Date().toISOString() } as any;
@@ -92,7 +93,7 @@ describe('PedidosScreen', () => {
     render(<PedidosScreen />);
     const detailBtn = screen.getAllByRole('button', { name: /Ver detalle/ })[0];
     fireEvent.click(detailBtn);
-    
+
     // next label for PENDIENTE in SALON is 'Preparar' or 'Aceptar' depending on PERMITIR_OVERRIDE_PRODUCCION
     // since we mocked it earlier or it resolves dynamically we just look for a primary button in drawer foot
     const modalAvanzarBtn = screen.getAllByRole('button').find(b => b.className.includes('btn-primary') && b.getAttribute('aria-label')?.includes('pedido'));

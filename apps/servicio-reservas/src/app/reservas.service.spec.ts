@@ -62,6 +62,7 @@ describe('ReservasService — Reservas', () => {
         count: jest.fn(),
         groupBy: jest.fn(),
       },
+      secuenciaReserva: { upsert: jest.fn().mockResolvedValue({ ultimo: 1 }) },
       outboxEvent: {
         create: jest.fn(),
       },

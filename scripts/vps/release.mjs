@@ -31,6 +31,7 @@ for (const file of ['config.mjs', 'init-env.mjs', 'bootstrap-admin.cjs', 'migrat
 copyFileSync(join(root, 'docs', 'DESPLIEGUE_VPS_MAVRICITAS.md'), join(output, 'README.md'));
 copyFileSync(join(root, 'docs', 'DESPLIEGUE_VPS_CADDY.md'), join(output, 'CADDY.md'));
 copyFileSync(join(root, 'docs', 'DESPLIEGUE_VPS_CADDY.md'), join(output, 'DESPLIEGUE_VPS_CADDY.md'));
+for (const file of ['RESTOAPP_V2_IMPLEMENTACION.md', 'PARIDAD_BARRA_CEVICHE_SAAS.md']) copyFileSync(join(root, 'docs', file), join(output, file));
 
 function run(command, params, capture = false) {
   const result = spawnSync(command, params, { cwd: root, stdio: capture ? ['ignore', 'pipe', 'inherit'] : 'inherit', encoding: 'utf8' });
@@ -43,10 +44,10 @@ if (args.includes('--build')) {
   run('docker', ['version']);
   for (let i = 0; i < SERVICES.length; i++) {
     console.log(`[${i + 1}/${SERVICES.length + 2}] Building ${images[i]}`);
-    run('docker', ['build', '--platform', platform, '--build-arg', `APP_NAME=servicio-${SERVICES[i]}`, '-t', images[i], '-f', 'Dockerfile', '.']);
+    run('docker', ['build', '--platform', platform, '--label', `org.opencontainers.image.revision=${manifest.sourceRevision}`, '--build-arg', `APP_NAME=servicio-${SERVICES[i]}`, '-t', images[i], '-f', 'Dockerfile', '.']);
   }
-  run('docker', ['build', '--platform', platform, '--build-arg', 'VITE_API_BASE_URL=', '--build-arg', `VITE_TENANT_BASE_DOMAIN=${domain}`, '-t', images.at(-2), '-f', 'apps/pwa-cliente/Dockerfile', '.']);
-  run('docker', ['build', '--platform', platform, '-t', images.at(-1), '-f', 'infra/kong/Dockerfile', 'infra/kong']);
+  run('docker', ['build', '--platform', platform, '--label', `org.opencontainers.image.revision=${manifest.sourceRevision}`, '--build-arg', 'VITE_API_BASE_URL=', '--build-arg', `VITE_TENANT_BASE_DOMAIN=${domain}`, '-t', images.at(-2), '-f', 'apps/pwa-cliente/Dockerfile', '.']);
+  run('docker', ['build', '--platform', platform, '--label', `org.opencontainers.image.revision=${manifest.sourceRevision}`, '-t', images.at(-1), '-f', 'infra/kong/Dockerfile', 'infra/kong']);
 }
 if (args.includes('--build') || args.includes('--save')) {
   for (const name of images) manifest.images.push({ name, id: run('docker', ['image', 'inspect', '--format', '{{.Id}}', name], true) });

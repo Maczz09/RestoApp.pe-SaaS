@@ -9,12 +9,17 @@ import { useToast } from '../../components/ui/ToastProvider';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { fmt } from '../../utils/format';
 import { abrirTicketParaImprimir } from '../../utils/ticketPrint';
-import { METODO_META, METODOS_ORDEN } from './cajaMeta';
+import { abrirZTicketParaImprimir } from '../../utils/zTicketPrint';
+import { abrirComprobanteParaImprimir } from '../../utils/comprobantePrint';
+import { listarTodos } from '../../api/facturacion.api';
+import { METODO_META, METODOS_ORDEN, estadoCuadre } from './cajaMeta';
 import { useHistorialCajaQuery, useTurnoDetalleQuery } from '../../hooks/queries/useHistorialCajaQuery';
 import { useSedeActualQuery } from '../../hooks/queries/useSedesQuery';
 import * as cuentasApi from '../../api/cuentas.api';
+import { client } from '../../api/client';
+import type { TicketDto } from '../../types/cuenta.types';
 import { mapCuenta } from '../../mappers/cuenta.mapper';
-import type { TurnoCajaEstado, TransaccionDto } from '../../types/caja.types';
+import type { TurnoCajaEstado, TransaccionDto, CajaResumenDto } from '../../types/caja.types';
 
 function fechaHora(iso: string | null): string {
   if (!iso) return '—';
@@ -48,6 +53,28 @@ export function HistorialCajaScreen() {
   const verImprimirTicket = async (v: TransaccionDto) => {
     setImprimiendoId(v.id);
     try {
+      if (v.tipoComprobante === 'TICKET') {
+        const ticket = await client.get<TicketDto>(`/caja/transacciones/${v.id}/ticket`);
+        abrirTicketParaImprimir({ ticket, transaccion: { ...v, tipoComprobante: 'TICKET' },
+          mesaNumero: v.mesaNumero ?? undefined,
+          propina: ticket.medios?.reduce((total, medio) => total + medio.propina, 0) ?? 0, sede });
+        return;
+      }
+      const documento = await client.get<{ id: string; tipo: string }>(`/caja/transacciones/${v.id}/documento`).catch((err: { status?: number }) => {
+        if (err.status === 404) return null;
+        throw err;
+      });
+      if (documento) {
+        const cobros = await listarTodos();
+        const cobro = cobros.find(c => c.cuentaId === documento.id);
+        const fiscal = cobro?.comprobante;
+        if (!fiscal || !['ACEPTADO', 'OBSERVADO'].includes(fiscal.estado)) {
+          toast({ title: 'Comprobante electrónico', msg: 'Revisa su emisión y respuesta de SUNAT en Facturación.', icon: 'Alert', kind: 'warn' });
+          return;
+        }
+        abrirComprobanteParaImprimir({ comprobante: fiscal, items: cobro?.items ?? [] });
+        return;
+      }
       const cuentaDto = await cuentasApi.getById(v.cuentaId);
       const cuenta = mapCuenta(cuentaDto);
       const items = cuenta.pedidos.flatMap((p) =>
@@ -84,6 +111,23 @@ export function HistorialCajaScreen() {
     } finally {
       setImprimiendoId(null);
     }
+  };
+
+  // Reimprime el cierre Z de un turno ya cerrado, mismo formato que el botón
+  // "Imprimir" del cierre en curso (ver CierreDrawer.tsx) — requiere el
+  // arqueo del turno (solo existe una vez cerrado).
+  const imprimirCierreZ = (d: CajaResumenDto) => {
+    if (!d.arqueo) return;
+    abrirZTicketParaImprimir({
+      k: { porMetodo: d.porMetodo, totalVentas: d.totalVentas, totalEgresos: d.totalEgresos, propinas: d.propinas, comprobantes: d.comprobantes },
+      esperado: d.arqueo.efectivoEsperado,
+      contado: d.arqueo.efectivoContado,
+      descuadre: d.arqueo.diferencia,
+      estado: estadoCuadre(d.arqueo.diferencia),
+      cajeroNombre: d.turno?.cajeroNombre ?? 'Cajero',
+      fecha: d.turno?.cerradoAt ?? new Date().toISOString(),
+      sede,
+    });
   };
 
   const kpis = useMemo(() => {
@@ -213,6 +257,11 @@ export function HistorialCajaScreen() {
             <div className="panel-h" style={{ padding: '16px 20px' }}>
               <h3 style={{ fontSize: 18 }}>{detalle?.turno?.cajaNombre ?? 'Detalle del turno'}</h3>
               <span className="spacer" />
+              {detalle?.arqueo && (
+                <button className="btn btn-ghost btn-sm" onClick={() => imprimirCierreZ(detalle)} aria-label="Imprimir cierre Z de este turno">
+                  <Icons.Print s={15} /> Imprimir cierre Z
+                </button>
+              )}
               <button className="icon-btn" onClick={cerrarModal} aria-label="Cerrar detalle del turno"><Icons.Close s={17} /></button>
             </div>
             <div className="modal-scroll" style={{ padding: '18px 20px' }}>
@@ -238,6 +287,8 @@ export function HistorialCajaScreen() {
                     <StatKpi icon="Trend" tint="accent" label="Ventas del turno" value={fmt(detalle.totalVentas)} />
                     <StatKpi icon="Coins" tint="ok" label="Propinas" value={fmt(detalle.propinas)} />
                     <StatKpi icon="Cash" tint="info" label="Efectivo esperado" value={fmt(detalle.efectivoEsperado)} />
+                    {/* IGV incluido en el precio (18%), no un cargo aparte — mismo criterio que la boleta interna y el reporte Z. */}
+                    <StatKpi icon="Receipt" tint="warn" label="IGV del turno" value={fmt(detalle.totalVentas - detalle.totalVentas / 1.18)} />
                   </div>
 
                   {detalle.arqueo && (

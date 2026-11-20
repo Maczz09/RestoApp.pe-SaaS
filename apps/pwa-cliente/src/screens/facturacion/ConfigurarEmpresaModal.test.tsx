@@ -93,7 +93,7 @@ describe('ConfigurarEmpresaModal', () => {
 
   it('sin sedes libres, el selector solo ofrece "Sin asignar" y muestra el aviso', () => {
     render(<ConfigurarEmpresaModal guardando={false} error={null} sedesDisponibles={[]} onGuardar={onGuardar} onClose={onClose} />);
-    expect(screen.getByText(/Todas las sedes ya tienen sus dos RUC emisores enlazados/)).toBeInTheDocument();
+    expect(screen.getByText(/Crea o activa una sede para asignar el emisor/)).toBeInTheDocument();
     expect(screen.getByLabelText('Sede que emite')).toHaveValue('');
   });
 

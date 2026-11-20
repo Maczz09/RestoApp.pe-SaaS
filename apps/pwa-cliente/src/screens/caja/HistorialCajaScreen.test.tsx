@@ -7,6 +7,13 @@ import { useSedeActualQuery } from '../../hooks/queries/useSedesQuery';
 import { useToast } from '../../components/ui/ToastProvider';
 import * as cuentasApi from '../../api/cuentas.api';
 import { abrirTicketParaImprimir } from '../../utils/ticketPrint';
+import { abrirZTicketParaImprimir } from '../../utils/zTicketPrint';
+import { abrirComprobanteParaImprimir } from '../../utils/comprobantePrint';
+import { listarTodos } from '../../api/facturacion.api';
+import { client } from '../../api/client';
+vi.mock('../../api/client', () => ({ client: { get: vi.fn() } }));
+vi.mock('../../api/facturacion.api', () => ({ listarTodos: vi.fn() }));
+vi.mock('../../utils/comprobantePrint', () => ({ abrirComprobanteParaImprimir: vi.fn() }));
 
 vi.mock('../../hooks/queries/useHistorialCajaQuery', () => ({
   useHistorialCajaQuery: vi.fn(),
@@ -31,6 +38,10 @@ vi.mock('../../api/cuentas.api', () => ({
 
 vi.mock('../../utils/ticketPrint', () => ({
   abrirTicketParaImprimir: vi.fn(),
+}));
+
+vi.mock('../../utils/zTicketPrint', () => ({
+  abrirZTicketParaImprimir: vi.fn(),
 }));
 
 const mockTurnos = [
@@ -63,6 +74,7 @@ function baseDetalleMock(overrides: Record<string, unknown> = {}) {
 describe('HistorialCajaScreen', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(client.get).mockRejectedValue({ status: 404 });
     vi.mocked(useHistorialCajaQuery).mockReturnValue(baseListMock() as any);
     vi.mocked(useTurnoDetalleQuery).mockReturnValue(baseDetalleMock() as any);
     vi.mocked(useSedeActualQuery).mockReturnValue({ sede: null, loading: false } as any);
@@ -144,6 +156,137 @@ describe('HistorialCajaScreen', () => {
       expect(screen.getByText('S/ 864.00')).toBeInTheDocument();
     });
     expect(screen.getByText('S/ -2.00')).toBeInTheDocument();
+    // IGV incluido en el precio (18%), no un cargo aparte, sobre las ventas del turno.
+    expect(screen.getByText('IGV del turno')).toBeInTheDocument();
+    expect(screen.getByText('S/ 131.80')).toBeInTheDocument();
+  });
+
+  describe('imprimir el cierre Z de un turno ya cerrado', () => {
+    const detalleConArqueo = {
+      turno: { cajaNombre: 'Terminal 01', cajeroNombre: 'Yurlury Quispe', abiertoAt: '2026-08-08T11:05:00.000Z', cerradoAt: '2026-08-08T19:00:00.000Z' },
+      totalVentas: 864,
+      totalEgresos: 0,
+      propinas: 40,
+      comprobantes: 12,
+      efectivoEsperado: 500,
+      arqueo: { efectivoEsperado: 500, efectivoContado: 498, diferencia: -2 },
+      porMetodo: { EFECTIVO: 500, TARJETA: 200, YAPE: 100, PLIN: 0, TRANSFERENCIA: 64 },
+      ventasDetalle: [ventaAuditoria],
+    };
+
+    it('muestra el botón solo cuando el turno tiene arqueo (ya cerrado)', async () => {
+      vi.mocked(useTurnoDetalleQuery).mockReturnValue(baseDetalleMock({ detalle: detalleConArqueo }) as any);
+      render(<HistorialCajaScreen />);
+      fireEvent.click(screen.getByText('Yurlury Quispe'));
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Imprimir cierre Z de este turno' })).toBeInTheDocument();
+      });
+    });
+
+    it('oculta el botón cuando el turno no tiene arqueo (sin cerrar aún)', async () => {
+      vi.mocked(useTurnoDetalleQuery).mockReturnValue(
+        baseDetalleMock({ detalle: { ...detalleConArqueo, arqueo: null } }) as any,
+      );
+      render(<HistorialCajaScreen />);
+      fireEvent.click(screen.getByText('Yurlury Quispe'));
+      await waitFor(() => expect(screen.getByText('S/ 864.00')).toBeInTheDocument());
+      expect(screen.queryByRole('button', { name: 'Imprimir cierre Z de este turno' })).not.toBeInTheDocument();
+    });
+
+    it('abre la pestaña dedicada con los datos del turno cerrado', async () => {
+      vi.mocked(useTurnoDetalleQuery).mockReturnValue(baseDetalleMock({ detalle: detalleConArqueo }) as any);
+      render(<HistorialCajaScreen />);
+      fireEvent.click(screen.getByText('Yurlury Quispe'));
+
+      await waitFor(() => {
+        fireEvent.click(screen.getByRole('button', { name: 'Imprimir cierre Z de este turno' }));
+      });
+
+      expect(abrirZTicketParaImprimir).toHaveBeenCalledWith({
+        k: { porMetodo: detalleConArqueo.porMetodo, totalVentas: 864, totalEgresos: 0, propinas: 40, comprobantes: 12 },
+        esperado: 500,
+        contado: 498,
+        descuadre: -2,
+        estado: 'faltante',
+        cajeroNombre: 'Yurlury Quispe',
+        fecha: '2026-08-08T19:00:00.000Z',
+        sede: null,
+      });
+    });
+  });
+
+  describe('imprimir un comprobante desde la auditoría del turno', () => {
+    it('reimprime el documento de la fracción cobrada sin usar todos los platos de la cuenta', async () => {
+      vi.mocked(client.get).mockResolvedValue({ id: 'doc-parte', tipo: 'BOLETA' });
+      const items = [{ nombre: 'Bebida de esta parte', productoId: 'bebida', cantidad: 1, precioUnitario: 10 }];
+      const comprobante = { id: 'boleta', tipo: 'BOLETA', estado: 'ACEPTADO', serie: 'B001', correlativo: 3 };
+      vi.mocked(listarTodos).mockResolvedValue([{ cuentaId: 'doc-parte', items, comprobante }] as any);
+      render(<HistorialCajaScreen />);
+      fireEvent.click(screen.getByText('Yurlury Quispe'));
+      await waitFor(() => expect(screen.getByText('Pepe')).toBeInTheDocument());
+      fireEvent.click(screen.getByRole('button', { name: /Imprimir comprobante/i }));
+      await waitFor(() => expect(abrirComprobanteParaImprimir).toHaveBeenCalledWith({ comprobante, items }));
+      expect(cuentasApi.getById).not.toHaveBeenCalled();
+      expect(abrirTicketParaImprimir).not.toHaveBeenCalled();
+    });
+    beforeEach(() => {
+      vi.mocked(useTurnoDetalleQuery).mockReturnValue(
+        baseDetalleMock({
+          detalle: {
+            turno: { cajaNombre: 'Terminal 01', cajeroNombre: 'Yurlury Quispe', abiertoAt: null, cerradoAt: null },
+            totalVentas: 90, propinas: 0, efectivoEsperado: 90, arqueo: null,
+            porMetodo: { EFECTIVO: 90, TARJETA: 0, YAPE: 0, PLIN: 0, TRANSFERENCIA: 0 },
+            ventasDetalle: [ventaAuditoria],
+          },
+        }) as any,
+      );
+    });
+
+    it('reconstruye el ticket desde la cuenta y abre la pestaña dedicada de impresión', async () => {
+      vi.mocked(cuentasApi.getById).mockResolvedValue({
+        id: 'cuenta1', mesaId: 'mesa1', estado: 'PAGADA', total: 90, createdAt: '', updatedAt: '',
+        pedidos: [{ id: 'p1', cuentaId: 'cuenta1', mesaId: 'mesa1', estado: 'PAGADO', canal: 'SALON', createdAt: '', items: [
+          { id: 'it1', productoId: 'prod1', nombre: 'Ceviche', cantidad: 1, precioUnitario: 100, subtotal: 100, area: 'COCINA', notas: '', estado: 'ENTREGADO' },
+        ] }],
+      } as any);
+
+      render(<HistorialCajaScreen />);
+      fireEvent.click(screen.getByText('Yurlury Quispe'));
+      await waitFor(() => expect(screen.getByText('Pepe')).toBeInTheDocument());
+
+      fireEvent.click(screen.getByRole('button', { name: /Imprimir comprobante/i }));
+
+      await waitFor(() => {
+        expect(abrirTicketParaImprimir).toHaveBeenCalledWith(
+          expect.objectContaining({
+            transaccion: expect.objectContaining({ id: 'tx1', monto: 90, descuento: 10, metodo: 'EFECTIVO', tipoComprobante: 'BOLETA' }),
+            mesaNumero: '5',
+            propina: 0,
+            ticket: expect.objectContaining({
+              id: 'tx1', subtotal: 100, descuento: 10, total: 90,
+              items: [{ productoId: 'prod1', nombre: 'Ceviche', cantidad: 1, precioUnitario: 100 }],
+            }),
+          }),
+        );
+      });
+    });
+
+    it('avisa con un toast si no puede reconstruir el ticket', async () => {
+      const toast = vi.fn();
+      vi.mocked(useToast).mockReturnValue({ toast } as any);
+      vi.mocked(cuentasApi.getById).mockRejectedValue(new Error('network'));
+
+      render(<HistorialCajaScreen />);
+      fireEvent.click(screen.getByText('Yurlury Quispe'));
+      await waitFor(() => expect(screen.getByText('Pepe')).toBeInTheDocument());
+
+      fireEvent.click(screen.getByRole('button', { name: /Imprimir comprobante/i }));
+
+      await waitFor(() => {
+        expect(toast).toHaveBeenCalledWith(expect.objectContaining({ kind: 'err' }));
+      });
+      expect(abrirTicketParaImprimir).not.toHaveBeenCalled();
+    });
   });
 
   describe('imprimir un comprobante desde la auditoría del turno', () => {

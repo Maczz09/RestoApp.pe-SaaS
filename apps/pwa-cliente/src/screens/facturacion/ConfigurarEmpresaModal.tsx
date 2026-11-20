@@ -16,7 +16,7 @@ import type { SedeDto } from '../../types/sede.types';
 interface Props {
   guardando: boolean;
   error: string | null;
-  // Sedes con menos de dos RUC enlazados (ver AppService.crearEmpresa).
+  // Sedes activas del restaurante.
   sedesDisponibles: SedeDto[];
   onGuardar: (payload: CrearEmpresaPayload) => Promise<unknown>;
   onClose: () => void;
@@ -122,7 +122,7 @@ export function ConfigurarEmpresaModal({ guardando, error, sedesDisponibles, onG
                 </select>
               </div>
               {sedesDisponibles.length === 0 && (
-                <span className="hint">Todas las sedes ya tienen sus dos RUC emisores enlazados.</span>
+                <span className="hint">Crea o activa una sede para asignar el emisor.</span>
               )}
             </div>
           </div>

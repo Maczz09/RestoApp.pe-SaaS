@@ -12,6 +12,7 @@ describe('AppController — Caja', () => {
   beforeEach(() => {
     service = {
       registrarPago: jest.fn().mockResolvedValue({ ok: true }),
+      registrarPagoCombinado: jest.fn().mockResolvedValue({ ok: true, transacciones: [] }),
       listarTransacciones: jest.fn().mockResolvedValue({ data: [] }),
       listarTurnos: jest.fn().mockResolvedValue({ data: [], nextCursor: null }),
       abrirTurno: jest.fn().mockResolvedValue({ id: 'turno-1' }),
@@ -46,6 +47,26 @@ describe('AppController — Caja', () => {
     expect(service.registrarPago).toHaveBeenCalledWith(body, 'svc-caja', 'svc-caja', null);
   });
 
+  it('registrarPagoCombinado delega el grupo completo y la identidad del cajero', async () => {
+    const body = {
+      cuentaId: 'c-1',
+      pagos: [
+        { metodo: 'EFECTIVO', monto: 20 },
+        { metodo: 'YAPE', monto: 30 },
+      ],
+    } as any;
+
+    await controller.registrarPagoCombinado(body, 'u-1', 'Cajero Uno', null, 'sede-001');
+
+    expect(service.registrarPagoCombinado).toHaveBeenCalledWith(
+      body,
+      'u-1',
+      'Cajero Uno',
+      'sede-001',
+      undefined,
+    );
+  });
+
   it('listarTurnos delega el query (historial de cierres)', async () => {
     await controller.listarTurnos({ estado: 'CERRADA', limit: 10 } as any, 'sede-001');
     expect(service.listarTurnos).toHaveBeenCalledWith({ estado: 'CERRADA', limit: 10 }, 'sede-001');
@@ -73,6 +94,11 @@ describe('AppController — Caja', () => {
     await controller.listarMovimientosTurno('turno-1', 'sede-001');
     expect(service.obtenerResumenTurno).toHaveBeenCalledWith('turno-1', 'sede-001');
     expect(service.listarMovimientosTurno).toHaveBeenCalledWith('turno-1', 'sede-001');
+  });
+
+  it('listarMovimientosTurno delega el search', async () => {
+    await controller.listarMovimientosTurno('turno-1', 'sede-001', undefined, 'A0000042');
+    expect(service.listarMovimientosTurno).toHaveBeenCalledWith('turno-1', 'sede-001', undefined, 'A0000042');
   });
 
   it('crearMovimiento delega id y body', async () => {

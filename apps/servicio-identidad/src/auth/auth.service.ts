@@ -1001,6 +1001,7 @@ export class AuthService {
       }
       const updated = await tx.usuario.update({ where: { id }, data: {
         nombre: command.nombre?.trim(), email, password, rol, activo, sedeId,
+        ...(command.telefono !== undefined ? { telefono: command.telefono?.trim() || null } : {}),
         ...(password ? { failedLoginAttempts: 0, lockedUntil: null } : {}),
       } });
       await tx.membresia.update({ where: { id: member.id }, data: { rol, activo,

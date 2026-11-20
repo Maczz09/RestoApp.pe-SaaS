@@ -107,6 +107,8 @@ export class PagarPedidoCommand {
 }
 
 export class PagoRegistradoPayload {
+  documentadaEnCaja?: boolean;
+  descuentoCuenta?: number;
   @IsString()
   transaccionId: string;
   @IsString()

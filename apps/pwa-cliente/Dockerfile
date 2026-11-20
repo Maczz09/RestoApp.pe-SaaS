@@ -1,4 +1,13 @@
-FROM node@sha256:968df39aedcea65eeb078fb336ed7191baf48f972b4479711397108be0966920 AS builder
+# syntax=docker/dockerfile:1
+FROM node:22-alpine@sha256:968df39aedcea65eeb078fb336ed7191baf48f972b4479711397108be0966920 AS pruner
+WORKDIR /usr/src/app
+COPY apps ./apps
+COPY libs ./libs
+RUN mkdir /out && \
+    find apps libs -mindepth 2 -maxdepth 2 -name package.json | \
+    while read file; do mkdir -p "/out/$(dirname "$file")"; cp "$file" "/out/$file"; done
+
+FROM node:22-alpine@sha256:968df39aedcea65eeb078fb336ed7191baf48f972b4479711397108be0966920 AS builder
 WORKDIR /usr/src/app
 
 # La API comparte el origen de cada subdominio del tenant a traves de Kong.
@@ -7,9 +16,9 @@ ARG VITE_API_BASE_URL=
 ARG VITE_TENANT_BASE_DOMAIN=restoapp.pe
 
 COPY package.json package-lock.json nx.json tsconfig.base.json ./
-COPY apps/pwa-cliente/package.json ./apps/pwa-cliente/package.json
+COPY --from=pruner /out ./
 
-RUN npm install --ignore-scripts
+RUN --mount=type=cache,target=/root/.npm npm ci --ignore-scripts
 
 COPY libs/ ./libs/
 COPY apps/pwa-cliente ./apps/pwa-cliente

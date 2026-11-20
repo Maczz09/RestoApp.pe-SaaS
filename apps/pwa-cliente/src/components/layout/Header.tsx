@@ -18,6 +18,7 @@ import { applyThemeColor, isTheme, nextTheme, type Theme } from '../../utils/the
 import { Icons } from '../ui/icons';
 import { SedeSwitcher } from './SedeSwitcher';
 import { TenantSwitcher } from './TenantSwitcher';
+import { GuideCenter } from '../../tour/GuideCenter';
 
 const THEME_LABEL: Record<Theme, string> = {
   light: 'Claro',
@@ -293,6 +294,8 @@ export function Header() {
           </>
         )}
       </div>
+
+      <GuideCenter />
 
       {/* User chip — oculto en ≤920px via CSS */}
       {user && (

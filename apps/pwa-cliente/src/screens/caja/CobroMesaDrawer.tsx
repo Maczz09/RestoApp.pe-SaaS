@@ -1,22 +1,25 @@
 /* eslint-disable @typescript-eslint/no-misused-promises, @typescript-eslint/no-floating-promises */
 // screens/caja/CobroMesaDrawer.tsx — Cobro de una cuenta de mesa (REAL).
-// Cableado a useCuentasQuery: registrarPago. El backend registra el pago y cierra la cuenta.
+// Cableado a useCuentasQuery: registrarPago / registrarPagoCombinado. El backend
+// registra el pago y cierra la cuenta.
 // T-16: soporta pago único, división en partes iguales y división por plato
-// (cada comensal paga lo que consumió). Cada "parte" es una llamada a
-// registrarPago independiente; el backend acumula pagos parciales y solo
-// cierra la cuenta cuando el saldo pendiente llega a 0.
+// (cada comensal paga lo que consumió). Cada parte puede usar un método único
+// o varios métodos; un pago combinado se persiste atómicamente en el backend.
 
 import { Scrim } from '../../components/ui/Scrim';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Icons, type IconName } from '../../components/ui/icons';
 import { fmt } from '../../utils/format';
+import { useDivisionCuenta } from '../../hooks/queries/useDivisionCuenta';
+import { calcularDivision, unidadesDivision } from '../../domain/divisionCuenta';
 import { useCuentasQuery } from '../../hooks/queries/useCuentasQuery';
 import { useSedeActualQuery } from '../../hooks/queries/useSedesQuery';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import { useToast } from '../../components/ui/ToastProvider';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { BoletaInterna } from './BoletaInterna';
-import type { MetodoPago, CuentaVM, TicketDto, TransaccionDto, TipoComprobante } from '../../types/cuenta.types';
+import { DocumentoCobroSelector, DOCUMENTO_VACIO, documentoCompleto } from './DocumentoCobroSelector';
+import type { MetodoPago, CuentaVM, TicketDto, TransaccionDto } from '../../types/cuenta.types';
 import type { PedidoItemVM } from '../../types/pedido.types';
 
 const METODOS: { value: MetodoPago; label: string; ic: IconName; color: string }[] = [
@@ -28,6 +31,63 @@ const METODOS: { value: MetodoPago; label: string; ic: IconName; color: string }
 ];
 
 type ModoDivision = 'UNICO' | 'PARTES' | 'ITEMS';
+type ModoPago = 'UNICO' | 'COMBINADO';
+type DistribucionPago = Record<MetodoPago, string>;
+
+const DISTRIBUCION_VACIA: DistribucionPago = {
+  EFECTIVO: '', TARJETA: '', YAPE: '', PLIN: '', TRANSFERENCIA: '',
+};
+
+export interface TramoPago {
+  metodo: MetodoPago;
+  monto: number;
+  propina: number;
+  total: number;
+}
+
+/**
+ * Convierte lo digitado por el cajero (importe total por medio, incluida la
+ * propina) en pagos parciales compatibles con caja. Trabaja en céntimos para
+ * que la suma que llega a operaciones sea exactamente la mostrada en UI.
+ */
+export function construirTramosPago(
+  distribucion: DistribucionPago,
+  montoBase: number,
+  propina: number,
+): TramoPago[] {
+  const baseCents = Math.round(montoBase * 100);
+  const tipCents = Math.round(propina * 100);
+  const totalCents = baseCents + tipCents;
+  const entradas = METODOS
+    .map(({ value }) => ({ metodo: value, cents: Math.round((Number(distribucion[value]) || 0) * 100) }))
+    .filter(({ cents }) => cents > 0);
+  if (baseCents <= 0 || entradas.length < 2 || entradas.reduce((suma, entrada) => suma + entrada.cents, 0) !== totalCents) return [];
+
+  // Método de restos mayores: distribuye la propina proporcionalmente y
+  // conserva exactamente todos los céntimos, sin producir propinas negativas.
+  const cuotas = entradas.map((entrada, index) => {
+    const exacta = entrada.cents * tipCents / totalCents;
+    const piso = Math.floor(exacta);
+    return { index, piso, resto: exacta - piso };
+  });
+  let faltantes = tipCents - cuotas.reduce((suma, cuota) => suma + cuota.piso, 0);
+  [...cuotas].sort((a, b) => b.resto - a.resto).forEach((cuota) => {
+    if (faltantes > 0 && cuota.piso < entradas[cuota.index].cents) {
+      cuota.piso += 1;
+      faltantes -= 1;
+    }
+  });
+
+  const tramos = entradas.map((entrada, index) => {
+    const tip = cuotas[index].piso;
+    const base = entrada.cents - tip;
+    return { metodo: entrada.metodo, monto: base / 100, propina: tip / 100, total: entrada.cents / 100 };
+  });
+  // Cada tramo debe aplicar por lo menos un céntimo al saldo de la cuenta. Si
+  // la propina absorbiera por completo uno de los métodos, el backend ya no
+  // recibiría un pago realmente combinado.
+  return tramos.length >= 2 && tramos.every((tramo) => tramo.monto > 0) ? tramos : [];
+}
 
 interface Parte {
   label: string;
@@ -50,18 +110,23 @@ export function CobroMesaDrawer({ mesaId, mesaNumero, mesaUnidaCon, onClose, onP
   const { sede } = useSedeActualQuery();
   const {
     cuentaActiva, loading, error, success, queryError,
-    registrarPago, clearFeedback, refetchCuenta,
+    registrarPago, registrarPagoCombinado, clearFeedback, refetchCuenta,
   } = useCuentasQuery(mesaId);
+  const divisionQuery = useDivisionCuenta(cuentaActiva?.id);
+  const { division } = divisionQuery;
   const modalRef = useRef<HTMLDialogElement>(null);
   useFocusTrap(modalRef, { active: true, onClose });
 
   const [metodo, setMetodo] = useState<MetodoPago>('EFECTIVO');
+  const [modoPago, setModoPago] = useState<ModoPago>('UNICO');
+  const [distribucionPago, setDistribucionPago] = useState<DistribucionPago>({ ...DISTRIBUCION_VACIA });
   const [recibido, setRecibido] = useState('');
   const [descuento, setDescuento] = useState('0');
   const [propina, setPropina] = useState('0');
-  const [tipoComprobante, setTipoComprobante] = useState<TipoComprobante>('BOLETA');
-  const [clienteDocumento, setClienteDocumento] = useState('');
-  const [recibo, setRecibo] = useState<{ ticket: TicketDto; transaccion: TransaccionDto } | null>(null);
+  const [documento, setDocumento] = useState(DOCUMENTO_VACIO);
+  const [procesando, setProcesando] = useState(false);
+  const cobroEnCurso = useRef(false);
+  const [recibo, setRecibo] = useState<{ ticket: TicketDto; transaccion: TransaccionDto; cuentaCompleta: boolean; propina: number } | null>(null);
 
   const [modoDivision, setModoDivision] = useState<ModoDivision>('UNICO');
   const [numPartes, setNumPartes] = useState(2);
@@ -77,11 +142,21 @@ export function CobroMesaDrawer({ mesaId, mesaNumero, mesaUnidaCon, onClose, onP
   const totalCobro = totalBase + tip;
   const igv = totalBase - totalBase / 1.18;
 
-  const items = useMemo(() => cuentaActiva?.pedidos.flatMap((p) => p.items) ?? [], [cuentaActiva]);
+  // Solo ítems efectivamente cobrables: excluye pedidos enteros no cobrables
+  // (CANCELADO/RECHAZADO_SIN_STOCK) y, dentro de pedidos vigentes, los ítems
+  // anulados puntualmente (CU-01/CU-02) — no deben aparecer en el cobro ni en la boleta.
+  const items = useMemo(
+    () =>
+      (cuentaActiva?.pedidos ?? [])
+        .filter((p) => p.estado !== 'CANCELADO' && p.estado !== 'RECHAZADO_SIN_STOCK')
+        .flatMap((p) => p.items)
+        .filter((it) => it.estado !== 'CANCELADO'),
+    [cuentaActiva],
+  );
 
   // Configuración de división bloqueada una vez que la primera parte ya se cobró:
   // cambiar el modo/las asignaciones a mitad de camino descuadraría lo ya pagado.
-  const divisionBloqueada = parteIndex > 0;
+  const divisionBloqueada = parteIndex > 0 || Boolean(division?.partes.some(parte => parte.pagada));
 
   useEffect(() => {
     setModoDivision('UNICO');
@@ -90,50 +165,46 @@ export function CobroMesaDrawer({ mesaId, mesaNumero, mesaUnidaCon, onClose, onP
     setComensalPorItem({});
     setNumPartes(2);
     setNumComensales(2);
-    setTipoComprobante('BOLETA');
-    setClienteDocumento('');
+    setDocumento(DOCUMENTO_VACIO);
+    setModoPago('UNICO');
+    setDistribucionPago({ ...DISTRIBUCION_VACIA });
   }, [cuentaActiva?.id]);
 
+  useEffect(() => {
+    if (!division || division.cuentaId !== cuentaActiva?.id) return;
+    setModoDivision(division.modo);
+    setNumPartes(division.numPartes);
+    setNumComensales(division.numPartes);
+    setComensalPorItem(division.asignaciones);
+    setDescuento(String(division.descuento));
+    setPropina(String(division.propina));
+    const pagadas = division.partes.filter(parte => parte.pagada);
+    setPartesPagadas(pagadas);
+    setParteIndex(Math.max(0, division.partes.findIndex(parte => !parte.pagada)));
+  }, [division, cuentaActiva?.id]);
+
+  const configDivision = useMemo(() => {
+    if (modoDivision === 'UNICO') return null;
+    const asignaciones = modoDivision === 'ITEMS' ? Object.fromEntries(
+      unidadesDivision(cuentaActiva?.pedidos ?? []).map(unidad => [unidad.key, comensalPorItem[unidad.key] ?? 1]),
+    ) : {};
+    return { modo: modoDivision, numPartes: modoDivision === 'PARTES' ? numPartes : numComensales,
+      asignaciones, descuento: desc, propina: tip, version: division?.version };
+  }, [modoDivision, cuentaActiva, comensalPorItem, numPartes, numComensales, desc, tip, division?.version]);
   const partes = useMemo<Parte[]>(() => {
-    if (modoDivision === 'PARTES') {
-      const n = Math.max(2, numPartes);
-      const per = Math.floor((totalBase / n) * 100) / 100;
-      const tipPer = Math.floor((tip / n) * 100) / 100;
-      return Array.from({ length: n }, (_, i) => {
-        const esUltimo = i === n - 1;
-        return {
-          label: `Parte ${i + 1} de ${n}`,
-          monto: esUltimo ? Math.round((totalBase - per * (n - 1)) * 100) / 100 : per,
-          tip: esUltimo ? Math.round((tip - tipPer * (n - 1)) * 100) / 100 : tipPer,
-        };
-      });
-    }
-    if (modoDivision === 'ITEMS') {
-      const grupos = new Map<number, number>();
-      for (const it of items) {
-        const c = comensalPorItem[it.id] ?? 1;
-        grupos.set(c, (grupos.get(c) ?? 0) + it.subtotal);
-      }
-      const comensales = Array.from(grupos.keys()).sort((a, b) => a - b);
-      if (comensales.length === 0) return [{ label: 'Total', monto: totalBase, tip }];
-      const factor = subtotal > 0 ? totalBase / subtotal : 0;
-      const tipFactor = subtotal > 0 ? tip / subtotal : 0;
-      let sumaMonto = 0;
-      let sumaTip = 0;
-      return comensales.map((c, idx) => {
-        const subC = grupos.get(c) ?? 0;
-        const esUltimo = idx === comensales.length - 1;
-        const monto = esUltimo ? Math.round((totalBase - sumaMonto) * 100) / 100 : Math.round(subC * factor * 100) / 100;
-        const tipC = esUltimo ? Math.round((tip - sumaTip) * 100) / 100 : Math.round(subC * tipFactor * 100) / 100;
-        if (!esUltimo) { sumaMonto += monto; sumaTip += tipC; }
-        return { label: `Comensal ${c}`, monto, tip: tipC, comensal: c };
-      });
-    }
-    return [{ label: 'Total', monto: totalBase, tip }];
-  }, [modoDivision, numPartes, comensalPorItem, items, totalBase, tip, subtotal]);
+    if (!configDivision) return [{ label: 'Total', monto: totalBase, tip }];
+    if (division?.partes.some(parte => parte.pagada)) return division.partes;
+    try { return calcularDivision(subtotal, cuentaActiva?.pedidos ?? [], configDivision); }
+    catch { return []; }
+  }, [configDivision, totalBase, tip, subtotal, cuentaActiva, division]);
+  const itemsVisuales = useMemo(() => modoDivision === 'ITEMS' ? items.flatMap(item =>
+    Array.from({ length: item.cantidad }, (_, indice) => ({
+      ...item, id: `${item.id}:${indice}`, cantidad: 1, subtotal: item.precioUnitario,
+      nombre: item.cantidad > 1 ? `${item.nombre} · unidad ${indice + 1}` : item.nombre,
+    }))) : items, [items, modoDivision]);
 
   const parteActual = partes[Math.min(parteIndex, partes.length - 1)] ?? { label: 'Total', monto: totalBase, tip };
-  const esUltimaParte = modoDivision === 'UNICO' || parteIndex >= partes.length - 1;
+  const esUltimaParte = modoDivision === 'UNICO' || (division ? division.partes.filter(p => !p.pagada).length === 1 : parteIndex >= partes.length - 1);
   const montoAPagar = modoDivision === 'UNICO' ? totalBase : parteActual.monto;
   const tipAPagar = modoDivision === 'UNICO' ? tip : parteActual.tip;
   const totalConTip = montoAPagar + tipAPagar;
@@ -142,15 +213,40 @@ export function CobroMesaDrawer({ mesaId, mesaNumero, mesaUnidaCon, onClose, onP
     [partes, parteIndex],
   );
 
+  const totalDistribuido = useMemo(
+    () => Object.values(distribucionPago).reduce((suma, valor) => suma + (Number(valor) || 0), 0),
+    [distribucionPago],
+  );
+  const cantidadMetodosDistribuidos = Object.values(distribucionPago)
+    .filter((valor) => Math.round((Number(valor) || 0) * 100) > 0).length;
+  const efectivoDistribuido = Number(distribucionPago.EFECTIVO) || 0;
+  const diferenciaDistribucion = Math.round((totalConTip - totalDistribuido) * 100) / 100;
   const recNum = Number(recibido || 0);
-  const vuelto = metodo === 'EFECTIVO' ? Math.max(0, recNum - totalConTip) : 0;
-  const faltaPago = metodo === 'EFECTIVO' && recNum < totalConTip;
+  const efectivoEsperado = modoPago === 'COMBINADO' ? efectivoDistribuido : totalConTip;
+  const usaEfectivo = modoPago === 'COMBINADO' ? efectivoDistribuido > 0 : metodo === 'EFECTIVO';
+  const vuelto = usaEfectivo ? Math.max(0, recNum - efectivoEsperado) : 0;
+  const faltaPago = (modoPago === 'COMBINADO'
+    && (cantidadMetodosDistribuidos < 2 || Math.abs(diferenciaDistribucion) >= 0.01))
+    || (usaEfectivo && recNum < efectivoEsperado);
 
   useEffect(() => {
-    if (cuentaActiva) setRecibido(totalConTip > 0 ? totalConTip.toFixed(2) : '');
+    if (!cuentaActiva) return;
+    const sugerido = totalConTip > 0 ? totalConTip.toFixed(2) : '';
+    setRecibido(sugerido);
+    if (modoPago === 'COMBINADO') {
+      setDistribucionPago({ ...DISTRIBUCION_VACIA, EFECTIVO: sugerido });
+    }
     // Solo se re-propone el monto sugerido al cambiar de cuenta, de modo o de
-    // parte — no en cada tecla que el cajero escribe.
-  }, [cuentaActiva?.id, parteIndex, modoDivision, numPartes]);
+    // parte o al recalcular descuento/propina — no en cada tecla de recibido.
+  }, [cuentaActiva?.id, parteIndex, modoDivision, numPartes, totalConTip, modoPago]);
+
+  const cambiarModoPago = (nuevo: ModoPago) => {
+    setModoPago(nuevo);
+    if (nuevo === 'COMBINADO') {
+      setDistribucionPago({ ...DISTRIBUCION_VACIA, EFECTIVO: totalConTip.toFixed(2) });
+      setRecibido(totalConTip.toFixed(2));
+    }
+  };
 
   const appendDigit = (r: string, d: string): string => {
     if (d === 'C') return '';
@@ -160,39 +256,109 @@ export function CobroMesaDrawer({ mesaId, mesaNumero, mesaUnidaCon, onClose, onP
   const key = (d: string) => setRecibido((r) => appendDigit(r, d));
 
   const handlePagar = async () => {
-    if (!cuentaActiva || !online) return;
+    if (!cuentaActiva || !online || divisionQuery.loading || partes.length === 0 || faltaPago || cobroEnCurso.current || !documento.tipoComprobante || !documentoCompleto(documento, montoAPagar)) return;
+    cobroEnCurso.current = true;
+    setProcesando(true);
+    const datosDocumento = {
+      documentoV2: true, tipoComprobante: documento.tipoComprobante,
+      ...(documento.tipoComprobante === 'TICKET' ? {} : {
+        empresaRuc: documento.empresaRuc, clienteDocumento: documento.clienteDocumento.trim() || undefined,
+        clienteNombre: documento.clienteNombre.trim() || undefined,
+        clienteRazonSocial: documento.clienteRazonSocial.trim() || undefined,
+      }),
+    };
     try {
-      const respuesta = await registrarPago({
-        cuentaId: cuentaActiva.id,
-        montoRecibido: montoAPagar,
-        metodo,
-        descuento: desc,
-        propina: tipAPagar,
-        mesaNumero,
-        mesaUnidaCon,
-        tipoComprobante,
-        clienteDocumento: clienteDocumento.trim() || undefined,
-      });
-      if (esUltimaParte) {
+      const tramos = modoPago === 'COMBINADO'
+        ? construirTramosPago(distribucionPago, montoAPagar, tipAPagar)
+        : [{ metodo, monto: montoAPagar, propina: tipAPagar, total: totalConTip }];
+      if (tramos.length === 0) {
+        toast({ title: 'Distribución incompleta', msg: 'La suma de los métodos debe coincidir exactamente con el total.', icon: 'Alert', kind: 'err' });
+        return;
+      }
+
+      let datosDivision = {};
+      if (!configDivision && division) await divisionQuery.eliminar();
+      if (configDivision) {
+        const plan = division?.partes.some(parte => parte.pagada) ? division : await divisionQuery.guardar(configDivision);
+        const seleccion = plan.partes.find(parte => !parte.pagada);
+        if (!seleccion) throw new Error('Todas las partes ya se cobraron. Actualiza la cuenta.');
+        if (seleccion.monto !== montoAPagar || seleccion.tip !== tipAPagar) throw new Error('Los importes de la división cambiaron; revisa la cuenta.');
+        datosDivision = { divisionPlanId: plan.id, divisionParteId: seleccion.id, divisionVersion: plan.version };
+      }
+      const respuesta = modoPago === 'COMBINADO'
+        ? await registrarPagoCombinado({
+          cuentaId: cuentaActiva.id,
+          pagos: tramos.map((tramo) => ({ metodo: tramo.metodo, monto: tramo.monto, propina: tramo.propina })),
+          descuento: desc,
+          mesaNumero,
+          mesaUnidaCon,
+          ...datosDocumento,
+          ...datosDivision,
+          notas: `Pago combinado · ${tramos.map((tramo) => tramo.metodo).join(' + ')}`,
+        })
+        : await registrarPago({
+          cuentaId: cuentaActiva.id,
+          montoRecibido: montoAPagar,
+          metodo,
+          descuento: desc,
+          propina: tipAPagar,
+          mesaNumero,
+          mesaUnidaCon,
+          ...datosDocumento,
+          ...datosDivision,
+        });
+      if (respuesta?.queued) {
+        // No hay turno de caja abierto: el cobro ya quedó guardado tal cual
+        // se llenó y se registrará solo en cuanto se abra un turno — no hay
+        // ticket que imprimir todavía, así que solo se avisa y se cierra.
+        toast({
+          title: 'Caja cerrada: pago en espera',
+          msg: 'Se registrará automáticamente en cuanto se abra un turno de caja.',
+          icon: 'Clock',
+          kind: 'warn',
+        });
+        onClose();
+        return;
+      }
+      if (configDivision) await divisionQuery.invalidar();
+      const cuentaCompleta = Number(respuesta?.pendiente ?? 0) === 0;
+      if (respuesta?.documento?.estado === 'PENDIENTE_EMISION') {
+        toast({ title: 'Cobro registrado', msg: 'Consulta la emisión electrónica en Facturación.', icon: 'Check', kind: 'ok' });
+      }
+      if (cuentaCompleta) {
         onPaid?.();
-        if (respuesta?.ticket) {
-          setRecibo({ ticket: respuesta.ticket, transaccion: respuesta.transaccion });
+        if (respuesta?.ticket && respuesta.transaccion) {
+          const metodosUsados = tramos.map((tramo) => METODOS.find((m) => m.value === tramo.metodo)?.label ?? tramo.metodo).join(' + ');
+          setRecibo({
+            cuentaCompleta: true, propina: tipAPagar,
+            ticket: respuesta.ticket,
+            transaccion: modoPago === 'COMBINADO'
+              ? { ...respuesta.transaccion, metodo: metodosUsados, monto: montoAPagar }
+              : respuesta.transaccion,
+          });
         } else {
           onClose();
         }
       } else {
         setPartesPagadas((prev) => [...prev, { ...parteActual, comensal: parteActual.comensal }]);
         toast({
-          title: `${parteActual.label} cobrada`,
+          title: esUltimaParte ? 'Pago parcial registrado' : `${parteActual.label} cobrada`,
           msg: `Pendiente por cobrar: ${fmt(respuesta?.pendiente ?? (pendienteRestante - totalConTip))}`,
           icon: 'Check',
           kind: 'ok',
         });
-        setParteIndex((i) => i + 1);
+
         setRecibido('');
+        setDocumento(DOCUMENTO_VACIO);
+        if (respuesta?.ticket && respuesta.transaccion) {
+          setRecibo({ ticket: respuesta.ticket, transaccion: respuesta.transaccion, cuentaCompleta: false, propina: tipAPagar });
+        }
       }
     } catch (err) {
       toast({ title: 'No se pudo registrar el pago', msg: err instanceof Error ? err.message : 'Inténtalo de nuevo', icon: 'Alert', kind: 'err' });
+    } finally {
+      cobroEnCurso.current = false;
+      setProcesando(false);
     }
   };
 
@@ -210,7 +376,7 @@ export function CobroMesaDrawer({ mesaId, mesaNumero, mesaUnidaCon, onClose, onP
         <div className="panel-h" style={{ padding: '16px 20px' }}>
           <h3 style={{ fontSize: 18 }}>Cobrar cuenta</h3>
           <span className="tag-canal salon" style={{ marginLeft: 4 }}>Mesa {mesaNumero ?? cuentaActiva?.mesaId ?? ''}</span>
-          {cuentaActiva && <span className="muted" style={{ fontSize: 13 }}>· {cuentaActiva.cantidadItems} ítems</span>}
+          {cuentaActiva && <span className="muted" style={{ fontSize: 13 }}>· {items.length} ítems</span>}
           <span className="spacer" />
           <button className="icon-btn" onClick={onClose} aria-label="Cerrar cobro de cuenta"><Icons.Close s={17} /></button>
         </div>
@@ -230,22 +396,30 @@ export function CobroMesaDrawer({ mesaId, mesaNumero, mesaUnidaCon, onClose, onP
           </div>
         )}
 
+        {divisionQuery.error && <div className="banner err" role="alert" style={{ margin: '12px 20px' }}>
+          <span>No se pudo cargar la división: {divisionQuery.error}</span>
+          <button className="btn btn-sm" onClick={() => void divisionQuery.refetch()}>Reintentar división</button>
+        </div>}
+        {division && cuentaActiva && cuentaActiva.total > division.total && <div className="banner warn" role="status" style={{ margin: '12px 20px' }}>
+          <span>Hay nuevos consumos. Se cobrarán en una parte adicional conservando los pagos anteriores.</span>
+          <button className="btn btn-sm" disabled={!online || procesando || divisionQuery.saving} onClick={() => void divisionQuery.ampliar(division.version).catch(() => undefined)}>Actualizar división</button>
+        </div>}
         <div className="modal-scroll">
           {recibo ? (
             <BoletaInterna
               ticket={recibo.ticket}
               transaccion={recibo.transaccion}
               mesaNumero={mesaNumero}
-              propina={tip}
+              propina={recibo.propina}
               sede={sede}
-              onCerrar={onClose}
+              onCerrar={() => { if (recibo.cuentaCompleta) onClose(); else setRecibo(null); }}
             />
           ) : (
             <CobroBody
               loading={loading}
               online={online}
               cuentaActiva={cuentaActiva}
-              items={items}
+              items={itemsVisuales}
               subtotal={subtotal}
               descuento={descuento}
               setDescuento={setDescuento}
@@ -255,10 +429,18 @@ export function CobroMesaDrawer({ mesaId, mesaNumero, mesaUnidaCon, onClose, onP
               igv={igv}
               metodo={metodo}
               setMetodo={setMetodo}
-              tipoComprobante={tipoComprobante}
-              setTipoComprobante={setTipoComprobante}
-              clienteDocumento={clienteDocumento}
-              setClienteDocumento={setClienteDocumento}
+              modoPago={modoPago}
+              cambiarModoPago={cambiarModoPago}
+              distribucionPago={distribucionPago}
+              setDistribucionPago={setDistribucionPago}
+              totalDistribuido={totalDistribuido}
+              cantidadMetodosDistribuidos={cantidadMetodosDistribuidos}
+              diferenciaDistribucion={diferenciaDistribucion}
+              efectivoEsperado={efectivoEsperado}
+              usaEfectivo={usaEfectivo}
+              documentoPanel={<DocumentoCobroSelector value={documento} onChange={setDocumento} sedeId={sede?.id} total={montoAPagar} />}
+              documentoValido={documentoCompleto(documento, montoAPagar)}
+              procesando={procesando || divisionQuery.loading || divisionQuery.saving || Boolean(divisionQuery.error) || partes.length === 0}
               recibido={recibido}
               setRecibido={setRecibido}
               vuelto={vuelto}
@@ -267,7 +449,11 @@ export function CobroMesaDrawer({ mesaId, mesaNumero, mesaUnidaCon, onClose, onP
               onKey={key}
               onPagar={handlePagar}
               modoDivision={modoDivision}
-              setModoDivision={setModoDivision}
+              setModoDivision={(modo) => {
+                if (modo === 'UNICO' && division && !divisionBloqueada) {
+                  void divisionQuery.eliminar().then(() => setModoDivision(modo)).catch(err => toast({ title: 'No se pudo quitar la división', msg: err instanceof Error ? err.message : 'Reintenta', icon: 'Alert', kind: 'err' }));
+                } else setModoDivision(modo);
+              }}
               numPartes={numPartes}
               setNumPartes={setNumPartes}
               numComensales={numComensales}
@@ -304,10 +490,18 @@ interface CobroBodyProps {
   igv: number;
   metodo: MetodoPago;
   setMetodo: (m: MetodoPago) => void;
-  tipoComprobante: TipoComprobante;
-  setTipoComprobante: (t: TipoComprobante) => void;
-  clienteDocumento: string;
-  setClienteDocumento: (v: string) => void;
+  modoPago: ModoPago;
+  cambiarModoPago: (m: ModoPago) => void;
+  distribucionPago: DistribucionPago;
+  setDistribucionPago: (d: DistribucionPago) => void;
+  totalDistribuido: number;
+  cantidadMetodosDistribuidos: number;
+  diferenciaDistribucion: number;
+  efectivoEsperado: number;
+  usaEfectivo: boolean;
+  documentoPanel: ReactNode;
+  documentoValido: boolean;
+  procesando: boolean;
   recibido: string;
   setRecibido: (v: string) => void;
   vuelto: number;
@@ -337,7 +531,9 @@ function CobroBody({
   loading, online, cuentaActiva, items,
   subtotal, descuento, setDescuento, propina, setPropina,
   totalCobro, igv, metodo, setMetodo,
-  tipoComprobante, setTipoComprobante, clienteDocumento, setClienteDocumento,
+  modoPago, cambiarModoPago, distribucionPago, setDistribucionPago,
+  totalDistribuido, cantidadMetodosDistribuidos, diferenciaDistribucion, efectivoEsperado, usaEfectivo,
+  documentoPanel, documentoValido, procesando,
   recibido, setRecibido, vuelto, faltaPago,
   onClose, onKey, onPagar,
   modoDivision, setModoDivision, numPartes, setNumPartes,
@@ -395,10 +591,10 @@ function CobroBody({
         <div style={{ padding: '14px 4px 0' }}>
           <div className="kv"><span className="k">Subtotal</span><span className="v mono">{fmt(subtotal)}</span></div>
           <div className="kv"><span className="k">Descuento</span>
-            <span className="v"><span className="input" style={{ padding: '4px 8px', width: 110 }}><span className="muted">S/</span><input value={descuento} onChange={(e) => setDescuento(e.target.value.replace(/[^\d.]/g, ''))} inputMode="decimal" style={{ textAlign: 'right' }} /></span></span>
+            <span className="v"><span className="input" style={{ padding: '4px 8px', width: 110 }}><span className="muted">S/</span><input value={descuento} disabled={divisionBloqueada} onChange={(e) => setDescuento(e.target.value.replace(/[^\d.]/g, ''))} inputMode="decimal" style={{ textAlign: 'right' }} /></span></span>
           </div>
           <div className="kv"><span className="k">Propina</span>
-            <span className="v"><span className="input" style={{ padding: '4px 8px', width: 110 }}><span className="muted">S/</span><input value={propina} onChange={(e) => setPropina(e.target.value.replace(/[^\d.]/g, ''))} inputMode="decimal" style={{ textAlign: 'right' }} /></span></span>
+            <span className="v"><span className="input" style={{ padding: '4px 8px', width: 110 }}><span className="muted">S/</span><input value={propina} disabled={divisionBloqueada} onChange={(e) => setPropina(e.target.value.replace(/[^\d.]/g, ''))} inputMode="decimal" style={{ textAlign: 'right' }} /></span></span>
           </div>
           <div className="kv" style={{ borderTop: '1px solid var(--border)', marginTop: 10, paddingTop: 12 }}>
             <span className="k" style={{ fontSize: 15, fontWeight: 800, color: 'var(--text)' }}>Total</span>
@@ -447,7 +643,8 @@ function CobroBody({
                 <div className="hint" style={{ marginTop: 4 }}>Asigna cada plato a un comensal en la lista de la izquierda.</div>
               </div>
             )}
-            {modoDivision !== 'UNICO' && (
+            {modoDivision !== 'UNICO' && partes.length === 0 && <p className="hint">Asigna al menos una unidad a cada comensal o cambia el número de partes.</p>}
+            {modoDivision !== 'UNICO' && partes.length > 0 && (
               <div className="cuadre" style={{ marginTop: 10, padding: '10px 12px' }}>
                 <div className="lbl">{parteActual.label} {partesPagadas.length > 0 && `(${partesPagadas.length}/${partes.length} cobradas)`}</div>
                 <div className="big" style={{ fontSize: 20 }}>{fmt(montoAPagar + tipAPagar)}</div>
@@ -456,56 +653,64 @@ function CobroBody({
             )}
           </div>
         )}
+        {documentoPanel}
         <div>
-          <div className="hint" style={{ fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 8 }}>Comprobante</div>
-          <div className="row" style={{ gap: 6 }}>
-            {([
-              { v: 'BOLETA', l: 'Boleta' },
-              { v: 'FACTURA', l: 'Factura' },
-            ] as { v: TipoComprobante; l: string }[]).map((c) => (
-              <button
-                key={c.v}
-                type="button"
-                className={`chip ${tipoComprobante === c.v ? 'on' : ''}`}
-                onClick={() => setTipoComprobante(c.v)}
-              >
-                {c.l}
-              </button>
-            ))}
+          <div className="row" style={{ marginBottom: 8, gap: 8, flexWrap: 'wrap' }}>
+            <div className="hint" style={{ fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.05em' }}>Método de pago</div>
+            <span className="spacer" />
+            <button type="button" className={`chip ${modoPago === 'UNICO' ? 'on' : ''}`} onClick={() => cambiarModoPago('UNICO')}>Pago único</button>
+            <button type="button" className={`chip ${modoPago === 'COMBINADO' ? 'on' : ''}`} onClick={() => cambiarModoPago('COMBINADO')}>Combinar métodos</button>
           </div>
-          <div className="field" style={{ marginTop: 8 }}>
-            <label htmlFor="cobro-doc-cliente">{tipoComprobante === 'FACTURA' ? 'RUC del cliente' : 'DNI del cliente'}</label>
-            <div className="input">
-              <input
-                id="cobro-doc-cliente"
-                value={clienteDocumento}
-                onChange={(e) => setClienteDocumento(e.target.value.replace(/\D/g, ''))}
-                inputMode="numeric"
-                maxLength={tipoComprobante === 'FACTURA' ? 11 : 8}
-                placeholder="Opcional"
-              />
+          {modoPago === 'UNICO' ? (
+            <div className="method-grid">
+              {METODOS.map((m) => {
+                const Ic = Icons[m.ic];
+                return (
+                  <button key={m.value} className={`method-opt ${metodo === m.value ? 'on' : ''}`} onClick={() => setMetodo(m.value)}>
+                    <span className="m-ic" style={{ background: m.color }}><Ic s={16} /></span>{m.label}
+                  </button>
+                );
+              })}
             </div>
-          </div>
+          ) : (
+            <div className="mixed-payment-grid">
+              {METODOS.map((m) => {
+                const Ic = Icons[m.ic];
+                return (
+                  <label key={m.value} className={`mixed-payment-row ${Number(distribucionPago[m.value]) > 0 ? 'on' : ''}`}>
+                    <span className="m-ic" style={{ background: m.color }}><Ic s={15} /></span>
+                    <span>{m.label}</span>
+                    <span className="input mixed-payment-input"><span className="muted">S/</span><input
+                      aria-label={`Monto ${m.label}`}
+                      value={distribucionPago[m.value]}
+                      onChange={(e) => {
+                        const value = e.target.value.replace(/[^\d.]/g, '');
+                        setDistribucionPago({ ...distribucionPago, [m.value]: value });
+                        if (m.value === 'EFECTIVO') setRecibido(value);
+                      }}
+                      inputMode="decimal"
+                      placeholder="0.00"
+                    /></span>
+                  </label>
+                );
+              })}
+              <div className={`mixed-payment-summary ${cantidadMetodosDistribuidos >= 2 && Math.abs(diferenciaDistribucion) < 0.01 ? 'ok' : 'warn'}`}>
+                <span>Distribuido <b className="mono">{fmt(totalDistribuido)}</b></span>
+                <span>{cantidadMetodosDistribuidos < 2
+                  ? 'Selecciona por lo menos dos métodos'
+                  : Math.abs(diferenciaDistribucion) < 0.01
+                    ? 'Cuadra con el total'
+                    : `${diferenciaDistribucion > 0 ? 'Falta' : 'Excede'} ${fmt(Math.abs(diferenciaDistribucion))}`}</span>
+              </div>
+            </div>
+          )}
         </div>
-        <div>
-          <div className="hint" style={{ fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 8 }}>Método de pago</div>
-          <div className="method-grid">
-            {METODOS.map((m) => {
-              const Ic = Icons[m.ic];
-              return (
-                <button key={m.value} className={`method-opt ${metodo === m.value ? 'on' : ''}`} onClick={() => setMetodo(m.value)}>
-                  <span className="m-ic" style={{ background: m.color }}><Ic s={16} /></span>{m.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-        {metodo === 'EFECTIVO' && (
+        {usaEfectivo && (
           <div className="cobro-keypad-layout" style={{ gap: 14 }}>
             <div>
-              <div className="field" style={{ marginBottom: 8 }}><label htmlFor="cobro-recibido">Recibido</label><div className="input"><span className="muted">S/</span><input id="cobro-recibido" value={recibido} onChange={(e) => setRecibido(e.target.value.replace(/[^\d.]/g, ''))} inputMode="none" style={{ fontSize: 18, fontWeight: 800 }} /></div></div>
+              <div className="field" style={{ marginBottom: 8 }}><label htmlFor="cobro-recibido">Recibido en efectivo {modoPago === 'COMBINADO' && `(corresponde ${fmt(efectivoEsperado)})`}</label><div className="input"><span className="muted">S/</span><input id="cobro-recibido" value={recibido} onChange={(e) => setRecibido(e.target.value.replace(/[^\d.]/g, ''))} inputMode="none" style={{ fontSize: 18, fontWeight: 800 }} /></div></div>
               <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
-                {['exacto', 50, 100, 200].map((c) => <button key={c} className="chip" onClick={() => setRecibido(c === 'exacto' ? totalConTip.toFixed(2) : String(c))}>{c === 'exacto' ? 'Exacto' : 'S/ ' + c}</button>)}
+                {['exacto', 50, 100, 200].map((c) => <button key={c} className="chip" onClick={() => setRecibido(c === 'exacto' ? efectivoEsperado.toFixed(2) : String(c))}>{c === 'exacto' ? 'Exacto' : 'S/ ' + c}</button>)}
               </div>
               <div className="cuadre ok" style={{ marginTop: 12, padding: '12px 14px' }} aria-live="polite" aria-label={`Vuelto: ${vuelto > 0 ? 'S/ ' + vuelto.toFixed(2) : 'Sin vuelto'}`}>
                 <div className="lbl">Vuelto</div><div className="big" style={{ fontSize: 26 }}>{fmt(vuelto)}</div>
@@ -529,12 +734,14 @@ function CobroBody({
           {faltaPago && online && (
             <div className="banner warn" role="status" aria-live="polite">
               <Icons.Alert s={16} />
-              <span>El monto recibido es menor al total. Ingresa al menos <b className="mono">S/ {(totalConTip - Number(recibido || 0)).toFixed(2)}</b> más.</span>
+              <span>{modoPago === 'COMBINADO'
+                ? 'La distribución debe cuadrar con el total y el efectivo recibido debe cubrir su parte.'
+                : <>El monto recibido es menor al total. Ingresa al menos <b className="mono">S/ {(totalConTip - Number(recibido || 0)).toFixed(2)}</b> más.</>}</span>
             </div>
           )}
           <button
             className="btn btn-primary btn-block"
-            disabled={!cuentaActiva || loading || !online || faltaPago}
+            disabled={!cuentaActiva || loading || !online || faltaPago || !documentoValido || procesando}
             onClick={onPagar}
             aria-describedby="cobro-pago-hint"
           >

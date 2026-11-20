@@ -1,4 +1,4 @@
-import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { getOrCreateCounter, OperableLog } from '@org/observabilidad';
 import { ServiceTokenService } from '@org/shared-auth';
 import { CircuitBreakerOptions, createBulkhead, retryAsync } from '@org/resiliencia';
@@ -11,6 +11,8 @@ const CODIGOS_RED_TRANSITORIA = new Set([
 ]);
 
 export interface CuentaRemota {
+  pedidos?: import('@org/contracts').PedidoSnapshot[];
+  tenantId?: string | null;
   id: string;
   mesaId: string;
   sedeId: string;
@@ -20,6 +22,9 @@ export interface CuentaRemota {
   // quién cobró). Opcional: cuentas antiguas/sin pedido con mesero no lo traen.
   meseroId?: string;
   meseroNombre?: string;
+  // Código legible de la atención ("A0000001"). Ausente en cuentas
+  // anteriores a este campo.
+  correlativo?: string;
 }
 
 /**
@@ -81,6 +86,20 @@ export class CuentasHttpClient {
     }
   }
 
+  async validarEmisor(tenantId: string, sedeId: string, empresaRuc: string): Promise<void> {
+    const url = process.env.FACTURACION_SERVICE_URL ?? 'http://servicio-facturacion:3000/api';
+    const token = this.serviceTokenService.generateServiceToken('servicio-caja', 'servicio-facturacion');
+    try {
+      await axios.post(`${url}/comprobantes/validar-emisor`, { tenantId, sedeId, empresaRuc }, {
+        timeout: this.READ_TIMEOUT_MS, headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch (error) {
+      const status = (error as { response?: { status?: number } }).response?.status;
+      if (status && status < 500) throw new BadRequestException('El emisor seleccionado no está configurado para esta sede.');
+      throw new ServiceUnavailableException('No se pudo validar el emisor. Intenta nuevamente.');
+    }
+  }
+
   async fetchCuenta(cuentaId: string): Promise<CuentaRemota> {
     try {
       return await this.bulkhead.run(() => this.fetchCuentaConBreaker(cuentaId));
@@ -90,11 +109,49 @@ export class CuentasHttpClient {
     }
   }
 
-  async cerrarCuenta(cuentaId: string, descuento: number) {
+  async cerrarCuenta(cuentaId: string, descuento: number, documentadaEnCaja = false) {
     try {
-      return await this.bulkhead.run(() => this.cerrarCuentaConBreaker(cuentaId, descuento));
+      return await this.bulkhead.run(() => this.cerrarCuentaConBreaker(cuentaId, descuento, documentadaEnCaja));
     } catch (error) {
       this.throwSiRedTransitoria(error, 'cerrarCuenta', cuentaId);
+      throw error;
+    }
+  }
+
+  // Usado por cerrarTurno para bloquear el cierre si queda algo por cobrar.
+  async listarCuentasAbiertas(sedeId: string): Promise<Array<{ id: string; mesaId: string; numeroMesa?: number; total: number }>> {
+    try {
+      return await this.bulkhead.run(() => this.listarCuentasAbiertasConBreaker(sedeId));
+    } catch (error) {
+      this.throwSiRedTransitoria(error, 'listarCuentasAbiertas', sedeId);
+      throw error;
+    }
+  }
+
+  @CircuitBreakerOptions({
+    timeout: Number(process.env['CUENTAS_TIMEOUT_MS'] ?? 2000) + 500,
+    errorThresholdPercentage: 50,
+    resetTimeout: 30_000,
+  })
+  private async listarCuentasAbiertasConBreaker(sedeId: string): Promise<Array<{ id: string; mesaId: string; numeroMesa?: number; total: number }>> {
+    try {
+      const res = await retryAsync(
+        () =>
+          axios.get<{ cuentas: Array<{ id: string; mesaId: string; numeroMesa?: number; total: number }> }>(
+            `${this.CUENTAS_URL}/abiertas`,
+            {
+              params: { sedeId },
+              timeout: this.READ_TIMEOUT_MS,
+              headers: { Authorization: `Bearer ${this.getServiceToken()}` },
+              httpAgent: this.bulkhead.httpAgent,
+              httpsAgent: this.bulkhead.httpsAgent,
+            },
+          ),
+        { retries: 1, baseMs: 250 },
+      );
+      return res.data.cuentas;
+    } catch (error) {
+      this.contarTimeout(error);
       throw error;
     }
   }
@@ -133,11 +190,11 @@ export class CuentasHttpClient {
     errorFilter: (error: { response?: { status: number } }) =>
       Boolean(error?.response?.status && error.response.status < 500),
   })
-  private async cerrarCuentaConBreaker(cuentaId: string, descuento: number) {
+  private async cerrarCuentaConBreaker(cuentaId: string, descuento: number, documentadaEnCaja: boolean) {
     try {
       const res = await axios.post(
         `${this.CUENTAS_URL}/${cuentaId}/cerrar`,
-        { descuento },
+        { descuento, ...(documentadaEnCaja ? { documentadaEnCaja } : {}) },
         {
           timeout: this.CIERRE_TIMEOUT_MS,
           headers: { Authorization: `Bearer ${this.getServiceToken()}` },

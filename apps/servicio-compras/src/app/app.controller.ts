@@ -1,3 +1,4 @@
+import { ActualizarCategoriaInsumoCommand, CrearCategoriaInsumoCommand, ListarCategoriasInsumoQuery, RegistrarMovimientoInsumoCommand, ListarMovimientosInsumoQuery, RegistrarConteoInsumosCommand } from '@org/contracts';
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, Res, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
@@ -23,6 +24,8 @@ import {
   SubirComprobanteCommand,
 } from '@org/contracts';
 import { ProveedoresService } from './proveedores.service';
+import { CategoriasInsumoService } from './categorias-insumo.service';
+import { MovimientosInsumoService } from './movimientos-insumo.service';
 import { InsumosService } from './insumos.service';
 import { OrdenesService } from './ordenes.service';
 import { RecepcionesService } from './recepciones.service';
@@ -47,6 +50,8 @@ export class AppController {
   constructor(
     private readonly proveedores: ProveedoresService,
     private readonly insumos: InsumosService,
+    private readonly categoriasInsumo: CategoriasInsumoService,
+    private readonly movimientos: MovimientosInsumoService,
     private readonly ordenes: OrdenesService,
     private readonly recepciones: RecepcionesService,
     private readonly comprobantes: ComprobantesService,
@@ -88,7 +93,51 @@ export class AppController {
     return this.proveedores.eliminar(id, usuarioSedeId);
   }
 
+  // ── Categorias del almacen de cocina (T-50) ──
+  // Taxonomia propia del almacen: nada que ver con las categorias de la carta,
+  // que viven en servicio-inventario. COCINA puede leerlas para filtrar.
+  @Roles('ADMIN', 'SISTEMA', 'GERENCIA', 'COCINA')
+  @Get('categorias-insumo')
+  listarCategoriasInsumo(
+    @Query() query: ListarCategoriasInsumoQuery,
+    @UsuarioActual('sedeId') usuarioSedeId: string | null,
+
+    @TenantActual() tenantId?: string | null,
+  ) {
+    return this.categoriasInsumo.listar(query, usuarioSedeId, tenantId);
+  }
+
+  @Post('categorias-insumo')
+  crearCategoriaInsumo(
+    @Body() body: CrearCategoriaInsumoCommand,
+    @UsuarioActual('sedeId') usuarioSedeId: string | null,
+    @Query('sedeId') sedeId?: string,
+
+    @TenantActual() tenantId?: string | null,
+  ) {
+    return this.categoriasInsumo.crear(body, usuarioSedeId, sedeId, tenantId);
+  }
+
+  @Patch('categorias-insumo/:id')
+  actualizarCategoriaInsumo(
+    @Param('id') id: string,
+    @Body() body: ActualizarCategoriaInsumoCommand,
+    @UsuarioActual('sedeId') usuarioSedeId: string | null,
+
+    @TenantActual() tenantId?: string | null,
+  ) {
+    return this.categoriasInsumo.actualizar(id, body, usuarioSedeId, tenantId);
+  }
+
+  @Delete('categorias-insumo/:id')
+  eliminarCategoriaInsumo(@Param('id') id: string, @UsuarioActual('sedeId') usuarioSedeId: string | null,
+    @TenantActual() tenantId?: string | null,
+  ) {
+    return this.categoriasInsumo.eliminar(id, usuarioSedeId, tenantId);
+  }
+
   // ── Insumos ──
+  @Roles('ADMIN', 'SISTEMA', 'GERENCIA', 'COCINA')
   @Get('insumos')
   listarInsumos(
     @Query() query: ListarInsumosQuery,
@@ -115,13 +164,89 @@ export class AppController {
     @Param('id') id: string,
     @Body() body: ActualizarInsumoCommand,
     @UsuarioActual('sedeId') usuarioSedeId: string | null,
+
+    @TenantActual() tenantId?: string | null,
   ) {
-    return this.insumos.actualizar(id, body, usuarioSedeId);
+    return this.insumos.actualizar(id, body, usuarioSedeId, tenantId);
   }
 
   @Delete('insumos/:id')
-  eliminarInsumo(@Param('id') id: string, @UsuarioActual('sedeId') usuarioSedeId: string | null) {
-    return this.insumos.eliminar(id, usuarioSedeId);
+  eliminarInsumo(@Param('id') id: string, @UsuarioActual('sedeId') usuarioSedeId: string | null,
+    @TenantActual() tenantId?: string | null,
+  ) {
+    return this.insumos.eliminar(id, usuarioSedeId, tenantId);
+  }
+
+  // ── Movimientos de insumo (kardex del almacén de cocina, T-50) ──
+  // El Idempotency-Key evita que un doble toque en 3G descargue dos veces lo
+  // mismo: sin él, cada reintento del cliente sería un consumo real distinto.
+  @Roles('ADMIN', 'SISTEMA', 'GERENCIA', 'COCINA')
+  @UseInterceptors(IdempotencyInterceptor)
+  @Post('insumos/:id/movimientos')
+  registrarMovimientoInsumo(
+    @Param('id') id: string,
+    @Body() body: RegistrarMovimientoInsumoCommand,
+    @UsuarioActual() usuarioId: string | null,
+    @UsuarioActual('nombre') usuarioNombre: string | null,
+    @UsuarioActual('email') usuarioEmail: string | null,
+    @UsuarioActual('sedeId') usuarioSedeId: string | null,
+
+    @TenantActual() tenantId?: string | null,
+  ) {
+    return this.movimientos.registrar(id, body, usuarioDe(usuarioId, usuarioNombre, usuarioEmail), usuarioSedeId, tenantId);
+  }
+
+  @Roles('ADMIN', 'SISTEMA', 'GERENCIA', 'COCINA')
+  @Get('insumos/:id/movimientos')
+  listarMovimientosDeInsumo(
+    @Param('id') id: string,
+    @Query() query: ListarMovimientosInsumoQuery,
+    @UsuarioActual('sedeId') usuarioSedeId: string | null,
+
+    @TenantActual() tenantId?: string | null,
+  ) {
+    return this.movimientos.listar({ ...query, insumoId: id }, usuarioSedeId, tenantId);
+  }
+
+  @Roles('ADMIN', 'SISTEMA', 'GERENCIA', 'COCINA')
+  @Get('movimientos-insumo/:id')
+  obtenerMovimientoInsumo(@Param('id') id: string, @UsuarioActual('sedeId') usuarioSedeId: string | null,
+    @TenantActual() tenantId?: string | null,
+  ) {
+    return this.movimientos.obtener(id, usuarioSedeId, tenantId);
+  }
+
+  @Get('movimientos-insumo')
+  listarMovimientosInsumo(
+    @Query() query: ListarMovimientosInsumoQuery,
+    @UsuarioActual('sedeId') usuarioSedeId: string | null,
+
+    @TenantActual() tenantId?: string | null,
+  ) {
+    return this.movimientos.listar(query, usuarioSedeId, tenantId);
+  }
+
+  // Cuadre físico en lote: lo cierra administración, no cocina — es el momento
+  // en que se acepta oficialmente una diferencia contra el sistema.
+  @UseInterceptors(IdempotencyInterceptor)
+  @Post('insumos/conteo')
+  registrarConteoInsumos(
+    @Body() body: RegistrarConteoInsumosCommand,
+    @UsuarioActual() usuarioId: string | null,
+    @UsuarioActual('nombre') usuarioNombre: string | null,
+    @UsuarioActual('email') usuarioEmail: string | null,
+    @UsuarioActual('sedeId') usuarioSedeId: string | null,
+    @Query('sedeId') sedeId?: string,
+
+    @TenantActual() tenantId?: string | null,
+  ) {
+    return this.movimientos.registrarConteo(
+      body,
+      usuarioDe(usuarioId, usuarioNombre, usuarioEmail),
+      usuarioSedeId,
+      sedeId,
+      tenantId,
+    );
   }
 
   // ── Órdenes de compra ──
@@ -266,8 +391,9 @@ export class AppController {
     @UsuarioActual('sedeId') usuarioSedeId: string | null,
     @Req() req: Request,
     @Res() res: Response,
+    @TenantActual() tenantId?: string | null,
   ): Promise<void> {
-    const c = await this.comprobantes.obtenerComprobante(id, usuarioSedeId);
+    const c = await this.comprobantes.obtenerComprobante(id, usuarioSedeId, tenantId);
     this.enviarArchivo(c.rutaArchivo, c.mimeType, c.bytes, c.sha256, `${c.id}.webp`, req, res);
   }
 
@@ -277,10 +403,28 @@ export class AppController {
     @UsuarioActual('sedeId') usuarioSedeId: string | null,
     @Req() req: Request,
     @Res() res: Response,
+    @TenantActual() tenantId?: string | null,
   ): Promise<void> {
-    const c = await this.comprobantes.obtenerComprobante(id, usuarioSedeId);
+    const c = await this.comprobantes.obtenerComprobante(id, usuarioSedeId, tenantId);
     const ruta = c.rutaMiniatura ?? c.rutaArchivo;
     this.enviarArchivo(ruta, 'image/webp', undefined, `${c.sha256}-thumb`, `${c.id}_thumb.webp`, req, res);
+  }
+
+  @Get('comprobantes/:id/pdf')
+  async pdf(
+    @Param('id') id: string,
+    @UsuarioActual('sedeId') usuarioSedeId: string | null,
+    @Res() res: Response,
+    @TenantActual() tenantId?: string | null,
+  ): Promise<void> {
+    const { buffer, filename } = await this.comprobantes.generarPdf(id, usuarioSedeId, tenantId);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Length': String(buffer.length),
+      'Content-Disposition': `inline; filename="${filename}"`,
+      'Cross-Origin-Resource-Policy': 'cross-origin',
+    });
+    res.end(buffer);
   }
 
   @Delete('comprobantes/:id')

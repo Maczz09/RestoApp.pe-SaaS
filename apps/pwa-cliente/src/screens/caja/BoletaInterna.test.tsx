@@ -36,7 +36,7 @@ describe('BoletaInterna', () => {
   it('muestra el nombre de la sede (o el nombre de marca si no hay sede) en el encabezado', () => {
     render(<BoletaInterna ticket={ticket} transaccion={transaccion} mesaNumero="5" propina={0} onCerrar={vi.fn()} />);
     expect(screen.getByText('RESTOAPP.PE')).toBeInTheDocument();
-    expect(screen.getByText('Boleta de venta')).toBeInTheDocument();
+    expect(screen.getByText('Ticket interno')).toBeInTheDocument();
     expect(screen.getByText('Mesa 5')).toBeInTheDocument();
   });
 
@@ -66,7 +66,7 @@ describe('BoletaInterna', () => {
         onCerrar={vi.fn()}
       />,
     );
-    expect(screen.getByText('Factura de venta')).toBeInTheDocument();
+    expect(screen.getByText('Ticket interno')).toBeInTheDocument();
     expect(screen.getByText('RUC cliente')).toBeInTheDocument();
     expect(screen.getByText('20555555555')).toBeInTheDocument();
   });
@@ -102,7 +102,7 @@ describe('BoletaInterna', () => {
     const sede = { id: 's1', nombre: 'Sede Dos', direccion: null, ruc: null, activa: true };
     render(<BoletaInterna ticket={ticket} transaccion={transaccion} mesaNumero="5" propina={0} sede={sede} onCerrar={onCerrar} />);
 
-    fireEvent.click(screen.getByRole('button', { name: /Imprimir boleta/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Imprimir ticket/i }));
     expect(abrirTicketParaImprimir).toHaveBeenCalledWith({ ticket, transaccion, mesaNumero: '5', propina: 0, sede });
 
     fireEvent.click(screen.getByRole('button', { name: 'Listo' }));

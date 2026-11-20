@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { MesaEstado } from '@org/contracts';
+import { MesaTenantGuard } from './mesa-tenant.guard';
 
 describe('AppController — Mesas', () => {
   let controller: AppController;
@@ -35,7 +36,7 @@ describe('AppController — Mesas', () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AppController],
       providers: [{ provide: AppService, useValue: appService }],
-    }).compile();
+    }).overrideGuard(MesaTenantGuard).useValue({ canActivate: () => true }).compile();
 
     controller = module.get<AppController>(AppController);
   });

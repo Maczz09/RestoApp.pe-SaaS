@@ -21,9 +21,11 @@ model Reserva {
   estado          String   @default("PENDIENTE")
   usuarioId       String?
   usuarioNombre   String?
+  correlativo     String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
+  @@unique([sedeId, correlativo])
   @@index([tenantId])
   @@index([fecha, hora])
   @@index([estado])
@@ -48,3 +50,9 @@ model OutboxEvent {
   @@map("outbox_events")
 }
 
+
+model SecuenciaReserva {
+  sedeId String @id
+  ultimo Int @default(0)
+  @@map("secuencias_reserva")
+}

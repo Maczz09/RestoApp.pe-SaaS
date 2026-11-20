@@ -41,6 +41,9 @@ export interface TicketItemDto {
 }
 
 export interface TicketDto {
+  serie?: string | null;
+  correlativo?: number | null;
+  medios?: Array<{ metodo: string; monto: number; propina: number }>;
   id: string;
   cuentaId: string;
   mesaId: string;
@@ -90,6 +93,7 @@ export interface DividirCuentaResponse {
 }
 
 export const TipoComprobante = {
+  Ticket: 'TICKET',
   Boleta: 'BOLETA',
   Factura: 'FACTURA',
 } as const;
@@ -97,6 +101,13 @@ export const TipoComprobante = {
 export type TipoComprobante = (typeof TipoComprobante)[keyof typeof TipoComprobante];
 
 export interface RegistrarPagoPayload {
+  documentoV2?: boolean;
+  empresaRuc?: string;
+  clienteNombre?: string;
+  clienteRazonSocial?: string;
+  divisionPlanId?: string;
+  divisionParteId?: string;
+  divisionVersion?: number;
   cuentaId: string;
   montoRecibido: number;
   metodo: MetodoPago;
@@ -108,6 +119,26 @@ export interface RegistrarPagoPayload {
   tipoComprobante?: TipoComprobante;
   /** DNI (boleta) o RUC (factura) del cliente. Opcional, informativo — no es el comprobante SUNAT. */
   clienteDocumento?: string;
+  /** Traza visible en operaciones/caja; se usa para identificar cada tramo de un pago combinado. */
+  notas?: string;
+}
+
+export interface RegistrarPagoCombinadoPayload {
+  documentoV2?: boolean;
+  empresaRuc?: string;
+  clienteNombre?: string;
+  clienteRazonSocial?: string;
+  divisionPlanId?: string;
+  divisionParteId?: string;
+  divisionVersion?: number;
+  cuentaId: string;
+  pagos: Array<{ metodo: MetodoPago; monto: number; propina?: number }>;
+  descuento?: number;
+  mesaNumero?: string;
+  mesaUnidaCon?: string;
+  tipoComprobante?: TipoComprobante;
+  clienteDocumento?: string;
+  notas?: string;
 }
 
 export interface TransaccionDto {
@@ -126,8 +157,16 @@ export interface TransaccionDto {
 }
 
 export interface RegistrarPagoResponse {
+  documento?: { id: string; tipo: TipoComprobante; estado: 'INTERNO' | 'PENDIENTE_EMISION'; serie?: string | null; correlativo?: number | null };
+
   message?: string;
-  transaccion: TransaccionDto;
+  // true cuando no había turno de caja abierto: el pago quedó en cola y se
+  // registrará solo en cuanto se abra un turno — no hay transaccion/ticket
+  // todavía.
+  queued?: boolean;
+  transaccion?: TransaccionDto;
+  /** Todos los tramos, cuando el cobro usó varios métodos. */
+  transacciones?: TransaccionDto[];
   ticket?: TicketDto;
   // Saldo que queda por cobrar de la cuenta tras este pago; 0 cuando el pago
   // (parcial o único) completó el total y la cuenta quedó cerrada.

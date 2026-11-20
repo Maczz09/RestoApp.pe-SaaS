@@ -5,6 +5,7 @@
 // vez de tener el string repetido en cada pantalla (Sidebar, Header, Login,
 // boleta interna, exports PDF, index.html, manifest.json).
 export const APP_NAME = 'RestoApp.pe';
+export const APP_LOGO = '/brand/logo-completo-claro.png';
 
 export const APP_CONFIG = {
   nombreLocal: APP_NAME,

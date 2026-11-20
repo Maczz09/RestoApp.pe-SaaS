@@ -26,6 +26,15 @@ export interface CajaKpis {
   efectivoEsperado: number;
 }
 
+export type EstadoCuadre = 'ok' | 'faltante' | 'sobrante';
+
+/** Compara lo contado contra lo esperado del arqueo (usado en vivo por
+ * CierreDrawer y al reimprimir un cierre pasado desde HistorialCajaScreen). */
+export function estadoCuadre(descuadre: number): EstadoCuadre {
+  if (Math.abs(descuadre) < 0.005) return 'ok';
+  return descuadre < 0 ? 'faltante' : 'sobrante';
+}
+
 export function computeKpis(movs: MovimientoCajaDto[], efectivoEsperado = 0): CajaKpis {
   const ventas = movs.filter((m) => m.tipo === 'VENTA');
   const ingresos = movs.filter((m) => m.tipo === 'INGRESO');
@@ -40,7 +49,11 @@ export function computeKpis(movs: MovimientoCajaDto[], efectivoEsperado = 0): Ca
     return acc;
   }, {} as Record<MetodoPagoCaja, number>);
 
-  const comprobantes = ventas.length;
+  // Un pago combinado genera una operación por método, pero corresponde a
+  // una sola cuenta cobrada. Los movimientos históricos sin cuentaId se
+  // conservan como comprobantes independientes para no ocultar datos previos.
+  const comprobantes = new Set(ventas.map((venta) => venta.cuentaId).filter(Boolean)).size
+    + ventas.filter((venta) => !venta.cuentaId).length;
   const pendientes = 0;
 
   return { ventas, totalVentas, totalIngresos, totalEgresos, propinas, porMetodo, comprobantes, pendientes, efectivoEsperado };

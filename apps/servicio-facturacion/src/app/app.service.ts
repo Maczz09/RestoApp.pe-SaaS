@@ -10,11 +10,6 @@ import { ActualizarEmpresaDto } from './dto/actualizar-empresa.dto';
 import { CertificadoService } from '../sunat/certificado.service';
 import { SunatSoapClient } from '../sunat/sunat-soap.client';
 
-// Mismo límite que SunatConfigService: el mecanismo de credenciales por
-// variables de entorno solo conoce SUNAT_*_EMPRESA_1_* y _2_* — agregar un
-// tercer slot exigiría tocar ese fallback también, fuera de alcance acá.
-const SLOTS_DISPONIBLES = [1, 2];
-
 // Campos seguros de Empresa: nunca incluye las columnas cifradas
 // (solClaveCifrada, certificadoPfxCifrado, certificadoPassCifrada) — ni
 // siquiera cifradas viajan al frontend, es información write-only.
@@ -49,6 +44,7 @@ export class AppService {
    * que caja/admin ve para elegir qué emitir como boleta o factura SUNAT.
    */
   async registrarComprobantePago(data: CuentaCerradaPayload): Promise<void> {
+    if (data.documentadaEnCaja) return;
     this.logger.log({
       operation: 'registrarComprobantePago',
       aggregateId: data.cuentaId,
@@ -186,22 +182,9 @@ export class AppService {
       throw new BadRequestException('Sube el certificado digital (.p12/.pfx) de la empresa');
     }
 
-    const existente = await this.prisma.empresa.findUnique({ where: { ruc: dto.ruc } });
+    const existente = await this.prisma.empresa.findFirst({ where: { ruc: dto.ruc, tenantId: tenantId ?? null } });
     if (existente) {
       throw new ConflictException(`Ya existe una empresa configurada con el RUC ${dto.ruc}`);
-    }
-
-    if (dto.sedeId) {
-      const emisoresEnSede = await this.prisma.empresa.count({ where: { sedeId: dto.sedeId } });
-      if (emisoresEnSede >= 2) {
-        throw new ConflictException('Esa sede ya tiene los 2 RUC emisores permitidos.');
-      }
-    }
-
-    const ocupados = await this.prisma.empresa.findMany({ select: { slot: true } });
-    const slot = SLOTS_DISPONIBLES.find((s) => !ocupados.some((o) => o.slot === s));
-    if (!slot) {
-      throw new ConflictException('Ya hay 2 empresas configuradas; no se admite una tercera por ahora.');
     }
 
     try {
@@ -215,7 +198,6 @@ export class AppService {
     const empresa = await this.prisma.empresa.create({
       data: {
         ...(tenantId ? { tenantId } : {}),
-        slot,
         ruc: dto.ruc,
         sedeId: dto.sedeId ?? null,
         razonSocial: dto.razonSocial,
@@ -238,10 +220,10 @@ export class AppService {
       operation: 'crearEmpresa',
       aggregateId: empresa.id,
       resultingState: 'CONFIGURADA',
-      message: `Empresa ${dto.razonSocial} (RUC ${dto.ruc}) configurada en slot ${slot} vía formulario.`,
+      message: `Empresa ${dto.razonSocial} (RUC ${dto.ruc}) configurada en slot ${empresa.slot} vía formulario.`,
     } satisfies OperableLog);
 
-    this.certificado.invalidarSlot(slot);
+    this.certificado.invalidarSlot(empresa.slot);
     this.soap.invalidarRuc(empresa.ruc);
 
     return empresa;
@@ -283,15 +265,6 @@ export class AppService {
         throw new BadRequestException(
           `El certificado o su contraseña no son válidos: ${(error as Error).message}`,
         );
-      }
-    }
-
-    if (dto.sedeId !== undefined && dto.sedeId !== '') {
-      const otrosEmisoresEnSede = await this.prisma.empresa.count({
-        where: { sedeId: dto.sedeId, id: { not: id } },
-      });
-      if (otrosEmisoresEnSede >= 2) {
-        throw new ConflictException('Esa sede ya tiene los 2 RUC emisores permitidos.');
       }
     }
 

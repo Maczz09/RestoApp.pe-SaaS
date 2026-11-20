@@ -91,6 +91,9 @@ export class ActualizarEstadoMesaCommand {
 }
 
 export class UnirMesasCommand {
+  @IsOptional()
+  @IsString()
+  maestraMesaId?: string;
   @IsArray()
   @ArrayMinSize(2)
   @IsString({ each: true })

@@ -1,14 +1,15 @@
-import { Controller, UseInterceptors } from '@nestjs/common';
+import { Controller, UseInterceptors, Optional } from '@nestjs/common';
 import { EventPattern, Payload } from '@nestjs/microservices';
-import { RoutingKeys, MesaCreadaPayload, MesaActualizadaPayload, ProductoCreadoPayload, ProductoActualizadoPayload, StockInsuficientePayload } from '@org/contracts';
+import { RoutingKeys, MesaCreadaPayload, MesaActualizadaPayload, ProductoCreadoPayload, ProductoActualizadoPayload, StockInsuficientePayload, CuentaAsociadaPayload } from '@org/contracts';
 import { AppService } from './app.service';
+import { FusionPedidosService } from './fusion-pedidos.service';
 import { RabbitMQRetryInterceptor } from '@org/resiliencia';
 
 @UseInterceptors(RabbitMQRetryInterceptor)
 @Controller()
 export class EventsController {
 
-  constructor(private readonly appService: AppService) {}
+  constructor(private readonly appService: AppService, @Optional() private readonly fusiones?: FusionPedidosService) {}
 
   @EventPattern(RoutingKeys.MesaCreada)
   async handleMesaCreada(@Payload() payload: MesaCreadaPayload) {
@@ -18,6 +19,7 @@ export class EventsController {
   @EventPattern(RoutingKeys.MesaActualizada)
   async handleMesaActualizada(@Payload() payload: MesaActualizadaPayload) {
     await this.appService.upsertMesaLocal(payload.mesa);
+    await this.fusiones?.limpiarAliasMesa(payload.mesa);
   }
 
   @EventPattern(RoutingKeys.ProductoCreado)
@@ -33,5 +35,10 @@ export class EventsController {
   @EventPattern(RoutingKeys.StockInsuficiente)
   async handleStockInsuficiente(@Payload() payload: StockInsuficientePayload) {
     await this.appService.procesarStockInsuficiente(payload);
+  }
+
+  @EventPattern(RoutingKeys.CuentaAsociada)
+  async handleCuentaAsociada(@Payload() payload: CuentaAsociadaPayload) {
+    await this.appService.procesarCuentaAsociada(payload);
   }
 }

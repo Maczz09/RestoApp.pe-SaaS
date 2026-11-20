@@ -3,6 +3,8 @@ import { OperableLog } from '@org/observabilidad';
 import { SEDE_PRINCIPAL_ID } from '@org/shared-auth';
 import { PrismaService } from '../prisma/prisma.service';
 import { CuentaCerradaPayload, ItemArea, PedidoSnapshotItem } from '@org/contracts';
+import { calcularEstadisticasTicket } from './estadisticas';
+const MENOS_VENDIDOS_LIMITE = 5;
 
 @Injectable()
 export class AppService {
@@ -231,11 +233,11 @@ export class AppService {
     for (let h = 12; h <= 22; h++) {
       horasMap.set(`${String(h).padStart(2, '0')}:00`, 0);
     }
-    
+
     for (const v of ventas) {
       const hora = this.horaLima(new Date(v.fecha));
       const horaKey = `${String(hora).padStart(2, '0')}:00`;
-      
+
       horasMap.set(horaKey, (horasMap.get(horaKey) || 0) + Number(v.total));
     }
 
@@ -263,19 +265,25 @@ export class AppService {
       }
     }
 
-    const ranking = (stats: Map<string, { nombre: string; cantidad: number; ingresos: number }>) => Array.from(stats.entries())
-      .map(([productoId, stats]) => ({
-        productoId,
-        nombre: stats.nombre,
-        cantidad: stats.cantidad,
-        ingresos: stats.ingresos,
-      }))
-      .filter(p => p.cantidad > 0)
-      .sort((a, b) => b.cantidad - a.cantidad)
-      .slice(0, 10);
+    const ordenarStats = (stats: Map<string, { nombre: string; cantidad: number; ingresos: number }>) =>
+      Array.from(stats.entries())
+        .map(([productoId, s]) => ({ productoId, nombre: s.nombre, cantidad: s.cantidad, ingresos: s.ingresos }))
+        .filter((p) => p.cantidad > 0);
 
-    const topPlatos = ranking(platoStats);
-    const topProductos = ranking(inventarioStats);
+    const platosOrdenados = ordenarStats(platoStats);
+    const inventarioOrdenado = ordenarStats(inventarioStats);
+
+    const topPlatos = [...platosOrdenados].sort((a, b) => b.cantidad - a.cantidad).slice(0, 10);
+    const topProductos = [...inventarioOrdenado].sort((a, b) => b.cantidad - a.cantidad).slice(0, 10);
+    // Menos vendidos: solo entre platos que SÍ se vendieron al menos una vez —
+    // uno que nunca se pidió no está en platoStats (viene de ventas reales,
+    // no del catálogo completo de la carta), así que esto no reemplaza un
+    // reporte de "platos sin ninguna venta". Queda acotado a Carta/Menú
+    // (igual que antes de separar los rankings): es la lista que sirve para
+    // decidir qué sacar de la carta, no para decidir stock de inventario.
+    const productosMenosVendidos = [...platosOrdenados].sort((a, b) => a.cantidad - b.cantidad).slice(0, MENOS_VENDIDOS_LIMITE);
+
+    const estadisticasTicket = calcularEstadisticasTicket(ventas.map((v) => Number(v.total)));
 
     return {
       fecha: gte,
@@ -283,8 +291,11 @@ export class AppService {
       totalVentas: ventas.length,
       ingresosTotales: totalIngresos,
       ventasPorHora,
+      productosMenosVendidos,
+      estadisticasTicket,
       topPlatos,
       topProductos,
     };
   }
+
 }

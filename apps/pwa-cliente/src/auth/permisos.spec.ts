@@ -15,7 +15,7 @@ describe('ACCESO_POR_ROL', () => {
   });
 
   it('COCINA tiene acceso a cocina y carta (para desactivar platos)', () => {
-    expect(ACCESO_POR_ROL.COCINA.rutas).toEqual(['cocina', 'carta']);
+    expect(ACCESO_POR_ROL.COCINA.rutas).toEqual(['cocina', 'impresion-cocina', 'carta']);
     expect(ACCESO_POR_ROL.COCINA.home).toBe('cocina');
   });
 

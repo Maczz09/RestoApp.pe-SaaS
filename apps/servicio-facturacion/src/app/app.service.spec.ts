@@ -41,6 +41,8 @@ describe('AppService — Facturación', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     prisma.empresa.count.mockResolvedValue(0);
+    prisma.empresa.findFirst.mockReset();
+    (extraerClavesDesdePfx as jest.Mock).mockReturnValue({ privateKeyPem: 'pem', certPem: 'pem' });
     crypto.configurada.mockReturnValue(true);
     service = new AppService(
       prisma as unknown as PrismaService,
@@ -51,6 +53,10 @@ describe('AppService — Facturación', () => {
   });
 
   describe('registrarComprobantePago', () => {
+    it('no genera otra emisión por el cierre de una cuenta documentada en Caja', async () => {
+      await service.registrarComprobantePago({ cuentaId: 'c-ticket', mesaId: 'mesa', sedeId: 'sede', total: 200, items: [], documentadaEnCaja: true });
+      expect(prisma.comprobantePago.upsert).not.toHaveBeenCalled();
+    });
     it('cae a Sede Principal cuando el evento no trae sedeId (rollout)', async () => {
       await service.registrarComprobantePago({
         cuentaId: 'c-legado', mesaId: 'm-1', total: 50, items: [],
@@ -167,20 +173,21 @@ describe('AppService — Facturación', () => {
     });
 
     it('rechaza si ya existe una empresa con ese RUC', async () => {
-      prisma.empresa.findUnique.mockResolvedValue({ id: 'e-existente', ruc: dto.ruc });
+      prisma.empresa.findFirst.mockResolvedValue({ id: 'e-existente', ruc: dto.ruc });
       await expect(service.crearEmpresa(dto, pfxBuffer)).rejects.toThrow(/Ya existe una empresa/);
       expect(prisma.empresa.create).not.toHaveBeenCalled();
     });
 
-    it('rechaza si los 2 slots ya están ocupados', async () => {
-      prisma.empresa.findUnique.mockResolvedValue(null);
-      prisma.empresa.findMany.mockResolvedValue([{ slot: 1 }, { slot: 2 }]);
-      await expect(service.crearEmpresa(dto, pfxBuffer)).rejects.toThrow(/tercera/);
-      expect(prisma.empresa.create).not.toHaveBeenCalled();
+    it('permite más de dos empresas y delega la numeración al contador de BD', async () => {
+      prisma.empresa.findFirst.mockResolvedValue(null);
+      prisma.empresa.create.mockResolvedValue({ id: 'e3', slot: 3, ruc: dto.ruc });
+      await expect(service.crearEmpresa(dto, pfxBuffer, 'tenant-3')).resolves.toMatchObject({ slot: 3 });
+      expect(prisma.empresa.findFirst).toHaveBeenCalledWith({ where: { ruc: dto.ruc, tenantId: 'tenant-3' } });
+      expect(prisma.empresa.create.mock.calls[0][0].data).not.toHaveProperty('slot');
     });
 
     it('rechaza si el certificado o la contraseña no son válidos', async () => {
-      prisma.empresa.findUnique.mockResolvedValue(null);
+      prisma.empresa.findFirst.mockResolvedValue(null);
       prisma.empresa.findMany.mockResolvedValue([]);
       (extraerClavesDesdePfx as jest.Mock).mockImplementation(() => {
         throw new Error('Invalid password / mac verify failure');
@@ -190,11 +197,11 @@ describe('AppService — Facturación', () => {
     });
 
     it('asigna el slot 1 cuando no hay ninguna empresa, cifra las credenciales y nunca devuelve secretos', async () => {
-      prisma.empresa.findUnique.mockResolvedValue(null);
+      prisma.empresa.findFirst.mockResolvedValue(null);
       prisma.empresa.findMany.mockResolvedValue([]);
       (extraerClavesDesdePfx as jest.Mock).mockReturnValue({ privateKeyPem: 'pem', certPem: 'pem' });
       prisma.empresa.create.mockImplementation(({ data }) => ({
-        id: 'e-nueva', slot: data.slot, ruc: data.ruc, razonSocial: data.razonSocial, activo: true,
+        id: 'e-nueva', slot: 1, ruc: data.ruc, razonSocial: data.razonSocial, activo: true,
       }));
 
       const resultado = await service.crearEmpresa(dto, pfxBuffer);
@@ -202,7 +209,6 @@ describe('AppService — Facturación', () => {
       expect(prisma.empresa.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            slot: 1,
             ruc: dto.ruc,
             solUsuario: dto.solUsuario,
             solClaveCifrada: 'enc:clave-sol-secreta',
@@ -222,34 +228,32 @@ describe('AppService — Facturación', () => {
       expect(resultado).toEqual({ id: 'e-nueva', slot: 1, ruc: dto.ruc, razonSocial: dto.razonSocial, activo: true });
     });
 
-    it('rechaza si la sede pedida ya tiene los dos RUC enlazados', async () => {
-      prisma.empresa.findUnique.mockResolvedValue(null);
-      prisma.empresa.count.mockResolvedValue(2);
-      await expect(
-        service.crearEmpresa({ ...dto, sedeId: 'sede-1' }, pfxBuffer),
-      ).rejects.toThrow(/2 RUC emisores/);
-      expect(prisma.empresa.create).not.toHaveBeenCalled();
+    it('permite un tercer RUC en una sede', async () => {
+      prisma.empresa.findFirst.mockResolvedValue(null);
+      prisma.empresa.create.mockResolvedValue({ id: 'e3', slot: 3, ruc: dto.ruc });
+      await expect(service.crearEmpresa({ ...dto, sedeId: 'sede-1' }, pfxBuffer, 'tenant-1')).resolves.toMatchObject({ slot: 3 });
+      expect(prisma.empresa.create.mock.calls[0][0].data).toMatchObject({ tenantId: 'tenant-1', sedeId: 'sede-1' });
     });
 
     it('permite enlazar el segundo RUC a la misma sede', async () => {
-      prisma.empresa.findUnique.mockResolvedValue(null);
+      prisma.empresa.findFirst.mockResolvedValue(null);
       prisma.empresa.count.mockResolvedValue(1);
       prisma.empresa.findMany.mockResolvedValue([{ slot: 1 }]);
       (extraerClavesDesdePfx as jest.Mock).mockReturnValue({ privateKeyPem: 'pem', certPem: 'pem' });
-      prisma.empresa.create.mockImplementation(({ data }) => ({ id: 'e-2', ...data }));
+      prisma.empresa.create.mockImplementation(({ data }) => ({ id: 'e-2', slot: 2, ...data }));
 
       await service.crearEmpresa({ ...dto, sedeId: 'sede-1' }, pfxBuffer);
 
       expect(prisma.empresa.create).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ sedeId: 'sede-1', slot: 2 }) }),
+        expect.objectContaining({ data: expect.objectContaining({ sedeId: 'sede-1' }) }),
       );
     });
 
     it('guarda la sede cuando viene y no está ocupada', async () => {
-      prisma.empresa.findUnique.mockResolvedValue(null);
+      prisma.empresa.findFirst.mockResolvedValue(null);
       prisma.empresa.findMany.mockResolvedValue([]);
       (extraerClavesDesdePfx as jest.Mock).mockReturnValue({ privateKeyPem: 'pem', certPem: 'pem' });
-      prisma.empresa.create.mockImplementation(({ data }) => ({ id: 'e-nueva', ...data }));
+      prisma.empresa.create.mockImplementation(({ data }) => ({ id: 'e-nueva', slot: 1, ...data }));
 
       await service.crearEmpresa({ ...dto, sedeId: 'sede-1' }, pfxBuffer);
 
@@ -259,15 +263,15 @@ describe('AppService — Facturación', () => {
     });
 
     it('asigna el slot 2 cuando el slot 1 ya está ocupado', async () => {
-      prisma.empresa.findUnique.mockResolvedValue(null);
+      prisma.empresa.findFirst.mockResolvedValue(null);
       prisma.empresa.findMany.mockResolvedValue([{ slot: 1 }]);
       (extraerClavesDesdePfx as jest.Mock).mockReturnValue({ privateKeyPem: 'pem', certPem: 'pem' });
-      prisma.empresa.create.mockImplementation(({ data }) => ({ ...data, id: 'e-2' }));
+      prisma.empresa.create.mockImplementation(({ data }) => ({ ...data, id: 'e-2', slot: 2 }));
 
       await service.crearEmpresa(dto, pfxBuffer);
 
       expect(prisma.empresa.create).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ slot: 2 }) as unknown }),
+        expect.objectContaining({ data: expect.not.objectContaining({ slot: expect.any(Number) }) }),
       );
     });
   });
@@ -373,11 +377,10 @@ describe('AppService — Facturación', () => {
       );
     });
 
-    it('rechaza si la sede pedida ya tiene otros dos RUC enlazados', async () => {
+    it('permite asignar más de dos emisores a una sede', async () => {
       prisma.empresa.findUnique.mockResolvedValue(empresaExistente);
-      prisma.empresa.count.mockResolvedValue(2);
-      await expect(service.actualizarEmpresa('e-1', { sedeId: 'sede-1' })).rejects.toThrow(/2 RUC emisores/);
-      expect(prisma.empresa.update).not.toHaveBeenCalled();
+      prisma.empresa.update.mockResolvedValue({ ...empresaExistente, sedeId: 'sede-1' });
+      await expect(service.actualizarEmpresa('e-1', { sedeId: 'sede-1' })).resolves.toBeDefined();
     });
 
     it('permite "reenlazar" la misma sede que ya tenía (no choca consigo misma)', async () => {

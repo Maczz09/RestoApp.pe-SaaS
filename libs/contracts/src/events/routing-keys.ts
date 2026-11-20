@@ -33,6 +33,7 @@ export const RoutingKeys = {
 
   // Caja
   PagoRegistrado: 'pago.registrado',
+  EmisionCobroSolicitada: 'caja.emision_cobro_solicitada',
   TurnoCajaAbierto: 'turno.abierto',
   TurnoCajaCerrado: 'turno.cerrado',
 

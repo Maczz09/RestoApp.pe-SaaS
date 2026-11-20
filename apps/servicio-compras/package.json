@@ -57,7 +57,8 @@
     "@org/shared-prisma": "*",
     "@org/shared-rabbitmq": "*",
     "@org/observabilidad": "*",
-    "@org/shared-auth": "*"
+    "@org/shared-auth": "*",
+    "pdf-lib": "^1.17.1"
   },
   "devDependencies": {
     "@nestjs/testing": "^11.0.0"

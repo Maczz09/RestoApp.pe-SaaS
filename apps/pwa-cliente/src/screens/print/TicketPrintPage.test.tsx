@@ -33,7 +33,7 @@ describe('TicketPrintPage', () => {
     localStorage.setItem(TICKET_PRINT_KEY, JSON.stringify(payload));
     render(<TicketPrintPage />);
 
-    expect(screen.getByText('Boleta de venta')).toBeInTheDocument();
+    expect(screen.getByText('Ticket interno')).toBeInTheDocument();
     expect(screen.getByText('Mesa 5')).toBeInTheDocument();
     expect(localStorage.getItem(TICKET_PRINT_KEY)).toBeNull();
   });

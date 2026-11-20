@@ -35,6 +35,7 @@ const INITIAL_FORM: CrearUsuarioPayload = {
   nombre: '',
   email: '',
   password: '',
+  telefono: '',
   rol: 'MESERO',
   sedeId: '',
 };
@@ -299,7 +300,7 @@ export function UsuariosScreen() {
                               onClick={() => {
                                 clearFeedback();
                                 setEditingId(usuario.id);
-                                setForm({ nombre: usuario.nombre, email: usuario.email, password: '', rol: usuario.rol, sedeId: usuario.sedeId ?? '' });
+                                setForm({ nombre: usuario.nombre, email: usuario.email, password: '', telefono: usuario.telefono ?? '', rol: usuario.rol, sedeId: usuario.sedeId ?? '' });
                               }}>Editar</button>
                           </td>
                         )}
@@ -339,6 +340,10 @@ export function UsuariosScreen() {
                   <div className="input">
                     <input id="nu-email" required type="email" value={form.email} onChange={(event) => updateForm('email', event.target.value)} placeholder="persona@restoapp.pe" />
                   </div>
+                </div>
+                <div className="field">
+                  <label htmlFor="nu-telefono">Teléfono</label>
+                  <div className="input"><input id="nu-telefono" type="tel" value={form.telefono ?? ''} onChange={(event) => updateForm('telefono', event.target.value)} placeholder="Opcional" /></div>
                 </div>
                 <div className="field">
                   <label htmlFor="nu-pass">Contraseña</label>

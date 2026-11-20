@@ -3,6 +3,7 @@ import * as soap from 'soap';
 import archiver from 'archiver';
 import { PassThrough } from 'node:stream';
 import { join } from 'node:path';
+import { createHash } from 'node:crypto';
 
 export interface EnvioResultado {
   ticket?: string;
@@ -31,11 +32,12 @@ export class SunatSoapClient {
   private readonly clientesPorRuc = new Map<string, soap.Client>();
 
   invalidarRuc(ruc: string): void {
-    this.clientesPorRuc.delete(ruc);
+    for (const key of this.clientesPorRuc.keys()) if (key.startsWith(`${ruc}:`)) this.clientesPorRuc.delete(key);
   }
 
   private async obtenerCliente(ruc: string, solUsuario: string, solClave: string): Promise<soap.Client> {
-    const existente = this.clientesPorRuc.get(ruc);
+    const key = `${ruc}:${createHash('sha256').update(JSON.stringify([solUsuario, solClave])).digest('hex')}`;
+    const existente = this.clientesPorRuc.get(key);
     if (existente) return existente;
 
     const wsdlUrl = process.env['SUNAT_WSDL_URL'];
@@ -46,7 +48,7 @@ export class SunatSoapClient {
     // Usuario SOL de SUNAT: se autentica como RUC + usuarioSOL en el campo
     // Username de WS-Security (convención del servicio, no un estándar WSS).
     client.setSecurity(new soap.WSSecurity(`${ruc}${solUsuario}`, solClave, { hasTimeStamp: false }));
-    this.clientesPorRuc.set(ruc, client);
+    this.clientesPorRuc.set(key, client);
     return client;
   }
 

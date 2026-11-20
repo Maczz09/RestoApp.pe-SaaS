@@ -47,7 +47,7 @@ const mockUsuarios = [
 describe('UsuariosScreen', () => {
   beforeEach(() => {
     vi.mocked(useOnlineStatus).mockReturnValue(true);
-    vi.mocked(useAuthStore).mockImplementation((selector: any) => 
+    vi.mocked(useAuthStore).mockImplementation((selector: any) =>
       selector ? selector({ user: { rol: 'ADMIN' } }) : { user: { rol: 'ADMIN' } }
     );
     vi.mocked(useUsuariosQuery).mockReturnValue({
@@ -71,15 +71,15 @@ describe('UsuariosScreen', () => {
     render(<UsuariosScreen />);
 
     expect(screen.getByText('Usuarios')).toBeDefined();
-    
+
     // Filter by text
     const searchInput = screen.getByPlaceholderText('Buscar por nombre o correo…');
     fireEvent.change(searchInput, { target: { value: 'Mesero' } });
-    
+
     // Filter by Role
     const rolBtn = screen.getByRole('button', { name: 'Cajero' });
     fireEvent.click(rolBtn);
-    
+
     // Switch to Todos
     const todosBtn = screen.getByRole('button', { name: 'Todos' });
     fireEvent.click(todosBtn);
@@ -133,6 +133,7 @@ describe('UsuariosScreen', () => {
         nombre: 'Nuevo Mesero',
         email: 'nuevo@test.com',
         password: 'password123',
+        telefono: '',
         rol: 'COCINA',
         sedeId: 'sede-1',
       });
@@ -186,7 +187,7 @@ describe('UsuariosScreen', () => {
     } as any);
 
     render(<UsuariosScreen />);
-    
+
     // Should see loading state (handled inside component)
     // Table should not be visible when loading, but Skeleton is
     expect(document.body).toBeTruthy();
@@ -311,11 +312,11 @@ describe('UsuariosScreen', () => {
   });
 
   it('handles non-admin view', () => {
-    vi.mocked(useAuthStore).mockImplementation((selector: any) => 
+    vi.mocked(useAuthStore).mockImplementation((selector: any) =>
       selector ? selector({ user: { rol: 'MESERO' } }) : { user: { rol: 'MESERO' } }
     );
     render(<UsuariosScreen />);
-    
+
     expect(screen.queryByText('Nuevo usuario')).toBeNull();
     expect(screen.queryByLabelText('Cambiar rol de Admin User')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Editar a Admin User' })).toBeNull();
@@ -331,7 +332,7 @@ describe('UsuariosScreen', () => {
     fireEvent.change(screen.getByLabelText('Nombre'), { target: { value: 'Admin actualizado' } });
     fireEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }));
     await waitFor(() => expect(editar).toHaveBeenCalledWith('1', {
-      nombre: 'Admin actualizado', email: 'admin@test.com', rol: 'ADMIN', sedeId: undefined,
+      nombre: 'Admin actualizado', email: 'admin@test.com', telefono: '', rol: 'ADMIN', sedeId: undefined,
     }));
     await waitFor(() => expect(screen.getByText('Nuevo usuario')).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: 'Editar a Admin User' }));

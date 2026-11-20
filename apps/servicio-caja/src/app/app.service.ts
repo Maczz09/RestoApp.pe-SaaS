@@ -27,8 +27,12 @@ import {
   CerrarTurnoCajaCommand,
   CrearMovimientoCajaCommand,
   PagarCuentaCajaCommand,
+  PagarCuentaCombinadoCommand,
   RegistrarArqueoCajaCommand,
 } from './caja.dto';
+import { assertCuentaNoBloqueada } from './caja-fusion.service';
+import { completarParteDivision, validarParteDivision } from './division-cuenta.service';
+import { centimos, registrarDocumentoCobro, lineasDocumento, validarDocumentoCobro, type DocumentoCobroResultado } from './documento-cobro';
 import { CuentasHttpClient, CuentaRemota } from './cuentas-http.client';
 
 const METODOS = ['EFECTIVO', 'TARJETA', 'YAPE', 'PLIN', 'TRANSFERENCIA'] as const;
@@ -72,12 +76,68 @@ export class AppService {
     return usuarioId ?? 'sistema';
   }
 
+  async obtenerTicketInterno(transaccionId: string, tenantId?: string | null, sedeId?: string | null) {
+    if (!tenantId) throw new ForbiddenException('Selecciona un restaurante.');
+    const documento = await this.prisma.documentoCobro.findFirst({
+      where: { tenantId, ...(sedeId ? { sedeId } : {}), tipo: 'TICKET', transaccionIds: { has: transaccionId } },
+    });
+    if (!documento) throw new NotFoundException('Ticket interno no encontrado.');
+    return {
+      id: documento.id, cuentaId: documento.cuentaId, mesaId: documento.mesaId,
+      subtotal: Number(documento.total), total: Number(documento.total), descuento: 0,
+      serie: 'TI01', correlativo: documento.correlativo, items: documento.items,
+      medios: documento.medios, fecha: documento.createdAt.toISOString(),
+    };
+  }
+
+  async obtenerDocumentoCobro(transaccionId: string, tenantId?: string | null, sedeId?: string | null) {
+    if (!tenantId) throw new ForbiddenException('Selecciona un restaurante.');
+    const documento = await this.prisma.documentoCobro.findFirst({
+      where: { tenantId, ...(sedeId ? { sedeId } : {}), transaccionIds: { has: transaccionId } },
+      select: { id: true, tipo: true },
+    });
+    if (!documento) throw new NotFoundException('Cobro documentado no encontrado.');
+    return documento;
+  }
+
   private n(value: unknown): number {
     return Number(value ?? 0);
   }
 
   private money(value: number | string | Prisma.Decimal) {
     return new Prisma.Decimal(value);
+  }
+
+  /**
+   * Una cuenta dividida calcula su saldo desde el total original menos UN
+   * descuento. Permitir que una parte posterior cambie ese descuento mueve la
+   * meta mientras ya hay dinero registrado. Además de rechazar el cambio,
+   * detectamos datos históricos que ya tengan dos descuentos distintos para
+   * no seguir operando sobre un saldo ambiguo.
+   */
+  private validarDescuentoConsistente(
+    pagosPrevios: {
+      _min?: { descuento?: Prisma.Decimal | null };
+      _max?: { descuento?: Prisma.Decimal | null };
+    },
+    descuento: Prisma.Decimal,
+  ): void {
+    const minimo = pagosPrevios._min?.descuento;
+    const maximo = pagosPrevios._max?.descuento;
+    if (minimo == null && maximo == null) return;
+
+    const descuentoMinimo = this.money(minimo ?? maximo!);
+    const descuentoMaximo = this.money(maximo ?? minimo!);
+    if (!descuentoMinimo.equals(descuentoMaximo)) {
+      throw new BadRequestException(
+        'La cuenta tiene pagos previos con descuentos inconsistentes; revísala antes de continuar.',
+      );
+    }
+    if (!descuentoMinimo.equals(descuento)) {
+      throw new BadRequestException(
+        `El descuento debe mantenerse en ${descuentoMinimo.toFixed(2)} para todos los pagos de la cuenta.`,
+      );
+    }
   }
 
   async abrirTurno(
@@ -93,7 +153,10 @@ export class AppService {
       orderBy: { abiertoAt: 'desc' },
     });
 
-    if (abierto) return this.mapTurno(abierto);
+    if (abierto) {
+      await this.procesarPagosPendientes(sedeId, tenantId);
+      return this.mapTurno(abierto);
+    }
 
     const fondoInicial = this.money(command.fondoInicial ?? 0);
     let turno;
@@ -146,7 +209,10 @@ export class AppService {
           where: { estado: 'ABIERTA', sedeId, ...(tenantId ? { tenantId } : {}) },
           orderBy: { abiertoAt: 'desc' },
         });
-        if (existente) return this.mapTurno(existente);
+        if (existente) {
+          await this.procesarPagosPendientes(sedeId, tenantId);
+          return this.mapTurno(existente);
+        }
       }
       throw error;
     }
@@ -156,11 +222,110 @@ export class AppService {
       aggregateId: turno.id,
       message: 'Turno de caja abierto.',
     } satisfies OperableLog);
+    await this.procesarPagosPendientes(sedeId, tenantId);
     return this.mapTurno(turno);
   }
 
   private isUniqueConstraintViolation(error: unknown): boolean {
     return typeof error === 'object' && error !== null && (error as { code?: string }).code === 'P2002';
+  }
+
+  /**
+   * Bloquea el cierre de turno si queda alguna cuenta ABIERTA (sin cobrar)
+   * en la sede — el cajero debe cobrarla primero. Si la verificación misma
+   * falla (cuentas caída), NO se bloquea el cierre por eso: una caída
+   * transitoria de una dependencia no debe impedir cerrar la caja del día.
+   */
+  private async verificarSinCuentasAbiertas(sedeId: string): Promise<void> {
+    let abiertas: Array<{ id: string; mesaId: string; numeroMesa?: number; total: number }>;
+    try {
+      abiertas = await this.cuentasHttp.listarCuentasAbiertas(sedeId);
+    } catch (error) {
+      this.logger.warn({
+        operation: 'cerrarTurno',
+        aggregateId: sedeId,
+        dependency: 'cuentas',
+        errorCode: 'VERIFICACION_CUENTAS_ABIERTAS_FALLIDA',
+        message: `No se pudo verificar cuentas abiertas antes de cerrar turno: ${(error as Error).message}`,
+      } satisfies OperableLog);
+      return;
+    }
+    if (abiertas.length === 0) return;
+    const mesas = abiertas.map((c) => (c.numeroMesa != null ? `Mesa ${c.numeroMesa}` : c.mesaId)).join(', ');
+    throw new BadRequestException(
+      `No se puede cerrar el turno: hay ${abiertas.length} cuenta(s) sin cobrar (${mesas}). Cóbralas antes de cerrar caja.`,
+    );
+  }
+
+  /**
+   * Reintenta cada cobro que quedó en espera de esta sede (ver el brazo
+   * "sin turno" de registrarPago) ahora que hay un turno abierto. Cada fila
+   * se reclama con un UPDATE condicional (PENDIENTE → PROCESANDO) antes de
+   * procesarla, para que dos aperturas concurrentes de la misma sede no
+   * paguen la misma fila dos veces. Un fallo individual (la cuenta ya se
+   * cerró por otra vía, el monto ya no cuadra, etc.) NO debe tumbar la
+   * apertura de turno — se marca FALLIDO y se sigue con las demás.
+   */
+  private async procesarPagosPendientes(sedeId: string, tenantId?: string | null): Promise<void> {
+    const pendientes = await this.prisma.pagoPendiente.findMany({
+      where: { sedeId, estado: 'PENDIENTE', ...(tenantId ? { tenantId } : {}) },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    for (const p of pendientes) {
+      const reclamado = await this.prisma.pagoPendiente.updateMany({
+        where: { id: p.id, estado: 'PENDIENTE' },
+        data: { estado: 'PROCESANDO' },
+      });
+      if (reclamado.count === 0) continue; // otra apertura concurrente ya se la llevó
+
+      const command: PagarCuentaCajaCommand = {
+        cuentaId: p.cuentaId,
+        montoRecibido: this.n(p.montoRecibido),
+        metodo: p.metodo as PagarCuentaCajaCommand['metodo'],
+        descuento: p.descuento != null ? this.n(p.descuento) : undefined,
+        propina: p.propina != null ? this.n(p.propina) : undefined,
+        mesaNumero: p.mesaNumero ?? undefined,
+        mesaUnidaCon: p.mesaUnidaCon ?? undefined,
+        referencia: p.referencia ?? undefined,
+        notas: p.notas ?? undefined,
+        tipoComprobante: (p.tipoComprobante as PagarCuentaCajaCommand['tipoComprobante']) ?? undefined,
+        clienteDocumento: p.clienteDocumento ?? undefined,
+      };
+
+      try {
+        const resultado = await this.registrarPago(command, p.usuarioId, p.cajeroNombre, sedeId, p.tenantId);
+        if (resultado.queued) {
+          // No debería ocurrir (el turno se acaba de confirmar abierto),
+          // pero por seguridad: no la marques PROCESADO ni la dejes
+          // atascada en PROCESANDO — vuelve a PENDIENTE para el próximo intento.
+          await this.prisma.pagoPendiente.update({ where: { id: p.id }, data: { estado: 'PENDIENTE' } });
+          continue;
+        }
+        await this.prisma.pagoPendiente.update({
+          where: { id: p.id },
+          data: { estado: 'PROCESADO', transaccionId: resultado.transaccion?.id, procesadoAt: new Date() },
+        });
+        this.logger.log({
+          operation: 'procesarPagosPendientes',
+          aggregateId: p.id,
+          resultingState: 'PROCESADO',
+          message: `Pago en espera ${p.id} (cuenta ${p.cuentaId}) registrado al abrir turno.`,
+        } satisfies OperableLog);
+      } catch (error) {
+        await this.prisma.pagoPendiente.update({
+          where: { id: p.id },
+          data: { estado: 'FALLIDO', error: (error as Error).message, procesadoAt: new Date() },
+        });
+        this.logger.warn({
+          operation: 'procesarPagosPendientes',
+          aggregateId: p.id,
+          errorCode: 'PAGO_PENDIENTE_FALLIDO',
+          resultingState: 'FALLIDO',
+          message: `Pago en espera ${p.id} (cuenta ${p.cuentaId}) no se pudo registrar al abrir turno: ${(error as Error).message}`,
+        } satisfies OperableLog);
+      }
+    }
   }
 
   async obtenerTurnoActivo(usuarioSedeId?: string | null, sedeIdSolicitado?: string, tenantId?: string | null) {
@@ -254,10 +419,14 @@ export class AppService {
     }
   }
 
-  async listarMovimientosTurno(id: string, usuarioSedeId?: string | null, tenantId?: string | null) {
+  async listarMovimientosTurno(id: string, usuarioSedeId?: string | null, tenantId?: string | null, search?: string) {
     await this.assertTurnoDeSede(id, usuarioSedeId, tenantId);
     const movimientos = await this.prisma.movimientoCaja.findMany({
-      where: { turnoId: id, ...(tenantId ? { tenantId } : {}) },
+      where: {
+        turnoId: id, ...(tenantId ? { tenantId } : {}),
+        // Busca por el código de la atención ("A0000001" o un fragmento).
+        ...(search ? { cuentaCorrelativo: { contains: search, mode: 'insensitive' } } : {}),
+      },
       orderBy: { createdAt: 'desc' },
     });
     return { data: movimientos.map((m) => this.mapMovimiento(m)) };
@@ -335,6 +504,18 @@ export class AppService {
     usuarioSedeId?: string | null,
     tenantId?: string | null,
   ) {
+    // Chequeo previo, FUERA de la transacción (igual que registrarPago hace
+    // fetchCuenta antes de su $transaction): no tiene sentido tener abierta
+    // una transacción de Postgres mientras se espera una llamada HTTP.
+    const turnoPrevio = await this.prisma.turnoCaja.findUnique({ where: { id } });
+    if (!turnoPrevio || (usuarioSedeId && turnoPrevio.sedeId !== usuarioSedeId)) {
+      throw new NotFoundException(`Turno ${id} no encontrado`);
+    }
+    if (turnoPrevio.estado !== 'ABIERTA') {
+      throw new BadRequestException('El turno ya está cerrado.');
+    }
+    await this.verificarSinCuentasAbiertas(turnoPrevio.sedeId);
+
     const cierre = await this.prisma.$transaction(async (prisma: import('../generated/prisma').Prisma.TransactionClient) => {
       const turno = await prisma.turnoCaja.findUnique({
         where: { id },
@@ -395,6 +576,8 @@ export class AppService {
         data: { estado: 'CERRADA', cerradoAt: new Date() },
       });
 
+      // Identidad desactiva automáticamente al personal MESERO de esta sede
+      // al cerrar turno — contraparte de TurnoCajaAbierto en abrirTurno.
       const payload: TurnoCajaCerradoPayload = { turnoId: id, sedeId: turno.sedeId };
       await prisma.outboxEvent.create({
         data: {
@@ -431,7 +614,7 @@ export class AppService {
     cajeroNombre?: string | null,
     usuarioSedeId?: string | null,
     tenantId?: string | null,
-  ): Promise<{ message?: string; transaccion: TransaccionDto; ticket?: unknown; turno: unknown; pendiente: number }> {
+  ): Promise<{ message?: string; queued?: boolean; transaccion?: TransaccionDto; ticket?: unknown; turno: unknown; pendiente: number; documento?: unknown }> {
     // T-23 Fase 2: la sede de la operación la determina LA CUENTA, no el
     // usuario — se necesita para encontrar el turno abierto correcto. Por
     // eso fetchCuenta va antes del lookup de turno (orden invertido respecto
@@ -447,17 +630,70 @@ export class AppService {
       throw new ServiceUnavailableException('No se pudo obtener la cuenta. Reintente.');
     }
 
+    if (tenantId && (cuentaRemota.tenantId ? cuentaRemota.tenantId !== tenantId : !usuarioSedeId || cuentaRemota.sedeId !== usuarioSedeId)) {
+      throw new ForbiddenException('La cuenta pertenece a otro restaurante.');
+    }
     const sedeId = cuentaRemota.sedeId ?? SEDE_PRINCIPAL_ID;
     if (usuarioSedeId && usuarioSedeId !== sedeId) {
       throw new ForbiddenException('La cuenta pertenece a otra sede.');
     }
 
+    if ((tenantId || command.documentoV2 || command.tipoComprobante === 'TICKET') && (!tenantId || !command.tipoComprobante)) {
+      throw new BadRequestException('Selecciona el tipo de documento para este restaurante.');
+    }
+    const documentar = Boolean(tenantId && command.tipoComprobante);
     const turno = await this.prisma.turnoCaja.findFirst({
       where: { estado: 'ABIERTA', sedeId, ...(tenantId ? { tenantId } : {}) },
       orderBy: { abiertoAt: 'desc' },
     });
+    if (!turno && (documentar || command.divisionParteId)) throw new BadRequestException('Abre un turno de caja antes de cobrar.');
     if (!turno) {
-      throw new BadRequestException('No hay turno de caja abierto en esta sede.');
+      // En vez de rechazar el cobro, se guarda tal cual el comando que el
+      // cajero ya llenó (mesa, monto, método, comprobante...) y se reintenta
+      // solo en cuanto abra el próximo turno de esta sede — ver
+      // procesarPagosPendientes, llamado desde abrirTurno.
+      const pendiente = await this.prisma.$transaction(async prisma => {
+        await prisma.$executeRaw`SELECT pg_advisory_xact_lock(1234, ('x' || substr(md5(${command.cuentaId}), 1, 8))::bit(32)::int)`;
+        await assertCuentaNoBloqueada(prisma, command.cuentaId);
+        await validarParteDivision(prisma, {
+          cuentaId: command.cuentaId, tenantId, planId: command.divisionPlanId,
+          parteId: command.divisionParteId, version: command.divisionVersion,
+          montoCentimos: centimos(this.money(command.montoRecibido)),
+          propinaCentimos: centimos(this.money(command.propina ?? 0)),
+          descuentoCentimos: centimos(this.money(command.descuento ?? 0)),
+        });
+        return prisma.pagoPendiente.create({
+        data: {
+          ...(tenantId ? { tenantId } : {}),
+          sedeId,
+          cuentaId: command.cuentaId,
+          montoRecibido: this.money(command.montoRecibido),
+          metodo: command.metodo,
+          descuento: command.descuento != null ? this.money(command.descuento) : undefined,
+          propina: command.propina != null ? this.money(command.propina) : undefined,
+          mesaNumero: command.mesaNumero,
+          mesaUnidaCon: command.mesaUnidaCon,
+          referencia: command.referencia,
+          notas: command.notas,
+          tipoComprobante: command.tipoComprobante,
+          clienteDocumento: command.clienteDocumento,
+          usuarioId: usuarioId ?? undefined,
+          cajeroNombre: cajeroNombre ?? undefined,
+        },
+        });
+      });
+      this.logger.log({
+        operation: 'registrarPago',
+        aggregateId: command.cuentaId,
+        resultingState: 'EN_ESPERA_DE_TURNO',
+        message: `Pago ${pendiente.id} puesto en cola: no hay turno de caja abierto en la sede ${sedeId}.`,
+      } satisfies OperableLog);
+      return {
+        message: 'La caja está cerrada: el pago quedó en espera y se registrará automáticamente en cuanto se abra un turno.',
+        queued: true,
+        turno: null,
+        pendiente: this.money(command.montoRecibido).toNumber(),
+      };
     }
 
     const descuento = this.money(command.descuento ?? 0);
@@ -473,9 +709,15 @@ export class AppService {
     // mismo cobro dividido: totalConDescuento se recalcula en cada llamada
     // desde cuentaRemota.total (que no cambia hasta el cierre), así que un
     // descuento inconsistente entre partes correría el total pendiente.
-    const { tx: transaccion, montoPendienteDespues } = await this.prisma.$transaction(async (prisma: import('../generated/prisma').Prisma.TransactionClient) => {
+    if (documentar) {
+      validarDocumentoCobro(command, montoRecibido);
+      if (montoRecibido.decimalPlaces() > 2) throw new BadRequestException('Usa montos con máximo dos decimales.');
+      if (command.tipoComprobante !== 'TICKET') await this.cuentasHttp.validarEmisor(tenantId!, sedeId, command.empresaRuc!);
+    }
+    const { tx: transaccion, montoPendienteDespues, documento } = await this.prisma.$transaction(async (prisma: import('../generated/prisma').Prisma.TransactionClient) => {
       // classid 1234 compartido entre servicios A PROPOSITO: cada servicio tiene su propia BD (database-per-service), el espacio de locks no se cruza.
       await prisma.$executeRaw`SELECT pg_advisory_xact_lock(1234, ('x' || substr(md5(${command.cuentaId}), 1, 8))::bit(32)::int)`;
+      await assertCuentaNoBloqueada(prisma, command.cuentaId);
 
       const cuenta = await prisma.cuentaAbierta.upsert({
         where: { cuentaId: command.cuentaId },
@@ -503,19 +745,31 @@ export class AppService {
       const pagosPrevios = await prisma.transaccion.aggregate({
         where: { cuentaId: command.cuentaId, ...(tenantId ? { tenantId } : {}) },
         _sum: { monto: true },
+        _min: { descuento: true },
+        _max: { descuento: true },
       });
+      this.validarDescuentoConsistente(pagosPrevios, descuento);
       const montoTotalPagado = this.money(pagosPrevios._sum.monto ?? 0);
       const montoPendienteAntes = Prisma.Decimal.max(new Prisma.Decimal(0), totalConDescuento.minus(montoTotalPagado));
 
-      if (montoPendienteAntes.lessThanOrEqualTo(AppService.TOLERANCIA_CENTAVO)) {
+      if (montoPendienteAntes.lessThanOrEqualTo(documentar ? 0 : AppService.TOLERANCIA_CENTAVO)) {
         throw new BadRequestException('La cuenta ya fue cobrada por completo.');
       }
-      if (montoRecibido.greaterThan(montoPendienteAntes.plus(AppService.TOLERANCIA_CENTAVO))) {
+      if (montoRecibido.greaterThan(montoPendienteAntes.plus(documentar ? 0 : AppService.TOLERANCIA_CENTAVO))) {
         throw new BadRequestException(
           `El pago (${montoRecibido.toNumber()}) supera lo pendiente de la cuenta (${montoPendienteAntes.toNumber()}).`,
         );
       }
 
+      const parte = await validarParteDivision(prisma, {
+        cuentaId: command.cuentaId, tenantId, planId: command.divisionPlanId,
+        parteId: command.divisionParteId, version: command.divisionVersion,
+        montoCentimos: centimos(montoRecibido), propinaCentimos: centimos(this.money(command.propina ?? 0)),
+        descuentoCentimos: centimos(descuento), totalCentimos: centimos(this.money(cuentaRemota.total)), pedidos: cuentaRemota.pedidos,
+      });
+      if (documentar && !parte && !montoRecibido.equals(montoPendienteAntes)) {
+        throw new BadRequestException('El importe debe cubrir el saldo exacto del cobro.');
+      }
       const tx = await prisma.transaccion.create({
         data: {
           cuentaId: command.cuentaId,
@@ -534,6 +788,9 @@ export class AppService {
           // así también queda en pagos parciales (T-16), no solo el final.
           meseroId: cuentaRemota.meseroId ?? undefined,
           meseroNombre: cuentaRemota.meseroNombre ?? undefined,
+          // Código legible de la atención ("A0000001"), denormalizado desde
+          // la cuenta remota al momento del cobro.
+          cuentaCorrelativo: cuentaRemota.correlativo ?? undefined,
           // Número de mesa legible (y hermanas si estaba unida) al momento
           // del cobro — mismo dato confiado del cliente que ya se usa para
           // MovimientoCaja.donde, ahora también en la Transaccion.
@@ -555,10 +812,13 @@ export class AppService {
           donde: command.mesaNumero ? `Mesa ${command.mesaNumero}` : `Mesa ${cuenta.mesaId}`,
           metodo: command.metodo,
           monto: montoRecibido,
-          descuento,
+          // El descuento es de la cuenta, no de cada parte. Transaccion lo
+          // conserva como invariante; la cascada visual lo muestra una vez.
+          descuento: montoTotalPagado.isZero() ? descuento : new Prisma.Decimal(0),
           propina: this.money(command.propina ?? 0),
           motivo: command.notas,
           ...(tenantId ? { tenantId } : {}),
+          cuentaCorrelativo: cuentaRemota.correlativo ?? undefined,
         },
       });
 
@@ -571,6 +831,7 @@ export class AppService {
         monto: montoRecibido.toNumber(),
         metodo: command.metodo,
         pendiente: montoPendienteDespues.toNumber(),
+          ...(documentar ? { documentadaEnCaja: true, descuentoCuenta: descuento.toNumber() } : {}),
       };
 
       await prisma.outboxEvent.create({
@@ -582,15 +843,21 @@ export class AppService {
         },
       });
 
-      return { tx, montoPendienteDespues };
+      const documento = documentar ? await registrarDocumentoCobro(
+        prisma, { tenantId: tenantId!, sedeId, cuentaId: command.cuentaId, mesaId: cuenta.mesaId }, command,
+        parte?.items ?? lineasDocumento(cuentaRemota, montoRecibido), [{ metodo: command.metodo, monto: montoRecibido, propina: this.money(command.propina ?? 0) }],
+        [tx.id],
+      ) : undefined;
+      if (parte) await completarParteDivision(prisma, parte.parteId, [tx.id]);
+      return { tx, montoPendienteDespues, documento };
     });
 
     let ticket: unknown;
-    const cierreCompleta = montoPendienteDespues.lessThanOrEqualTo(AppService.TOLERANCIA_CENTAVO);
+    const cierreCompleta = montoPendienteDespues.lessThanOrEqualTo(documentar ? 0 : AppService.TOLERANCIA_CENTAVO);
     if (cierreCompleta) {
       const cierreStart = Date.now();
       try {
-        const cierre = await this.cuentasHttp.cerrarCuenta(command.cuentaId, descuento.toNumber());
+        const cierre = (documento ? await this.cuentasHttp.cerrarCuenta(command.cuentaId, descuento.toNumber(), true) : await this.cuentasHttp.cerrarCuenta(command.cuentaId, descuento.toNumber()));
         ticket = (cierre as Record<string, unknown>)?.ticket;
         await this.prisma.cuentaAbierta.update({
           where: { cuentaId: command.cuentaId },
@@ -627,9 +894,297 @@ export class AppService {
         ? `Pago parcial registrado. Falta ${montoPendienteDespues.toNumber()} por cobrar.`
         : ticket ? 'Pago registrado, cuenta cerrada y ticket generado' : 'Pago registrado; cierre de cuenta en proceso',
       transaccion: transaccionDto,
-      ticket,
+      ticket: documentar ? documento?.ticket : ticket,
+      documento: documento,
       turno: this.mapTurno(turno),
       pendiente: montoPendienteDespues.toNumber(),
+    };
+  }
+
+  /**
+   * Registra todos los medios de un pago combinado como una sola unidad de
+   * trabajo. No hace N llamadas a registrarPago: eso permitiría confirmar un
+   * método y fallar en el siguiente. Las transacciones, movimientos y eventos
+   * de todos los tramos se escriben en una única transacción PostgreSQL bajo el
+   * mismo advisory lock de la cuenta.
+   */
+  async registrarPagoCombinado(
+    command: PagarCuentaCombinadoCommand,
+    usuarioId?: string | null,
+    cajeroNombre?: string | null,
+    usuarioSedeId?: string | null,
+    tenantId?: string | null,
+  ): Promise<{
+    message: string;
+    transacciones: TransaccionDto[];
+    transaccion: TransaccionDto;
+    ticket?: unknown;
+    documento?: DocumentoCobroResultado;
+    turno: unknown;
+    pendiente: number;
+  }> {
+    if (!Array.isArray(command.pagos) || command.pagos.length < 2) {
+      throw new BadRequestException('Un pago combinado requiere al menos dos métodos de pago.');
+    }
+
+    const metodos = new Set(command.pagos.map((pago) => pago.metodo));
+    if (metodos.size !== command.pagos.length) {
+      throw new BadRequestException('Cada método debe aparecer una sola vez en el pago combinado.');
+    }
+
+    const pagos = command.pagos.map((pago) => ({
+      metodo: pago.metodo,
+      monto: this.money(pago.monto),
+      propina: this.money(pago.propina ?? 0),
+    }));
+    if (pagos.some((pago) => pago.monto.lessThanOrEqualTo(0) || pago.propina.lessThan(0))) {
+      throw new BadRequestException('Los montos deben ser mayores que cero y la propina no puede ser negativa.');
+    }
+    if (pagos.some((pago) => pago.monto.decimalPlaces() > 2 || pago.propina.decimalPlaces() > 2)) {
+      throw new BadRequestException('Los importes del pago combinado deben tener como máximo dos decimales.');
+    }
+
+    let cuentaRemota: CuentaRemota;
+    try {
+      cuentaRemota = await this.cuentasHttp.fetchCuenta(command.cuentaId);
+    } catch (error: unknown) {
+      const axiosError = error as { response?: { status: number } };
+      if (axiosError.response?.status === 404) {
+        throw new NotFoundException(`Cuenta ${command.cuentaId} no encontrada.`);
+      }
+      throw new ServiceUnavailableException('No se pudo obtener la cuenta. Reintente.');
+    }
+
+    if (tenantId && (cuentaRemota.tenantId ? cuentaRemota.tenantId !== tenantId : !usuarioSedeId || cuentaRemota.sedeId !== usuarioSedeId)) {
+      throw new ForbiddenException('La cuenta pertenece a otro restaurante.');
+    }
+    const sedeId = cuentaRemota.sedeId ?? SEDE_PRINCIPAL_ID;
+    if (usuarioSedeId && usuarioSedeId !== sedeId) {
+      throw new ForbiddenException('La cuenta pertenece a otra sede.');
+    }
+
+    if ((tenantId || command.documentoV2 || command.tipoComprobante === 'TICKET') && (!tenantId || !command.tipoComprobante)) {
+      throw new BadRequestException('Selecciona el tipo de documento para este restaurante.');
+    }
+    const documentar = Boolean(tenantId && command.tipoComprobante);
+    const turno = await this.prisma.turnoCaja.findFirst({
+      where: { estado: 'ABIERTA', sedeId, ...(tenantId ? { tenantId } : {}) },
+      orderBy: { abiertoAt: 'desc' },
+    });
+    if (!turno) {
+      // Sin una entidad de cola grupal no existe forma de prometer atomicidad:
+      // varias filas PagoPendiente podrían procesarse solo en parte. Es más
+      // seguro rechazar antes de escribir cualquier tramo.
+      throw new BadRequestException(
+        'Abre un turno de caja antes de registrar un pago combinado; no se guardó ningún cobro.',
+      );
+    }
+
+    const descuento = this.money(command.descuento ?? 0);
+    if (descuento.lessThan(0) || descuento.decimalPlaces() > 2) {
+      throw new BadRequestException('El descuento debe ser positivo y tener como máximo dos decimales.');
+    }
+    const totalConDescuento = Prisma.Decimal.max(
+      new Prisma.Decimal(0),
+      this.money(cuentaRemota.total).minus(descuento),
+    );
+    const totalPagoCombinado = pagos.reduce(
+      (total, pago) => total.plus(pago.monto),
+      new Prisma.Decimal(0),
+    );
+
+    if (documentar) {
+      validarDocumentoCobro(command, totalPagoCombinado);
+      if (totalPagoCombinado.decimalPlaces() > 2) throw new BadRequestException('Usa montos con máximo dos decimales.');
+      if (command.tipoComprobante !== 'TICKET') await this.cuentasHttp.validarEmisor(tenantId!, sedeId, command.empresaRuc!);
+    }
+    const resultado = await this.prisma.$transaction(async (prisma: import('../generated/prisma').Prisma.TransactionClient) => {
+      await prisma.$executeRaw`SELECT pg_advisory_xact_lock(1234, ('x' || substr(md5(${command.cuentaId}), 1, 8))::bit(32)::int)`;
+      await assertCuentaNoBloqueada(prisma, command.cuentaId);
+
+      const cuenta = await prisma.cuentaAbierta.upsert({
+        where: { cuentaId: command.cuentaId },
+        create: {
+          ...(tenantId ? { tenantId } : {}),
+          cuentaId: cuentaRemota.id,
+          mesaId: cuentaRemota.mesaId,
+          sedeId,
+          total: cuentaRemota.total,
+          estado: cuentaRemota.estado,
+        },
+        update: {
+          ...(tenantId ? { tenantId } : {}),
+          total: cuentaRemota.total,
+          estado: cuentaRemota.estado,
+          mesaId: cuentaRemota.mesaId,
+          sedeId,
+        },
+      });
+
+      if (cuenta.estado !== 'ABIERTA') {
+        throw new BadRequestException(`La cuenta ya está ${cuenta.estado.toLowerCase()}.`);
+      }
+
+      const pagosPrevios = await prisma.transaccion.aggregate({
+        where: { cuentaId: command.cuentaId, ...(tenantId ? { tenantId } : {}) },
+        _sum: { monto: true },
+        _min: { descuento: true },
+        _max: { descuento: true },
+      });
+      this.validarDescuentoConsistente(pagosPrevios, descuento);
+
+      const montoTotalPagado = this.money(pagosPrevios._sum.monto ?? 0);
+      const montoPendienteAntes = Prisma.Decimal.max(
+        new Prisma.Decimal(0),
+        totalConDescuento.minus(montoTotalPagado),
+      );
+      if (montoPendienteAntes.lessThanOrEqualTo(documentar ? 0 : AppService.TOLERANCIA_CENTAVO)) {
+        throw new BadRequestException('La cuenta ya fue cobrada por completo.');
+      }
+      if (totalPagoCombinado.greaterThan(montoPendienteAntes.plus(documentar ? 0 : AppService.TOLERANCIA_CENTAVO))) {
+        throw new BadRequestException(
+          `El pago combinado (${totalPagoCombinado.toNumber()}) supera lo pendiente de la cuenta (${montoPendienteAntes.toNumber()}).`,
+        );
+      }
+
+      const parte = await validarParteDivision(prisma, {
+        cuentaId: command.cuentaId, tenantId, planId: command.divisionPlanId,
+        parteId: command.divisionParteId, version: command.divisionVersion,
+        montoCentimos: centimos(totalPagoCombinado), propinaCentimos: centimos(pagos.reduce((suma, pago) => suma.plus(pago.propina), this.money(0))),
+        descuentoCentimos: centimos(descuento), totalCentimos: centimos(this.money(cuentaRemota.total)), pedidos: cuentaRemota.pedidos,
+      });
+      if (documentar && !parte && !totalPagoCombinado.equals(montoPendienteAntes)) {
+        throw new BadRequestException('El importe debe cubrir el saldo exacto del cobro.');
+      }
+      const transacciones = [];
+      let montoPendiente = montoPendienteAntes;
+      for (const [indice, pago] of pagos.entries()) {
+        const etiqueta = `Pago combinado ${indice + 1}/${pagos.length}`;
+        const notas = command.notas ? `${etiqueta} · ${command.notas}` : etiqueta;
+        const tx = await prisma.transaccion.create({
+          data: {
+            ...(tenantId ? { tenantId } : {}),
+            cuentaId: command.cuentaId,
+            sedeId,
+            turnoId: turno.id,
+            mesaId: cuenta.mesaId,
+            monto: pago.monto,
+            descuento,
+            metodo: pago.metodo,
+            referencia: command.referencia,
+            notas,
+            usuarioId: usuarioId ?? undefined,
+            cajeroNombre: cajeroNombre ?? undefined,
+            meseroId: cuentaRemota.meseroId ?? undefined,
+            meseroNombre: cuentaRemota.meseroNombre ?? undefined,
+            cuentaCorrelativo: cuentaRemota.correlativo ?? undefined,
+            mesaNumero: command.mesaNumero ?? undefined,
+            mesaUnidaCon: command.mesaUnidaCon ?? undefined,
+            tipoComprobante: command.tipoComprobante ?? 'BOLETA',
+            clienteDocumento: command.clienteDocumento ?? undefined,
+          },
+        });
+
+        await prisma.movimientoCaja.create({
+          data: {
+            ...(tenantId ? { tenantId } : {}),
+            turnoId: turno.id,
+            tipo: 'VENTA',
+            cuentaId: command.cuentaId,
+            transaccionId: tx.id,
+            mesaId: cuenta.mesaId,
+            donde: command.mesaNumero ? `Mesa ${command.mesaNumero}` : `Mesa ${cuenta.mesaId}`,
+            metodo: pago.metodo,
+            monto: pago.monto,
+            descuento: montoTotalPagado.isZero() && indice === 0
+              ? descuento
+              : new Prisma.Decimal(0),
+            propina: pago.propina,
+            motivo: notas,
+            cuentaCorrelativo: cuentaRemota.correlativo ?? undefined,
+          },
+        });
+
+        montoPendiente = Prisma.Decimal.max(new Prisma.Decimal(0), montoPendiente.minus(pago.monto));
+        const payload: PagoRegistradoPayload = {
+          transaccionId: tx.id,
+          cuentaId: command.cuentaId,
+          mesaId: cuenta.mesaId,
+          monto: pago.monto.toNumber(),
+          metodo: pago.metodo,
+          pendiente: montoPendiente.toNumber(),
+          ...(documentar ? { documentadaEnCaja: true, descuentoCuenta: descuento.toNumber() } : {}),
+        };
+        await prisma.outboxEvent.create({
+          data: {
+            ...(tenantId ? { tenantId } : {}),
+            routingKey: RoutingKeys.PagoRegistrado,
+            payload: JSON.stringify(payload),
+            status: 'PENDING',
+          },
+        });
+        transacciones.push(tx);
+      }
+
+      const documento = documentar ? await registrarDocumentoCobro(
+        prisma, { tenantId: tenantId!, sedeId, cuentaId: command.cuentaId, mesaId: cuenta.mesaId }, command,
+        parte?.items ?? lineasDocumento(cuentaRemota, totalPagoCombinado), pagos,
+        transacciones.map(tx => tx.id),
+      ) : undefined;
+      if (parte) await completarParteDivision(prisma, parte.parteId, transacciones.map(tx => tx.id));
+      return { transacciones, montoPendienteDespues: montoPendiente, documento };
+    });
+
+    let ticket: unknown;
+    const cierreCompleta = resultado.montoPendienteDespues.lessThanOrEqualTo(documentar ? 0 : AppService.TOLERANCIA_CENTAVO);
+    if (cierreCompleta) {
+      const cierreStart = Date.now();
+      try {
+        const cierre = (resultado.documento ? await this.cuentasHttp.cerrarCuenta(command.cuentaId, descuento.toNumber(), true) : await this.cuentasHttp.cerrarCuenta(command.cuentaId, descuento.toNumber()));
+        ticket = (cierre as Record<string, unknown>)?.ticket;
+        await this.prisma.cuentaAbierta.update({
+          where: { cuentaId: command.cuentaId },
+          data: { estado: 'CERRADA', total: totalConDescuento },
+        });
+      } catch (error) {
+        this.pagosCierrePendienteCounter.inc();
+        this.logger.warn({
+          operation: 'cerrarCuenta',
+          aggregateId: command.cuentaId,
+          dependency: 'cuentas',
+          durationMs: Date.now() - cierreStart,
+          errorCode: 'CIERRE_REMOTO_FAILED',
+          resultingState: 'PAGO_SIN_CIERRE_CONFIRMADO',
+          message: `Pago combinado registrado; cierre remoto pendiente: ${(error as Error).message}`,
+        } satisfies OperableLog);
+      }
+    }
+
+    const transaccionesDto = resultado.transacciones.map((tx) => this.mapTransaccion(tx));
+    for (const pago of pagos) {
+      this.pagosCounter.inc({ metodo: pago.metodo });
+      this.pagoMontoHistogram.observe({ metodo: pago.metodo }, pago.monto.toNumber());
+    }
+    this.logger.log({
+      operation: 'registrarPagoCombinado',
+      aggregateId: command.cuentaId,
+      message: cierreCompleta
+        ? `Pago combinado registrado con ${pagos.length} métodos; completa el total.`
+        : `Pago combinado parcial registrado con ${pagos.length} métodos; pendiente ${resultado.montoPendienteDespues.toNumber()}.`,
+    } satisfies OperableLog);
+
+    return {
+      message: !cierreCompleta
+        ? `Pago combinado parcial registrado. Falta ${resultado.montoPendienteDespues.toNumber()} por cobrar.`
+        : ticket
+          ? 'Pago combinado registrado, cuenta cerrada y ticket generado'
+          : 'Pago combinado registrado; cierre de cuenta en proceso',
+      transacciones: transaccionesDto,
+      transaccion: transaccionesDto.at(-1)!,
+      ticket: documentar ? resultado.documento?.ticket : ticket,
+      documento: resultado.documento,
+      turno: this.mapTurno(turno),
+      pendiente: resultado.montoPendienteDespues.toNumber(),
     };
   }
 
@@ -693,12 +1248,24 @@ export class AppService {
     if (command.notas !== undefined) data.notas = command.notas;
 
     const transaccion = await this.prisma.$transaction(async (prisma) => {
+        await prisma.$executeRaw`SELECT pg_advisory_xact_lock(1234, ('x' || substr(md5(${existente.cuentaId}), 1, 8))::bit(32)::int)`;
       const actualizada = await prisma.transaccion.update({ where: { id }, data });
       if (command.metodo !== undefined) {
         await prisma.movimientoCaja.updateMany({
           where: { transaccionId: id },
           data: { metodo: command.metodo },
         });
+          const documento = await prisma.documentoCobro.findFirst({ where: {
+            ...(existente.tenantId ? { tenantId: existente.tenantId } : {}), transaccionIds: { has: id },
+          } });
+          if (documento && Array.isArray(documento.medios)) {
+            const medios = documento.medios.map((value, index) => {
+              const medio = value as Record<string, Prisma.JsonValue>;
+              return medio.transaccionId === id || (!medio.transaccionId && documento.transaccionIds[index] === id)
+                ? { ...medio, transaccionId: id, metodo: command.metodo! } : medio;
+            });
+            await prisma.documentoCobro.update({ where: { id: documento.id }, data: { medios } });
+          }
       }
       return actualizada;
     });
@@ -782,7 +1349,11 @@ export class AppService {
       propinas: propinas.toNumber(),
       porMetodo,
       efectivoEsperado: this.computeEfectivoEsperado(movimientos).toNumber(),
-      comprobantes: ventas.length,
+      // Un pago combinado/dividido genera un movimiento por método o parte,
+      // pero sigue siendo una sola cuenta/comprobante interno.
+      comprobantes:
+        new Set(ventas.map((venta) => venta.cuentaId).filter(Boolean)).size
+        + ventas.filter((venta) => !venta.cuentaId).length,
       pendientes: 0,
       arqueo: turno.arqueos?.[0] ? this.mapArqueo(turno.arqueos[0]) : null,
       cierre: turno.cierre ? this.mapCierre(turno.cierre) : null,
@@ -840,6 +1411,7 @@ export class AppService {
       mesaUnidaCon: t.mesaUnidaCon || undefined,
       tipoComprobante: t.tipoComprobante,
       clienteDocumento: t.clienteDocumento || undefined,
+      cuentaCorrelativo: t.cuentaCorrelativo || undefined,
       createdAt: t.createdAt.toISOString(),
     };
   }
@@ -875,6 +1447,7 @@ export class AppService {
       descuento: this.n(m.descuento),
       propina: this.n(m.propina),
       motivo: m.motivo ?? null,
+      cuentaCorrelativo: m.cuentaCorrelativo ?? null,
       createdAt: m.createdAt.toISOString(),
     };
   }

@@ -1,3 +1,4 @@
+import { PDFDocument } from 'pdf-lib';
 import { BadRequestException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { createHash, randomUUID } from 'node:crypto';
 import { constants as fsConstants, promises as fsp } from 'node:fs';
@@ -66,6 +67,30 @@ export class ComprobantesService implements OnModuleInit {
       throw new NotFoundException(`Comprobante ${id} no encontrado`);
     }
     return comprobante;
+  }
+
+  async generarPdf(id: string, usuarioSedeId?: string | null, tenantId?: string | null): Promise<{ buffer: Buffer; filename: string }> {
+    const c = await this.obtenerComprobante(id, usuarioSedeId, tenantId);
+    const webp = await fsp.readFile(this.rutaAbsoluta(c.rutaArchivo));
+
+    const ancho = c.ancho;
+    const alto = c.alto;
+    const jpeg = await sharp(webp).jpeg({ quality: 85 }).toBuffer();
+
+    const pdfDoc = await PDFDocument.create();
+    // Buffer chico → Node lo asigna dentro de su pool compartido de 8 KB
+    // (jpeg.byteOffset != 0, jpeg.buffer es TODO el pool, no solo estos
+    // bytes). pdf-lib no respeta ese byteOffset al leer el header JPEG y
+    // termina mirando bytes de otra asignación — "SOI not found" con un
+    // JPEG perfectamente válido. new Uint8Array(jpeg) copia a un buffer
+    // propio (byteOffset 0) y lo evita.
+    const imagenEmbebida = await pdfDoc.embedJpg(new Uint8Array(jpeg));
+    const pagina = pdfDoc.addPage([ancho, alto]);
+    pagina.drawImage(imagenEmbebida, { x: 0, y: 0, width: ancho, height: alto });
+    const buffer = Buffer.from(await pdfDoc.save());
+
+    const etiqueta = c.serie && c.numero ? `${c.serie}-${c.numero}` : c.id.slice(0, 8);
+    return { buffer, filename: `comprobante-${etiqueta}.pdf` };
   }
 
   async subir(

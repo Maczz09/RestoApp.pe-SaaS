@@ -28,21 +28,13 @@ enum EstadoComprobante {
   OBSERVADO
 }
 
-// Una fila por RUC (slot 1 = La Barra del Ceviche 1, slot 2 = La Barra del
-// Ceviche 2). Las credenciales SUNAT admiten dos vías, en este orden de
-// prioridad (ver SunatConfigService): las columnas cifradas de abajo
-// (cargadas desde el formulario de Facturación, ver EmpresasService) o, si
-// esta fila no las tiene, los secretos de infraestructura
-// (SUNAT_*_EMPRESA_<slot>_*) para el despliegue existente que ya las usa así.
+// Emisor de un restaurante. El slot identifica sus credenciales cifradas.
 model Empresa {
   id                 String   @id @default(uuid())
   tenantId           String?
-  slot               Int      @unique
-  ruc                String   @unique
-  // Sede (servicio-identidad) a la que emite esta empresa. Una sede puede
-  // trabajar con hasta dos RUC; el límite se valida en AppService porque
-  // PostgreSQL no permite expresar cómodamente "máximo dos filas" con un
-  // índice. Nullable para conservar empresas históricas sin asignación.
+  slot               Int      @unique @default(autoincrement())
+  ruc                String
+  // Una sede admite varios RUC emisores.
   sedeId             String?
   razonSocial        String
   nombreComercial    String?
@@ -85,6 +77,7 @@ model Empresa {
   comprobantes Comprobante[]
 
   @@index([tenantId, sedeId])
+  @@unique([tenantId, ruc])
   @@index([sedeId])
   @@map("empresas")
 }
@@ -93,6 +86,8 @@ model Empresa {
 // "comprobante de pago" interno que caja/admin ve para elegir qué emitir
 // como boleta o factura electrónica ante SUNAT. No es un documento fiscal.
 model ComprobantePago {
+  cuentaOrigenId String?
+  solicitudEmision Json?
   id           String                @id @default(uuid())
   tenantId     String?
   cuentaId     String                @unique

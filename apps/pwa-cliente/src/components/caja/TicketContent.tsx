@@ -36,10 +36,12 @@ export function TicketContent({ ticket, transaccion, mesaNumero, propina, sede }
         </div>
         <hr className="zhr" />
         <div className="zc">
-          <div className="zlbl">{esFactura ? 'Factura de venta' : 'Boleta de venta'}</div>
+          <div className="zlbl">Ticket interno</div>
+          <div>No válido como comprobante de pago</div>
           <div style={{ fontWeight: 800, fontSize: 14 }}>Mesa {mesaNumero ?? ticket.mesaId}</div>
         </div>
-        <Row l="Ticket" v={ticket.id.slice(0, 8)} />
+        <Row l="Ticket" v={ticket.serie && ticket.correlativo != null
+          ? `${ticket.serie}-${String(ticket.correlativo).padStart(8, '0')}` : ticket.id.slice(0, 8)} />
         <Row l="Fecha" v={fecha.toLocaleDateString('es-PE')} />
         <Row l="Hora" v={fecha.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })} />
         {transaccion.cajeroNombre && <Row l="Cajero" v={transaccion.cajeroNombre} />}
@@ -56,7 +58,9 @@ export function TicketContent({ ticket, transaccion, mesaNumero, propina, sede }
         <Row l="IGV (18%, incluido)" v={fmt(igv)} />
         <Row l="Total" v={fmt(totalConPropina)} bold />
         <hr className="zhr" />
-        <Row l="Método de pago" v={transaccion.metodo} />
+        {ticket.medios?.length ? ticket.medios.map((medio, index) => (
+          <Row key={`${medio.metodo}-${index}`} l={medio.metodo} v={fmt(medio.monto + medio.propina)} />
+        )) : <Row l="Método de pago" v={transaccion.metodo} />}
       </div>
     </div>
   );

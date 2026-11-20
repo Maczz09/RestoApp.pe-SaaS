@@ -138,6 +138,10 @@ export class CambiarRolCommand {
 export class EditarUsuarioCommand {
   @IsOptional()
   @IsString()
+  telefono?: string | null;
+
+  @IsOptional()
+  @IsString()
   @IsNotEmpty()
   nombre?: string;
 
@@ -193,7 +197,7 @@ export class CambiarPasswordUsuarioCommand {
 export class LoginResponseDto {
   @IsString()
   access_token: string;
-  
+
   usuario: Omit<UsuarioDto, 'activo' | 'createdAt'>;
 
   @IsOptional()

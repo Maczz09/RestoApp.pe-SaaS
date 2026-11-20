@@ -1,4 +1,4 @@
-import { Controller, Get, Logger, UseInterceptors } from '@nestjs/common';
+import { Controller, Get, Logger, Optional, UseInterceptors } from '@nestjs/common';
 import { Ctx, EventPattern, Payload, RmqContext } from '@nestjs/microservices';
 import { TenantActual } from '@org/shared-auth';
 import {
@@ -13,11 +13,13 @@ import {
   ReservaCanceladaPayload,
   ReservaCreadaPayload,
   RoutingKeys,
+  ProductoActualizadoPayload,
 } from '@org/contracts';
 import { RabbitMQRetryInterceptor } from '@org/resiliencia';
 import { OperableLog } from '@org/observabilidad';
 import { AppService } from './app.service';
 import { NotificationsGateway } from './notifications.gateway';
+import { CartaGateway } from './carta.gateway';
 
 @UseInterceptors(RabbitMQRetryInterceptor)
 @Controller()
@@ -27,7 +29,12 @@ export class AppController {
   constructor(
     private readonly appService: AppService,
     private readonly gateway: NotificationsGateway,
+    @Optional() private readonly carta?: CartaGateway,
   ) {}
+  @EventPattern(RoutingKeys.ProductoActualizado)
+  handleDisponibilidadPublica(@Payload() payload: ProductoActualizadoPayload) {
+    this.carta?.emitDisponibilidadCambiada(payload.sedeId, payload.id, payload.disponible);
+  }
 
   @Get()
   async obtenerNotificaciones(@TenantActual() tenantId?: string | null) {

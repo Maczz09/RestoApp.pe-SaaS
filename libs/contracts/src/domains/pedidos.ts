@@ -87,6 +87,14 @@ export class PedidoItemDto {
 }
 
 export class PedidoDto {
+  @IsOptional()
+  @IsString()
+  cuentaId?: string;
+
+  @IsOptional()
+  @IsString()
+  tenantId?: string;
+
   @IsString()
   id: string;
   @IsString()

@@ -78,3 +78,28 @@ model IdempotencyKey {
   @@index([tenantId])
   @@map("idempotency_keys")
 }
+
+model FusionMesas {
+  id String @id @default(uuid())
+  tenantId String
+  sedeId String
+  actorId String
+  maestraMesaId String
+  maestraCuentaId String
+  mesaIds Json
+  cuentaIds Json
+  pedidoIds Json @default("[]")
+  huellas Json @default("{}")
+  estado String @default("PENDIENTE")
+  ultimoError String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([estado, updatedAt])
+  @@map("fusiones_mesas")
+}
+model FusionMesaReserva {
+  mesaId String @id
+  fusionId String
+  @@index([fusionId])
+  @@map("fusion_mesa_reservas")
+}

@@ -17,6 +17,8 @@ export interface MesaLocalEntity {
 }
 
 export interface PedidoEntity {
+  cuentaId?: string | null;
+  tenantId?: string | null;
   id: string;
   mesaId: string;
   sedeId: string;
@@ -30,6 +32,7 @@ export interface PedidoEntity {
   modalidad?: string | null;
   meseroId?: string | null;
   meseroNombre?: string | null;
+  cuentaCorrelativo?: string | null;
   createdAt: Date;
   items: PedidoItemEntity[];
 }

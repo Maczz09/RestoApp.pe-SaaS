@@ -4,6 +4,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { EmisionController } from './emision.controller';
+import { EmisionCobroController } from './emision-cobro.controller';
 import { EmisionService } from './emision.service';
 import { NotasService } from './notas.service';
 import { PrismaModule } from '../prisma/prisma.module';
@@ -29,7 +30,7 @@ import { CredencialesCryptoService } from '../sunat/credenciales-crypto.service'
     RabbitMQModule.forRoot({
       uri: process.env['RABBITMQ_URI'],
       queue: 'facturacion_queue',
-      bindings: [RoutingKeys.CuentaCerrada],
+      bindings: [RoutingKeys.CuentaCerrada, RoutingKeys.EmisionCobroSolicitada],
     }),
     // Publica comprobante.emitido cuando SUNAT acepta (CDR recibido).
     OutboxModule.forService(PrismaService, { producer: 'servicio-facturacion' }),
@@ -37,7 +38,7 @@ import { CredencialesCryptoService } from '../sunat/credenciales-crypto.service'
     ObservabilidadModule,
     HealthModule.forRoot(PrismaService),
   ],
-  controllers: [AppController, EmisionController],
+  controllers: [AppController, EmisionController, EmisionCobroController],
   providers: [
     AppService,
     EmisionService,

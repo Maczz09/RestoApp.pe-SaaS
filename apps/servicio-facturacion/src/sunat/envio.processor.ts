@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { SunatSoapClient } from './sunat-soap.client';
 import { SunatConfigService } from './sunat-config.service';
 import { RoutingKeys } from '@org/contracts';
+import { leerCdr } from './cdr';
 
 // Catálogo 01 SUNAT (tipo de documento) — usado en el nombre de archivo del
 // envío (RUC-tipo-serie-correlativo), no dentro del XML mismo.
@@ -82,17 +83,21 @@ export class EnvioProcessor {
         xmlFirmado: comprobante.xmlFirmado,
       });
 
-      await this.prisma.comprobante.update({
+      if (!resultado.cdrBase64) throw new Error('SUNAT no devolvió el CDR del comprobante; se reintentará el envío');
+      const cdr = leerCdr(resultado.cdrBase64);
+      await this.prisma.$transaction(async tx => {
+      await tx.comprobante.update({
         where: { id: comprobante.id },
         data: {
-          estado: resultado.cdrBase64 ? 'ACEPTADO' : 'ENVIADO',
-          cdrXml: resultado.cdrBase64 ?? null,
+          estado: cdr.estado,
+          cdrXml: cdr.xml,
+          motivoRechazo: cdr.estado === 'ACEPTADO' ? null : [cdr.codigo, cdr.descripcion, ...cdr.observaciones].join(' | ').slice(0, 500),
           intentos: { increment: 1 },
         },
       });
 
-      if (resultado.cdrBase64) {
-        await this.prisma.outboxEvent.create({
+      if (cdr.estado !== 'RECHAZADO') {
+        await tx.outboxEvent.create({
           data: {
             routingKey: RoutingKeys.ComprobanteEmitido,
             payload: JSON.stringify({
@@ -101,14 +106,17 @@ export class EnvioProcessor {
               tipo: comprobante.tipo,
               serie: comprobante.serie,
               correlativo: comprobante.correlativo,
+              estado: cdr.estado,
+              codigoSunat: cdr.codigo,
             }),
             status: 'PENDING',
           },
         });
       }
+      });
 
       this.logger.log(
-        `Comprobante ${nombreArchivo} enviado a SUNAT (${resultado.cdrBase64 ? 'ACEPTADO' : 'ENVIADO, pendiente de CDR'})`,
+        `Comprobante ${nombreArchivo}: SUNAT ${cdr.estado} (${cdr.codigo})`,
       );
     } catch (error) {
       await this.prisma.comprobante.update({

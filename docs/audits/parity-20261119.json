@@ -1,0 +1,1835 @@
+{
+  "createdAt": "2026-11-20T00:27:58.571Z",
+  "source": "D:\\Restaurantes\\la-barra-del-ceviche",
+  "target": "D:\\SaaS\\RestoApp",
+  "sourceRevision": "bb97e67de0d59566e423a7c5fb830c4c966b5ce4",
+  "targetRevision": "b1be0a36b4de4b91e85ad0050cef31f3d9e4fee1",
+  "caveat": "File differences require semantic review; identical files are not proof of runtime parity or tenant isolation.",
+  "counts": {
+    "identical": 309,
+    "different": 131,
+    "missing": 15
+  },
+  "files": [
+    {
+      "path": "apps/pwa-cliente/src/api/auth.api.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/api/caja.api.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/api/cartaPublica.api.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/api/client.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/api/compras.api.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/api/cuentas.api.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/api/facturacion.api.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/api/inventario.api.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/api/local-runtime.api.ts",
+      "status": "missing"
+    },
+    {
+      "path": "apps/pwa-cliente/src/api/mesas.api.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/api/notificaciones.api.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/api/pedidos.api.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/api/queryClient.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/api/reportes.api.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/api/reservas.api.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/api/response.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/api/sedes.api.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/api/usuarios.api.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/auth/permisos.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/components/admin/EditarAnulacionModal.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/components/admin/InvalidarAnulacionModal.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/components/caja/TicketContent.tsx",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/components/caja/ZTicketContent.tsx",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/components/cocina/TicketCard.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/components/comandero/ComandaCart.tsx",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/components/comandero/Comandero.tsx",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/components/comandero/ContextoCanal.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/components/facturacion/ComprobanteTicket.tsx",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/components/inventario/AlmacenCocinaTab.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/components/inventario/CategoriasAlmacenModal.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/components/inventario/ConteoFisicoModal.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/components/inventario/EditarMermaModal.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/components/inventario/EditarProductoModal.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/components/inventario/EliminarMermaModal.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/components/inventario/ExportarInventarioModal.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/components/inventario/InsumoAlmacenDrawer.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/components/inventario/KardexInsumoDrawer.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/components/inventario/MovimientoDetalleModal.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/components/inventario/MovimientoInsumoModal.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/components/inventario/NuevoProductoForm.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/components/inventario/ProductoTable.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/components/inventario/RegistrarMermaModal.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/components/layout/BottomNav.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/components/layout/Header.tsx",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/components/layout/SedeGateModal.tsx",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/components/layout/SedeSwitcher.tsx",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/components/layout/Shell.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/components/layout/Sidebar.tsx",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/components/layout/navigation.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/components/mesas/AnularAtencionMesaModal.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/components/pedidos/AnularItemModal.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/components/pedidos/AnularPedidoModal.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/components/pedidos/DetallePedido.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/components/pedidos/ListaView.tsx",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/components/pedidos/TableroView.tsx",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/components/pedidos/pedidos.meta.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/components/ui/AlertasSonorasButton.tsx",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/components/ui/ErrorBoundary.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/components/ui/Scrim.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/components/ui/Stat.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/components/ui/StatKpi.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/components/ui/ToastProvider.tsx",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/components/ui/icons.tsx",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/config.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/data/notas-cocina.const.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/domain/alertasTablero.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/domain/comanda.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/domain/inventario.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/domain/pedido.flow.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/hooks/queries/useAnulacionesQuery.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/hooks/queries/useCajaQuery.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/hooks/queries/useCategoriasInsumoQuery.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/hooks/queries/useComprasQuery.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/hooks/queries/useCuentasQuery.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/hooks/queries/useFacturacionQuery.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/hooks/queries/useHistorialCajaQuery.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/hooks/queries/useInventarioQuery.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/hooks/queries/useMenuDiarioQuery.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/hooks/queries/useMermasQuery.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/hooks/queries/useMesasQuery.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/hooks/queries/useMovimientosInsumoQuery.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/hooks/queries/useNotificacionesQuery.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/hooks/queries/usePedidosQuery.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/hooks/queries/useReportesQuery.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/hooks/queries/useReservasQuery.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/hooks/queries/useSedesQuery.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/hooks/queries/useTamanosPlatoQuery.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/hooks/queries/useTransaccionDetalleQuery.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/hooks/queries/useUbicacionesQuery.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/hooks/queries/useUsuariosQuery.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/hooks/useComanda.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/hooks/useFocusTrap.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/hooks/useInicioData.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/hooks/useLastSynced.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/hooks/useLocalServerInfo.ts",
+      "status": "missing"
+    },
+    {
+      "path": "apps/pwa-cliente/src/hooks/useNow.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/hooks/useOnlineStatus.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/hooks/useTableroAlertasSonoras.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/main.tsx",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/mappers/compras.mapper.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/mappers/cuenta.mapper.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/mappers/inventario.mapper.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/mappers/mesa.mapper.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/mappers/notificacion.mapper.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/mappers/pedido.mapper.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/mappers/reporte.mapper.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/mappers/reserva.mapper.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/mappers/usuario.mapper.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/router/index.tsx",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/admin/AuditoriaAnulacionesScreen.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/admin/ConfiguracionInicialScreen.tsx",
+      "status": "missing"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/admin/EditarUsuarioModal.tsx",
+      "status": "missing"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/admin/ServidorLocalScreen.tsx",
+      "status": "missing"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/admin/UsuariosScreen.tsx",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/caja/AperturaCajaModal.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/caja/BoletaInterna.tsx",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/caja/CajaScreen.tsx",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/caja/CierreDrawer.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/caja/CobroMesaDrawer.tsx",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/caja/HistorialCajaScreen.tsx",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/caja/MovimientoModal.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/caja/TransaccionDetalleDrawer.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/caja/cajaConstants.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/caja/cajaMeta.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/carta-publica/BookCartaScreen.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/carta-publica/PublicCartaScreen.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/carta-publica/agruparPorTamano.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/carta-publica/book-carta.css",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/carta-publica/bookDom.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/carta-publica/bookModel.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/carta-publica/carta-publica.css",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/carta-publica/pageSound.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/carta-publica/useCartaSocket.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/carta/CartaScreen.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/carta/MenuDiarioPanel.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/carta/TamanoSelect.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/carta/TamanosPlatoDrawer.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/carta/tamanos-carta.css",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/categorias/CategoriasScreen.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/compras/ComprasScreen.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/compras/ComprobanteUploader.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/compras/ComprobanteViewer.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/compras/InsumoDrawer.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/compras/OrdenCompraDrawer.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/compras/OrdenDetalleModal.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/compras/ProveedorDrawer.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/compras/RecepcionDrawer.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/compras/unidadesCompra.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/facturacion/ConfigurarEmpresaModal.tsx",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/facturacion/EditarEmpresaModal.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/facturacion/FacturacionScreen.tsx",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/inicio/CartaQrPanel.tsx",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/inicio/InicioScreen.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/inicio/TopVentasPanel.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/inventario/InventarioScreen.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/inventario/MermasScreen.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/login/LoginScreen.tsx",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/ops/CocinaScreen.tsx",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/ops/KitchenPrintScreen.tsx",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/ops/MesasScreen.tsx",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/ops/PedidosScreen.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/ops/UbicacionesModal.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/print/ComprobantePrintPage.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/print/TicketPrintPage.tsx",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/print/ZTicketPrintPage.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/reportes/ReportesScreen.tsx",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/reservas/ReservasScreen.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/screens/sedes/SedesScreen.tsx",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/services/alertasSonoras.service.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/services/socket.service.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/store/auth.store.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/styles.css",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/test-setup.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/tour/GuideCenter.tsx",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/tour/catalog.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/tour/spotlight.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/tour/tour.css",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/types/auth.types.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/types/caja.types.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/types/cartaPublica.types.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/types/compras.types.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/types/cuenta.types.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/types/facturacion.types.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/types/inventario.types.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/types/mesa.types.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/types/notificacion.types.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/types/pedido.types.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/types/reporte.types.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/types/reserva.types.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/types/sede.types.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/types/usuario.types.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/utils/comprobantePrint.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/utils/feedback.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/utils/format.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/utils/imagenComprobante.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/utils/inventarioPdf.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/utils/periodos.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/utils/printNavigation.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/utils/reportePdf.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/utils/tamanos.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/utils/theme.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/pwa-cliente/src/utils/ticketPrint.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/pwa-cliente/src/utils/zTicketPrint.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-caja-e2e/src/support/global-setup.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-caja-e2e/src/support/global-teardown.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-caja-e2e/src/support/test-setup.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-caja/prisma/migrations/20260605000000_init/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-caja/prisma/migrations/20260605020000_idempotency_http/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-caja/prisma/migrations/20260609020000_turno_abierto_unico/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-caja/prisma/migrations/20260609030000_idempotency_request_hash/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-caja/prisma/migrations/20260609040000_outbox_claimed_at/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-caja/prisma/migrations/20260808235236_add_cajero_auditoria/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-caja/prisma/migrations/20260811030000_sedes/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-caja/prisma/migrations/20260811064600_add_mesero_auditoria/migration.sql",
+      "status": "missing"
+    },
+    {
+      "path": "apps/servicio-caja/prisma/migrations/20260811090000_add_mesa_auditoria/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-caja/prisma/migrations/20260811200000_add_tipo_comprobante/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-caja/prisma/migrations/20260815025634_add_pago_pendiente/migration.sql",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-caja/prisma/migrations/20260815070000_add_cuenta_correlativo_transaccion/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-caja/prisma/migrations/20260815071000_add_cuenta_correlativo_movimiento/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-caja/prisma/prisma.config.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-caja/prisma/schema.prisma",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-caja/src/app/app.controller.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-caja/src/app/app.module.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-caja/src/app/app.service.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-caja/src/app/caja.dto.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-caja/src/app/cierre-reconciliacion.service.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-caja/src/app/cuentas-http.client.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-caja/src/app/events.controller.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-caja/src/main.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-caja/src/prisma/prisma.module.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-caja/src/prisma/prisma.service.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-compras/prisma/migrations/20260810131456_init/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-compras/prisma/migrations/20260824120000_movimientos_insumo/migration.sql",
+      "status": "missing"
+    },
+    {
+      "path": "apps/servicio-compras/prisma/migrations/20260825000000_categorias_insumo/migration.sql",
+      "status": "missing"
+    },
+    {
+      "path": "apps/servicio-compras/prisma/prisma.config.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-compras/prisma/schema.prisma",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-compras/src/app/app.controller.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-compras/src/app/app.module.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-compras/src/app/categorias-insumo.service.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-compras/src/app/compras.mapper.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-compras/src/app/comprobantes.service.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-compras/src/app/insumos.service.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-compras/src/app/movimientos-insumo.service.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-compras/src/app/ordenes.service.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-compras/src/app/proveedores.service.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-compras/src/app/recepciones.service.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-compras/src/main.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-compras/src/prisma/prisma.module.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-compras/src/prisma/prisma.service.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-cuentas-e2e/src/support/global-setup.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-cuentas-e2e/src/support/global-teardown.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-cuentas-e2e/src/support/test-setup.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-cuentas/prisma/migrations/20260605000000_init/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-cuentas/prisma/migrations/20260609040000_outbox_claimed_at/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-cuentas/prisma/migrations/20260626233700_add_idempotency_key/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-cuentas/prisma/migrations/20260811020000_sedes/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-cuentas/prisma/migrations/20260815040000_add_correlativo_cuenta/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-cuentas/prisma/migrations/20260815070000_add_cuenta_cancelada/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-cuentas/prisma/prisma.config.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-cuentas/prisma/schema.prisma",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-cuentas/src/app/app.controller.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-cuentas/src/app/app.module.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-cuentas/src/app/app.service.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-cuentas/src/app/cuenta-mesa-reconciliacion.service.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-cuentas/src/app/events.controller.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-cuentas/src/app/mesas-http.client.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-cuentas/src/main.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-cuentas/src/prisma/prisma.module.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-cuentas/src/prisma/prisma.service.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-facturacion/prisma/migrations/20260808190447_init/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-facturacion/prisma/migrations/20260811060000_sedes/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-facturacion/prisma/migrations/20260812043000_codigo_establecimiento/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-facturacion/prisma/migrations/20260812155033_empresa_credenciales_sunat/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-facturacion/prisma/migrations/20260813000310_notas_credito_debito/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-facturacion/prisma/migrations/20260815090000_empresa_sede_id/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-facturacion/prisma/migrations/20260831233000_dos_ruc_por_sede/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-facturacion/prisma/prisma.config.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-facturacion/prisma/schema.prisma",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-facturacion/src/app/app.controller.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-facturacion/src/app/app.module.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-facturacion/src/app/app.service.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-facturacion/src/app/dto/actualizar-empresa.dto.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-facturacion/src/app/dto/cambiar-estado-empresa.dto.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-facturacion/src/app/dto/crear-empresa.dto.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-facturacion/src/app/dto/emitir-comprobante.dto.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-facturacion/src/app/dto/emitir-nota.dto.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-facturacion/src/app/emision.controller.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-facturacion/src/app/emision.service.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-facturacion/src/app/notas.service.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-facturacion/src/main.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-facturacion/src/prisma/prisma.module.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-facturacion/src/prisma/prisma.service.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-facturacion/src/sunat/catalogos-notas.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-facturacion/src/sunat/certificado.service.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-facturacion/src/sunat/certificado.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-facturacion/src/sunat/correlativo.service.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-facturacion/src/sunat/credenciales-crypto.service.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-facturacion/src/sunat/envio.processor.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-facturacion/src/sunat/firma.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-facturacion/src/sunat/igv.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-facturacion/src/sunat/sunat-config.service.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-facturacion/src/sunat/sunat-soap.client.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-facturacion/src/sunat/ubl.builder.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-identidad-e2e/src/support/global-setup.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-identidad-e2e/src/support/global-teardown.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-identidad-e2e/src/support/test-setup.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-identidad/prisma/migrations/20260605000000_init/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-identidad/prisma/migrations/20260605040000_refresh_tokens/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-identidad/prisma/migrations/20260609000000_lockout_cuenta/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-identidad/prisma/migrations/20260609040000_outbox_claimed_at/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-identidad/prisma/migrations/20260810003722_sedes/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-identidad/prisma/migrations/20260811193000_sede_ruc/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-identidad/prisma/migrations/20260813180000_sede_telefono/migration.sql",
+      "status": "missing"
+    },
+    {
+      "path": "apps/servicio-identidad/prisma/migrations/20260815080000_add_telefono_usuario/migration.sql",
+      "status": "missing"
+    },
+    {
+      "path": "apps/servicio-identidad/prisma/prisma.config.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-identidad/prisma/schema.prisma",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-identidad/prisma/seed.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-identidad/src/app/app.module.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-identidad/src/auth/auth.controller.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-identidad/src/auth/auth.module.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-identidad/src/auth/auth.service.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-identidad/src/auth/dto/refresh-token.dto.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-identidad/src/auth/events.controller.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-identidad/src/auth/jwt.strategy.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-identidad/src/auth/usuarios.mapper.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-identidad/src/main.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-identidad/src/prisma/prisma.module.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-identidad/src/prisma/prisma.service.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-inventario-e2e/src/support/global-setup.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-inventario-e2e/src/support/global-teardown.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-inventario-e2e/src/support/test-setup.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-inventario/prisma/migrations/20260605000000_init/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-inventario/prisma/migrations/20260609040000_outbox_claimed_at/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-inventario/prisma/migrations/20260809015520_categoria_nombre_unico/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-inventario/prisma/migrations/20260809030000_categoria_subcategorias/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-inventario/prisma/migrations/20260809235454_menu_diario/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-inventario/prisma/migrations/20260810001805_merma_inventario/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-inventario/prisma/migrations/20260810010000_sedes/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-inventario/prisma/migrations/20260813070449_categoria_area/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-inventario/prisma/migrations/20260813144858_merma_crud_completo/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-inventario/prisma/migrations/20260815060000_add_cuenta_correlativo_merma/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-inventario/prisma/migrations/20260902120000_tamanos_plato/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-inventario/prisma/prisma.config.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-inventario/prisma/schema.prisma",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-inventario/src/app/app.controller.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-inventario/src/app/app.module.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-inventario/src/app/app.service.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-inventario/src/app/events.controller.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-inventario/src/app/public-carta.controller.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-inventario/src/main.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-inventario/src/prisma/prisma.module.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-inventario/src/prisma/prisma.service.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-mesas-e2e/src/support/global-setup.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-mesas-e2e/src/support/global-teardown.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-mesas-e2e/src/support/test-setup.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-mesas/prisma/migrations/20260605000000_init/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-mesas/prisma/migrations/20260609040000_outbox_claimed_at/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-mesas/prisma/migrations/20260809020000_ubicaciones_crud/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-mesas/prisma/migrations/20260809040000_unir_mesas/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-mesas/prisma/migrations/20260810004500_sedes/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-mesas/prisma/prisma.config.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-mesas/prisma/schema.prisma",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-mesas/src/app/app.controller.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-mesas/src/app/app.module.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-mesas/src/app/app.service.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-mesas/src/app/events.controller.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-mesas/src/main.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-mesas/src/prisma/prisma.module.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-mesas/src/prisma/prisma.service.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-notificaciones-e2e/src/support/global-setup.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-notificaciones-e2e/src/support/global-teardown.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-notificaciones-e2e/src/support/test-setup.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-notificaciones/prisma/migrations/20260605000000_init/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-notificaciones/prisma/prisma.config.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-notificaciones/prisma/schema.prisma",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-notificaciones/src/app/app.controller.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-notificaciones/src/app/app.module.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-notificaciones/src/app/app.service.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-notificaciones/src/app/carta.gateway.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-notificaciones/src/app/notifications.gateway.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-notificaciones/src/main.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-notificaciones/src/prisma/prisma.module.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-notificaciones/src/prisma/prisma.service.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-pedidos-e2e/src/support/global-setup.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-pedidos-e2e/src/support/global-teardown.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-pedidos-e2e/src/support/test-setup.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-pedidos/prisma/migrations/20260605000000_init/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-pedidos/prisma/migrations/20260605010000_add_rechazado_sin_stock/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-pedidos/prisma/migrations/20260605020000_idempotency_http/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-pedidos/prisma/migrations/20260606000000_add_mesero_to_pedidos/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-pedidos/prisma/migrations/20260609030000_idempotency_request_hash/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-pedidos/prisma/migrations/20260609040000_outbox_claimed_at/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-pedidos/prisma/migrations/20260811010000_sedes/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-pedidos/prisma/migrations/20260813071151_producto_local_categoria_area/migration.sql",
+      "status": "missing"
+    },
+    {
+      "path": "apps/servicio-pedidos/prisma/migrations/20260813150718_anulacion_auditoria/migration.sql",
+      "status": "missing"
+    },
+    {
+      "path": "apps/servicio-pedidos/prisma/migrations/20260815050000_add_cuenta_correlativo/migration.sql",
+      "status": "missing"
+    },
+    {
+      "path": "apps/servicio-pedidos/prisma/migrations/20260815080000_add_cuenta_id_y_correlativo_anulacion/migration.sql",
+      "status": "missing"
+    },
+    {
+      "path": "apps/servicio-pedidos/prisma/prisma.config.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-pedidos/prisma/schema.prisma",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-pedidos/src/app/app.controller.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-pedidos/src/app/app.module.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-pedidos/src/app/app.service.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-pedidos/src/app/cuentas-http.client.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-pedidos/src/app/events.controller.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-pedidos/src/app/inventario-http.client.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-pedidos/src/app/mesas-http.client.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-pedidos/src/app/pedido.mapper.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-pedidos/src/app/pedidos-saga.service.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-pedidos/src/app/types.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-pedidos/src/main.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-pedidos/src/prisma/prisma.module.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-pedidos/src/prisma/prisma.service.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-reportes-e2e/src/support/global-setup.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-reportes-e2e/src/support/global-teardown.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-reportes-e2e/src/support/test-setup.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-reportes/prisma/migrations/20260605000000_init/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-reportes/prisma/migrations/20260605030000_reportes_por_mesero/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-reportes/prisma/migrations/20260811050000_sedes/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-reportes/prisma/prisma.config.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-reportes/prisma/schema.prisma",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-reportes/src/app/app.controller.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-reportes/src/app/app.module.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-reportes/src/app/app.service.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-reportes/src/app/estadisticas.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-reportes/src/app/reporte.dto.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-reportes/src/main.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-reportes/src/prisma/prisma.module.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-reportes/src/prisma/prisma.service.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-reservas-e2e/src/support/global-setup.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-reservas-e2e/src/support/global-teardown.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-reservas-e2e/src/support/test-setup.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-reservas/prisma/migrations/20260605000000_init/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-reservas/prisma/migrations/20260609010000_slot_unico_index/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-reservas/prisma/migrations/20260609040000_outbox_claimed_at/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-reservas/prisma/migrations/20260611010000_reserva_por_mesa/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-reservas/prisma/migrations/20260809001217_add_usuario_auditoria/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-reservas/prisma/migrations/20260811040000_sedes/migration.sql",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-reservas/prisma/migrations/20260815041000_add_correlativo_reserva/migration.sql",
+      "status": "missing"
+    },
+    {
+      "path": "apps/servicio-reservas/prisma/prisma.config.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-reservas/prisma/schema.prisma",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-reservas/src/app/app.controller.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-reservas/src/app/app.module.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-reservas/src/app/reservas.mapper.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-reservas/src/app/reservas.service.ts",
+      "status": "different"
+    },
+    {
+      "path": "apps/servicio-reservas/src/main.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-reservas/src/prisma/prisma.module.ts",
+      "status": "identical"
+    },
+    {
+      "path": "apps/servicio-reservas/src/prisma/prisma.service.ts",
+      "status": "identical"
+    },
+    {
+      "path": "libs/contracts/src/domains/caja.ts",
+      "status": "different"
+    },
+    {
+      "path": "libs/contracts/src/domains/compras.ts",
+      "status": "identical"
+    },
+    {
+      "path": "libs/contracts/src/domains/cuentas.ts",
+      "status": "different"
+    },
+    {
+      "path": "libs/contracts/src/domains/identidad.ts",
+      "status": "different"
+    },
+    {
+      "path": "libs/contracts/src/domains/inventario.ts",
+      "status": "identical"
+    },
+    {
+      "path": "libs/contracts/src/domains/mesas.ts",
+      "status": "different"
+    },
+    {
+      "path": "libs/contracts/src/domains/pedidos.ts",
+      "status": "different"
+    },
+    {
+      "path": "libs/contracts/src/domains/reservas.ts",
+      "status": "different"
+    }
+  ]
+}

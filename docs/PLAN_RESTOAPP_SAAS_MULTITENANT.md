@@ -734,3 +734,9 @@ Gate: la matriz de archivos, rutas, contratos y flujos de Mi Narcita queda cubie
 Gate: facturación beta por tenant aprobada, aislamiento negativo verde y restauración ensayada.
 
 No se declarará un lote terminado por cantidad de archivos copiados. El gate exige comportamiento visible, aislamiento, pruebas y evidencia operativa.
+
+### Actualización 19/11/2026: REST-101 a REST-106
+
+Se incorporó el ciclo de cobro del SaaS: elección obligatoria de documento, ticket interno independiente de SUNAT, emisión electrónica por cobro, consolidación de mesas ocupadas, división persistente por partes/unidades, pagos mixtos atómicos, pre-cuenta y solicitud con aviso a Caja. Se mantienen restaurante y sede como límites de acceso y contadores.
+
+El detalle, las restricciones y la actualización de Docker están en [RESTOAPP_V2_IMPLEMENTACION.md](RESTOAPP_V2_IMPLEMENTACION.md). La paridad se documenta por módulo y por equivalencias, sin confundir archivos diferentes con funciones ausentes. El despliegue del VPS y la aceptación tributaria real requieren su validación operativa; no se dan por completados con las pruebas locales.

@@ -17,10 +17,15 @@ vi.mock('../../store/auth.store');
 vi.mock('../../hooks/queries/useMesasQuery');
 vi.mock('../../hooks/queries/useUbicacionesQuery');
 vi.mock('../../hooks/queries/useCuentasQuery');
+vi.mock('../../hooks/queries/useSolicitudesCuentaQuery', () => ({ useSolicitudesCuentaQuery: () => ({ data: [] }) }));
+vi.mock('../../hooks/queries/usePedidosQuery', () => ({
+  useAnularAtencionMesaMutation: () => ({ saving: false, anularAtencionMesa: vi.fn() }),
+  useAnularItemMutations: () => ({ saving: false, avanzarItem: vi.fn(), anularItemPreparado: vi.fn() }),
+}));
 vi.mock('../../components/ui/ToastProvider', () => ({ useToast: vi.fn() }));
 vi.mock('../../components/comandero/Comandero', () => ({
   Comandero: (props: any) => (
-    <div data-testid="comandero">
+    <div data-testid="comandero" data-mesa-id={props.mesaId} data-modo-agregar={String(props.modoAgregar)}>
       <button onClick={props.onClose}>Close Comandero</button>
       <button onClick={props.onCreated}>Created Comandero</button>
     </div>
@@ -186,8 +191,8 @@ describe('MesasScreen', () => {
   it('muestra "Unida con Mesa X" y el botón Separar en el drawer de una mesa agrupada', () => {
     (useMesasQuery as any).mockReturnValue({
       mesas: [
-        { id: 'm1', numero: '01', numeroRaw: 1, capacidad: 4, ubicacion: 'Terraza', estado: 'LIBRE', grupoId: 'm1' },
-        { id: 'm2', numero: '02', numeroRaw: 2, capacidad: 2, ubicacion: 'Terraza', estado: 'LIBRE', grupoId: 'm1' },
+        { id: 'm1', numero: '01', numeroRaw: 1, capacidad: 4, ubicacion: 'Terraza', estado: 'RESERVADA', grupoId: 'm1' },
+        { id: 'm2', numero: '02', numeroRaw: 2, capacidad: 2, ubicacion: 'Terraza', estado: 'RESERVADA', grupoId: 'm1' },
       ],
       fetch: vi.fn(), crearMesa: vi.fn(), unirMesas: vi.fn(), separarMesas: vi.fn(), clearFeedback: vi.fn(),
     });
@@ -216,8 +221,7 @@ describe('MesasScreen', () => {
     renderScreen();
 
     const tiles = screen.getAllByRole('button').filter((b) => b.className.includes('mesa-tile'));
-    fireEvent.click(tiles[0]);
-    fireEvent.click(screen.getByRole('button', { name: 'Separar' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Separar grupo 01, 02' }));
 
     await waitFor(() => expect(separarMesas).toHaveBeenCalledWith('m1'));
   });
@@ -253,5 +257,39 @@ describe('MesasScreen', () => {
     renderScreen();
     fireEvent.click(screen.getAllByRole('button')[3]); // Mesa Tile
     expect(screen.getByText('A +1')).toBeInTheDocument();
+  });
+});
+
+
+describe('Mesa libre: entrada directa a comanda', () => {
+  function setup(estado = 'LIBRE', rol = 'MESERO', online = true, grupoId?: string) {
+    vi.mocked(useOnlineStatus).mockReturnValue(online);
+    vi.mocked(useAuthStore).mockReturnValue(rol as never);
+    vi.mocked(useToast).mockReturnValue({ toast: vi.fn() } as never);
+    vi.mocked(useUbicacionesQuery).mockReturnValue({ ubicaciones: [] } as never);
+    vi.mocked(useMesasQuery).mockReturnValue({ mesas: [
+      { id: 'host', numero: '01', numeroRaw: 1, estado, ubicacion: 'Salón', capacidad: 4, grupoId },
+      { id: 'guest', numero: '02', numeroRaw: 2, estado, ubicacion: 'Salón', capacidad: 4, grupoId },
+    ], fetch: vi.fn() } as never);
+    vi.mocked(useCuentasQuery).mockReturnValue({ cuentaActiva: null, loading: false } as never);
+    return render(<BrowserRouter><MesasScreen /></BrowserRouter>);
+  }
+  it('abre la comanda directamente con la mesa y sin drawer', () => {
+    const { container } = setup();
+    fireEvent.click(container.querySelector('.mesa-tile')!);
+    expect(screen.getByTestId('comandero')).toHaveAttribute('data-mesa-id', 'host');
+    expect(screen.getByTestId('comandero')).toHaveAttribute('data-modo-agregar', 'false');
+    expect(screen.queryByRole('dialog', { name: 'Mesa 01' })).not.toBeInTheDocument();
+  });
+  it('una mesa unida utiliza la anfitriona', () => {
+    const { container } = setup('LIBRE', 'MESERO', true, 'host');
+    fireEvent.click(container.querySelectorAll('.mesa-tile')[1]);
+    expect(screen.getByTestId('comandero')).toHaveAttribute('data-mesa-id', 'host');
+  });
+  it.each([['OCUPADA', 'MESERO', true], ['RESERVADA', 'MESERO', true], ['LIBRE', 'RECEPCION', true], ['LIBRE', 'MESERO', false]])('con %s, rol %s y conexión %s conserva detalle', (estado, rol, online) => {
+    const { container } = setup(estado, rol, online);
+    fireEvent.click(container.querySelector('.mesa-tile')!);
+    expect(screen.queryByTestId('comandero')).not.toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Mesa 01' })).toBeInTheDocument();
   });
 });

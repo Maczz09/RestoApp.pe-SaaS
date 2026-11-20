@@ -2,6 +2,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { PedidoTenantGuard } from './pedido-tenant.guard';
 
 jest.mock('@org/resiliencia', () => {
   const actual = jest.requireActual('@org/resiliencia') as any;
@@ -31,7 +32,7 @@ describe('AppController', () => {
       providers: [
         { provide: AppService, useValue: appService },
       ],
-    }).compile();
+    }).overrideGuard(PedidoTenantGuard).useValue({ canActivate: () => true }).compile();
 
     controller = module.get<AppController>(AppController);
   });
@@ -45,21 +46,21 @@ describe('AppController', () => {
       appService.crearPedido.mockResolvedValue('pedido' as any);
       const result = await controller.crearPedido({ mesaId: 'm1', items: [] }, 'u1', 'nombre1', 'email1');
       expect(result).toBe('pedido');
-      expect(appService.crearPedido).toHaveBeenCalledWith({ mesaId: 'm1', items: [] }, { id: 'u1', nombre: 'nombre1' });
+      expect(appService.crearPedido).toHaveBeenCalledWith({ mesaId: 'm1', items: [] }, { id: 'u1', nombre: 'nombre1' }, undefined);
     });
 
     it('should create order with user id as name fallback if no name/email', async () => {
       appService.crearPedido.mockResolvedValue('pedido2' as any);
       const result = await controller.crearPedido({ mesaId: 'm2', items: [] }, 'u2', null, null);
       expect(result).toBe('pedido2');
-      expect(appService.crearPedido).toHaveBeenCalledWith({ mesaId: 'm2', items: [] }, { id: 'u2', nombre: 'u2' });
+      expect(appService.crearPedido).toHaveBeenCalledWith({ mesaId: 'm2', items: [] }, { id: 'u2', nombre: 'u2' }, undefined);
     });
 
     it('should create order with no user', async () => {
       appService.crearPedido.mockResolvedValue('pedido3' as any);
       const result = await controller.crearPedido({ mesaId: 'm3', items: [] }, null, null, null);
       expect(result).toBe('pedido3');
-      expect(appService.crearPedido).toHaveBeenCalledWith({ mesaId: 'm3', items: [] }, null);
+      expect(appService.crearPedido).toHaveBeenCalledWith({ mesaId: 'm3', items: [] }, null, undefined);
     });
   });
 
@@ -68,7 +69,7 @@ describe('AppController', () => {
       appService.listarPedidos.mockResolvedValue(['p1'] as any);
       const result = await controller.listarPedidos({}, 'sede-001');
       expect(result).toEqual(['p1']);
-      expect(appService.listarPedidos).toHaveBeenCalledWith({}, 'sede-001');
+      expect(appService.listarPedidos).toHaveBeenCalledWith({}, 'sede-001', undefined);
     });
   });
 
@@ -86,7 +87,7 @@ describe('AppController', () => {
       appService.actualizarEstadoItem.mockResolvedValue('item_updated' as any);
       const result = await controller.actualizarEstadoItem('itemId1', { estado: 'LISTO' } as any);
       expect(result).toBe('item_updated');
-      expect(appService.actualizarEstadoItem).toHaveBeenCalledWith('itemId1', { estado: 'LISTO' });
+      expect(appService.actualizarEstadoItem).toHaveBeenCalledWith('itemId1', { estado: 'LISTO' }, undefined, undefined);
     });
   });
 

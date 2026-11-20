@@ -74,6 +74,7 @@ export interface NotaDto {
 }
 
 export interface ComprobantePagoDto {
+  cuentaOrigenId?: string | null;
   id: string;
   cuentaId: string;
   sedeId: string;

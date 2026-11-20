@@ -65,7 +65,7 @@ export function useMesasQuery() {
   // Unir/separar tocan varias mesas a la vez — más simple invalidar y
   // refrescar que parchear el cache mesa por mesa.
   const mutationUnir = useMutation({
-    mutationFn: (payload: UnirMesasPayload) => mesasApi.unirMesas(payload),
+    mutationFn: async (payload: UnirMesasPayload) => payload.maestraMesaId ? mesasApi.fusionarCuentasMesas(payload) : { mesas: await mesasApi.unirMesas(payload), estado: 'COMPLETADA', message: 'Mesas unidas.' },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: MESAS_QUERY_KEY });
     },
@@ -89,7 +89,7 @@ export function useMesasQuery() {
     success: primerMensaje(
       [mutationCrear.isSuccess, 'Mesa creada.'],
       [mutationEstado.isSuccess, 'Estado actualizado.'],
-      [mutationUnir.isSuccess, 'Mesas unidas.'],
+      [mutationUnir.isSuccess, mutationUnir.data?.message ?? 'Mesas unidas.'],
       [mutationSeparar.isSuccess, 'Mesas separadas.'],
     ),
     fetch: query.refetch,
@@ -99,7 +99,7 @@ export function useMesasQuery() {
     optimisticCambiarEstado: async (id: string, estado: EstadoMesa) => {
       return mutationEstado.mutateAsync({ id, estado });
     },
-    unirMesas: (mesaIds: string[]) => mutationUnir.mutateAsync({ mesaIds }),
+    unirMesas: (mesaIds: string[], maestraMesaId?: string) => mutationUnir.mutateAsync({ mesaIds, ...(maestraMesaId ? { maestraMesaId } : {}) }),
     separarMesas: (mesaId: string) => mutationSeparar.mutateAsync(mesaId),
     clearFeedback: () => {
       mutationCrear.reset();

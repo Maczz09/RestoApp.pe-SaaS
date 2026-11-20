@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, Injectable, Logger, NotFoundExc
 import {
   CompraRecibidaLineaPayload,
   CompraRecibidaPayload,
+  MovimientoInsumoTipo,
   OrdenCompraEstado,
   RegistrarRecepcionCommand,
   RoutingKeys,
@@ -10,6 +11,7 @@ import { OperableLog } from '@org/observabilidad';
 import { PrismaService } from '../prisma/prisma.service';
 import { toOrdenCompraDto, toRecepcionCompraDto } from './compras.mapper';
 import { OrdenesService } from './ordenes.service';
+import { MovimientosInsumoService } from './movimientos-insumo.service';
 
 const ESTADOS_RECIBIBLES = new Set<string>([OrdenCompraEstado.Enviada, OrdenCompraEstado.Parcial]);
 // Margen para el redondeo de Decimal↔number en la comparación de "cantidad
@@ -23,14 +25,11 @@ export class RecepcionesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly ordenes: OrdenesService,
+    private readonly movimientos: MovimientosInsumoService,
   ) {}
 
   async listarPorOrden(ordenId: string, usuarioSedeId?: string | null, tenantId?: string | null) {
-    if (tenantId !== undefined) {
-      await this.ordenes.findOrThrow(ordenId, usuarioSedeId, tenantId);
-    } else {
-      await this.ordenes.findOrThrow(ordenId, usuarioSedeId);
-    }
+    await this.ordenes.findOrThrow(ordenId, usuarioSedeId, tenantId);
     const recepciones = await this.prisma.recepcionCompra.findMany({
       where: { ordenId, ...(tenantId ? { tenantId } : {}) },
       include: { items: true },
@@ -46,9 +45,7 @@ export class RecepcionesService {
     usuarioSedeId?: string | null,
     tenantId?: string | null,
   ) {
-    const ordenActual = tenantId !== undefined
-      ? await this.ordenes.findOrThrow(ordenId, usuarioSedeId, tenantId)
-      : await this.ordenes.findOrThrow(ordenId, usuarioSedeId);
+    const ordenActual = await this.ordenes.findOrThrow(ordenId, usuarioSedeId);
     if (!ESTADOS_RECIBIBLES.has(ordenActual.estado)) {
       throw new ConflictException('Solo se puede recibir mercadería de una orden enviada o con recepción parcial');
     }
@@ -65,6 +62,9 @@ export class RecepcionesService {
 
       const recepcionItemsData: { ordenItemId: string; cantidadRecibida: number; costoUnitario: number }[] = [];
       const lineasEvento: CompraRecibidaLineaPayload[] = [];
+      // El stock del insumo se mueve DESPUÉS de crear la recepción (ver abajo):
+      // así cada entrada del kardex apunta a la recepción que la originó.
+      const entradasStock: { insumoId: string; cantidad: number }[] = [];
 
       for (const linea of command.items) {
         const item = itemPorId.get(linea.ordenItemId);
@@ -88,10 +88,7 @@ export class RecepcionesService {
 
         // Stock propio del insumo (unidad de compra, p. ej. kg): sube con
         // CUALQUIER recepción, tenga o no puente a un producto vendible.
-        await prisma.insumo.update({
-          where: { id: item.insumoId },
-          data: { stockActual: { increment: linea.cantidadRecibida } },
-        });
+        entradasStock.push({ insumoId: item.insumoId, cantidad: linea.cantidadRecibida });
 
         if (item.insumo.productoId) {
           const cantidadStockVenta = Math.trunc(linea.cantidadRecibida * item.insumo.factorConversion.toNumber());
@@ -110,8 +107,8 @@ export class RecepcionesService {
       const recepcion = await prisma.recepcionCompra.create({
         data: {
           sedeId: ordenActual.sedeId,
-          ordenId,
           ...(tenantId ? { tenantId } : {}),
+          ordenId,
           observaciones: command.observaciones ?? null,
           usuarioId: usuario?.id ?? null,
           usuarioNombre: usuario?.nombre ?? null,
@@ -119,6 +116,20 @@ export class RecepcionesService {
         },
         include: { items: true },
       });
+
+      // T-50: la entrada por compra pasa por la MISMA puerta que el consumo de
+      // cocina. Si siguiera haciendo su propio `increment`, el kardex nacería
+      // incompleto y "sumar deltas == stockActual" no cuadraría nunca.
+      for (const entrada of entradasStock) {
+        await this.movimientos.aplicarMovimiento(prisma, {
+          insumoId: entrada.insumoId,
+          tipo: MovimientoInsumoTipo.EntradaCompra,
+          delta: entrada.cantidad,
+          motivo: `Recepción de orden ${ordenActual.codigo}`,
+          recepcionId: recepcion.id,
+          usuario,
+        });
+      }
 
       // Derivado por ítem, NO por suma total: la sobre-entrega de un ítem no
       // debe tapar el faltante de otro.
@@ -142,7 +153,7 @@ export class RecepcionesService {
           lineas: lineasEvento,
         };
         await prisma.outboxEvent.create({
-          data: { routingKey: RoutingKeys.CompraRecibida, payload: JSON.stringify(payload), status: 'PENDING' },
+          data: { ...(tenantId ? { tenantId } : {}), routingKey: RoutingKeys.CompraRecibida, payload: JSON.stringify(payload), status: 'PENDING' },
         });
       }
 

@@ -3,16 +3,21 @@
 // Cableado real: useMesasQuery (plano + estados) y useCuentasQuery (cuenta de la
 // mesa seleccionada). Lanza el Comandero para tomar/agregar pedido.
 
-import { Scrim } from '../../components/ui/Scrim';
-import { useEffect, useMemo, useRef, useState, type SubmitEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Scrim } from '../../components/ui/Scrim';
+import { AccionesCuentaMesa } from '../../components/mesas/AccionesCuentaMesa';
+import { useSolicitudesCuentaQuery } from '../../hooks/queries/useSolicitudesCuentaQuery';
+import { useEffect, useMemo, useRef, useState, type SubmitEvent } from 'react';
 import { Icons } from '../../components/ui/icons';
 import { fmt, elapsedLabel } from '../../utils/format';
 import { useMesasQuery } from '../../hooks/queries/useMesasQuery';
 import { useUbicacionesQuery } from '../../hooks/queries/useUbicacionesQuery';
 import { useCuentasQuery } from '../../hooks/queries/useCuentasQuery';
+import { useAnularAtencionMesaMutation, useAnularItemMutations } from '../../hooks/queries/usePedidosQuery';
 import { Comandero } from '../../components/comandero/Comandero';
 import { UbicacionesModal } from './UbicacionesModal';
+import { AnularAtencionMesaModal } from '../../components/mesas/AnularAtencionMesaModal';
+import { AnularItemModal } from '../../components/pedidos/AnularItemModal';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { useNow } from '../../hooks/useNow';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
@@ -46,14 +51,17 @@ export function MesasScreen() {
   const { toast } = useToast();
   const rol = useAuthStore((s) => s.user?.rol);
   const puedeCrearMesa = rol === 'ADMIN' || rol === 'SISTEMA';
+  const puedeGestionarPedidos = ['ADMIN', 'SISTEMA', 'CAJERO', 'MESERO'].includes(rol ?? '');
   const { mesas, loading, saving, loadError, error, success, fetch, crearMesa, unirMesas, separarMesas, clearFeedback } = useMesasQuery();
   const { ubicaciones: ubicacionesCrud } = useUbicacionesQuery();
+  const solicitudes = useSolicitudesCuentaQuery();
   const [ubicacion, setUbicacion] = useState('TODAS');
   const [sel, setSel] = useState<MesaVM | null>(null);
   const [mesaForm, setMesaForm] = useState<CrearMesaPayload>(INITIAL_MESA_FORM);
   const [comandero, setComandero] = useState<ComanderoState>({ open: false });
   const [gestionUbicaciones, setGestionUbicaciones] = useState(false);
   const [modoUnir, setModoUnir] = useState(false);
+  const [maestraUnionId, setMaestraUnionId] = useState('');
   const [seleccionUnir, setSeleccionUnir] = useState<Set<string>>(new Set());
 
   // Sólo mesas físicas (excluir virtuales 98/99 de delivery/llevar)
@@ -154,6 +162,7 @@ export function MesasScreen() {
   const toggleModoUnir = () => {
     setModoUnir((v) => !v);
     setSeleccionUnir(new Set());
+    setMaestraUnionId('');
   };
 
   const toggleSeleccionUnir = (mesaId: string) => {
@@ -167,7 +176,11 @@ export function MesasScreen() {
   const handleUnir = async () => {
     if (seleccionUnir.size < 2 || !online) return;
     try {
-      await unirMesas([...seleccionUnir]);
+      const seleccionadas = fisicas.filter((m) => seleccionUnir.has(m.id));
+      const cuentas = new Set(seleccionadas.map((m) => m.cuentaAsociada).filter(Boolean));
+      const maestra = seleccionadas.find((m) => m.id === maestraUnionId) ?? seleccionadas.find((m) => m.cuentaAsociada) ?? seleccionadas[0];
+      if (cuentas.size > 1) await unirMesas([...seleccionUnir], maestra?.id);
+      else await unirMesas([...seleccionUnir]);
       setModoUnir(false);
       setSeleccionUnir(new Set());
     } catch (e) {
@@ -215,7 +228,7 @@ export function MesasScreen() {
   }
 
   return (
-    <div 
+    <div
       style={{ height: '100%', display: 'flex', flexDirection: 'column' }}
     >
       <div className="page-h">
@@ -228,13 +241,18 @@ export function MesasScreen() {
         <button className={`btn btn-sm ${modoUnir ? 'btn-primary' : 'btn-ghost'}`} disabled={!online} onClick={toggleModoUnir}>
           <Icons.Layers s={16} /> {modoUnir ? 'Cancelar unión' : 'Unir mesas'}
         </button>
-        <button className="btn btn-primary" onClick={() => setComandero({ open: true, modoAgregar: false })}><Icons.Plus s={16} /> Nuevo pedido</button>
+        {puedeGestionarPedidos && <button className="btn btn-primary" onClick={() => setComandero({ open: true, modoAgregar: false })}><Icons.Plus s={16} /> Nuevo pedido</button>}
       </div>
 
       {modoUnir && (
         <output className="banner info module-feedback" role="status" aria-live="polite">
           <Icons.Layers s={17} />
           <span>Toca 2 o más mesas para unirlas en una sola cuenta compartida. Seleccionadas: {seleccionUnir.size}.</span>
+          <label htmlFor="mesa-principal-union">Mesa principal</label>
+          <select id="mesa-principal-union" aria-label="Mesa principal de la unión" value={maestraUnionId || fisicas.find((m) => seleccionUnir.has(m.id) && m.cuentaAsociada)?.id || ''} onChange={(e) => setMaestraUnionId(e.target.value)}>
+            <option value="">Elige una mesa</option>
+            {fisicas.filter((m) => seleccionUnir.has(m.id) && m.cuentaAsociada).map((m) => <option key={m.id} value={m.id}>Mesa {m.numero}</option>)}
+          </select>
           <span className="spacer" />
           <button className="btn btn-sm btn-primary" disabled={seleccionUnir.size < 2 || saving} onClick={() => void handleUnir()}>
             {saving ? <span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> : <Icons.Check s={14} />} Unir
@@ -282,15 +300,33 @@ export function MesasScreen() {
             )}
           </div>
 
+          {gruposPorId.size > 0 && (
+            <div className="row" style={{ flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+              {[...gruposPorId.entries()].map(([id, grupo]) => (
+                <button key={id} className="btn btn-ghost btn-sm" disabled={!online || grupo.some((m) => m.estado === 'OCUPADA')}
+                  onClick={() => void handleSeparar(id)} aria-label={`Separar grupo ${grupo.map((m) => m.numero).join(', ')}`}>
+                  Separar mesas {grupo.map((m) => m.numero).join(' + ')}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="mesa-floor">
             {visibles.map((m) => (
               <MesaTile
                 key={m.id}
                 mesa={m}
+                cuentaSolicitada={Boolean(m.cuentaAsociada && solicitudes.data?.some(s => s.cuentaId === m.cuentaAsociada))}
                 hermanas={hermanasDe(m)}
                 modoUnir={modoUnir}
                 seleccionada={seleccionUnir.has(m.id)}
-                onSelect={() => (modoUnir ? toggleSeleccionUnir(m.id) : setSel(m))}
+                onSelect={() => {
+                  if (modoUnir) { toggleSeleccionUnir(m.id); return; }
+                  if (m.estado === 'LIBRE' && puedeGestionarPedidos && online) {
+                    const anfitriona = anfitrionaDe(m);
+                    setSel(null);
+                    setComandero({ open: true, mesaId: anfitriona.id, mesaNumero: anfitriona.numero, mesaUbicacion: anfitriona.ubicacion, modoAgregar: false });
+                  } else setSel(m);
+                }}
               />
             ))}
             {visibles.length === 0 && (
@@ -378,9 +414,11 @@ export function MesasScreen() {
           mesa={sel}
           hermanas={hermanasDe(sel)}
           online={online}
+          puedeGestionarPedidos={puedeGestionarPedidos}
+          onCobrar={() => { const anfitriona = anfitrionaDe(sel); setSel(null); navigate(`/app/caja?mesaId=${anfitriona.id}`); }}
+          puedeCobrar={rol === 'ADMIN' || rol === 'CAJERO'}
           onClose={() => setSel(null)}
           onSeparar={() => void handleSeparar(sel.id)}
-          onCobrar={() => { const anfitriona = anfitrionaDe(sel); setSel(null); navigate(`/app/caja?mesaId=${anfitriona.id}`); }}
           onTomar={() => { const anfitriona = anfitrionaDe(sel); setComandero({ open: true, mesaId: anfitriona.id, mesaNumero: anfitriona.numero, mesaUbicacion: anfitriona.ubicacion, modoAgregar: false }); setSel(null); }}
           onAgregar={() => { const anfitriona = anfitrionaDe(sel); setComandero({ open: true, mesaId: anfitriona.id, mesaNumero: anfitriona.numero, mesaUbicacion: anfitriona.ubicacion, modoAgregar: true }); setSel(null); }}
         />
@@ -402,12 +440,14 @@ export function MesasScreen() {
 }
 
 interface MesaDrawerProps {
+  puedeCobrar: boolean;
+  onCobrar: () => void;
   mesa: MesaVM;
   hermanas: MesaVM[];
   online: boolean;
+  puedeGestionarPedidos: boolean;
   onClose: () => void;
   onSeparar: () => void;
-  onCobrar: () => void;
   onTomar: () => void;
   onAgregar: () => void;
 }
@@ -416,7 +456,9 @@ interface MesaDrawerBodyProps {
   mesa: MesaVM;
   hermanas: MesaVM[];
   online: boolean;
+  puedeGestionarPedidos: boolean;
   onSeparar: () => void;
+  onAnularItem: (item: PedidoItemVM) => void;
   ocupada: boolean;
   loading: boolean;
   cuentaActiva: CuentaVM | null | undefined;
@@ -424,6 +466,9 @@ interface MesaDrawerBodyProps {
   atencion: { label: string; title: string } | null;
   now: number;
 }
+
+/** Ya anulado o rechazado: no hay nada más que hacer con el ítem. */
+const ITEM_NO_ANULABLE = new Set(['CANCELADO', 'RECHAZADO_SIN_STOCK']);
 
 function GrupoUnidoBanner({ hermanas, online, ocupada, onSeparar }: Readonly<{ hermanas: MesaVM[]; online: boolean; ocupada: boolean; onSeparar: () => void }>) {
   if (hermanas.length === 0) return null;
@@ -445,12 +490,12 @@ function GrupoUnidoBanner({ hermanas, online, ocupada, onSeparar }: Readonly<{ h
   );
 }
 
-function MesaDrawerBody({ mesa: m, hermanas, online, onSeparar, ocupada, loading, cuentaActiva, items, atencion, now }: Readonly<MesaDrawerBodyProps>) {
+function MesaDrawerBody({ mesa: m, hermanas, online, puedeGestionarPedidos, onSeparar, onAnularItem, ocupada, loading, cuentaActiva, items, atencion, now }: Readonly<MesaDrawerBodyProps>) {
   const grupoBanner = <GrupoUnidoBanner hermanas={hermanas} online={online} ocupada={ocupada} onSeparar={onSeparar} />;
 
   if (!ocupada) {
     if (m.estado === 'RESERVADA') {
-      return <><div className="banner info"><Icons.Reservas s={16} /><span>Mesa reservada.</span></div></>;
+      return <>{grupoBanner}<div className="banner info"><Icons.Reservas s={16} /><span>Mesa reservada.</span></div></>;
     }
     return (
       <>
@@ -486,39 +531,74 @@ function MesaDrawerBody({ mesa: m, hermanas, online, onSeparar, ocupada, loading
       <div className="panel" style={{ padding: '4px 14px' }}>
         {items.length === 0 ? (
           <div className="muted" style={{ padding: 12, fontSize: 13 }}>Sin ítems registrados.</div>
-        ) : items.map((it) => (
-          <div className="dish-line" key={it.id}>
-            <span className="dish-q">{it.cantidad}</span>
-            <span style={{ flex: 1, fontWeight: 600 }}>{it.nombre}</span>
-            <span className="mono muted">{fmt(it.subtotal)}</span>
-          </div>
-        ))}
+        ) : items.map((it) => {
+          const anulado = it.estado === 'CANCELADO';
+          return (
+            <div className="dish-line" key={it.id} style={{ opacity: anulado ? 0.6 : undefined, gap: 8 }}>
+              <span className="dish-q">{it.cantidad}</span>
+              <div style={{ flex: 1 }}>
+                <span style={{ fontWeight: 600, textDecoration: anulado ? 'line-through' : undefined }}>{it.nombre}</span>
+                {it.notas && <div className="cmd-line-mods">{it.notas}</div>}
+                {anulado && <div className="cmd-line-mods" style={{ marginTop: 2, color: 'var(--danger)' }}><Icons.Alert s={11} /> Anulado</div>}
+              </div>
+              <span className="mono muted">{fmt(it.subtotal)}</span>
+              {puedeGestionarPedidos && !ITEM_NO_ANULABLE.has(it.estado) && (
+                <button
+                  className="btn btn-sm"
+                  style={{ background: 'var(--danger-soft)', color: 'var(--danger-text)', border: '1px solid var(--danger)', flex: 'none' }}
+                  disabled={!online}
+                  onClick={() => onAnularItem(it)}
+                  aria-label={`Anular ${it.cantidad}× ${it.nombre}`}
+                  title={it.estado === 'ENTREGADO' ? 'Anular ítem ya preparado (decide si se cobra)' : 'Anular ítem'}
+                >
+                  <Icons.Alert s={13} /> Anular
+                </button>
+              )}
+            </div>
+          );
+        })}
       </div>
       <div className="kv" style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
         <span className="k" style={{ fontSize: 15, fontWeight: 800, color: 'var(--text)' }}>Total</span>
         <span className="v mono" style={{ fontSize: 20, fontWeight: 800 }}>{fmt(cuentaActiva.total)}</span>
       </div>
+      {puedeGestionarPedidos && <AccionesCuentaMesa key={cuentaActiva.id} cuenta={cuentaActiva} mesaNumero={m.numero} online={online} />}
     </>
   );
 }
 
 interface MesaDrawerFootProps {
+  puedeCobrar: boolean;
+  onCobrar: () => void;
   ocupada: boolean;
   estado: MesaVM['estado'];
-  onCobrar: () => void;
+  puedeGestionarPedidos: boolean;
   onTomar: () => void;
   onAgregar: () => void;
   onClose: () => void;
+  onAnularAtencion: () => void;
 }
 
-/* Jerarquía de acción en mesa ocupada:
-   - "Cobrar": acción de cierre económico → btn-primary (máximo énfasis)
-   - "Agregar a la cuenta": acción frecuente pero no de cierre → btn-soft */
-function MesaDrawerFoot({ ocupada, estado, onCobrar, onTomar, onAgregar, onClose }: Readonly<MesaDrawerFootProps>) {
+/* Jerarquía de acción en mesa ocupada: el cobro se hace desde Caja (que ya
+   agrupa mesas unidas en un solo cobro — ver CajaScreen), no desde acá.
+   - "Anular atención": el cliente se retiró sin consumir → acción llamativa
+     con color propio, no un icon-btn discreto (fácil de perder de vista).
+   - "Agregar a la cuenta": acción frecuente → btn-soft */
+function MesaDrawerFoot({ puedeCobrar, onCobrar, ocupada, estado, puedeGestionarPedidos, onTomar, onAgregar, onClose, onAnularAtencion }: Readonly<MesaDrawerFootProps>) {
+  if (!puedeGestionarPedidos) return <button className="btn btn-soft" onClick={onClose}>Cerrar</button>;
   if (ocupada) {
     return (
       <>
-        <button className="btn btn-primary" onClick={onCobrar} aria-label="Cobrar cuenta de esta mesa"><Icons.Caja s={15} /> Cobrar</button>
+        <button
+          className="btn"
+          style={{ background: 'var(--danger-soft)', color: 'var(--danger-text)', border: '1px solid var(--danger)' }}
+          title="Anular atención de mesa (cliente se retiró)"
+          aria-label="Anular atención de esta mesa"
+          onClick={onAnularAtencion}
+        >
+          <Icons.Alert s={15} /> Anular atención de mesa
+        </button>
+        {puedeCobrar && <button className="btn btn-primary" onClick={onCobrar} aria-label="Cobrar cuenta de esta mesa"><Icons.Caja s={15} /> Cobrar</button>}
         <span className="spacer" />
         <button className="btn btn-soft" onClick={onAgregar} aria-label="Agregar ítems a la cuenta"><Icons.Plus s={15} /> Agregar a la cuenta</button>
       </>
@@ -540,17 +620,62 @@ function MesaDrawerFoot({ ocupada, estado, onCobrar, onTomar, onAgregar, onClose
   );
 }
 
-function MesaDrawer({ mesa: m, hermanas, online, onClose, onSeparar, onCobrar, onTomar, onAgregar }: Readonly<MesaDrawerProps>) {
+function MesaDrawer({ puedeCobrar, onCobrar, mesa: m, hermanas, online, puedeGestionarPedidos, onClose, onSeparar, onTomar, onAgregar }: Readonly<MesaDrawerProps>) {
+  const { toast } = useToast();
   const ocupada = m.estado === 'OCUPADA';
   const { cuentaActiva, loading } = useCuentasQuery(ocupada ? m.id : undefined);
+  const { saving: savingAnularAtencion, anularAtencionMesa } = useAnularAtencionMesaMutation();
+  const { saving: savingAnularItem, avanzarItem, anularItemPreparado } = useAnularItemMutations();
   const now = useNow();
   const meta = EST_META[m.estado];
   const drawerRef = useRef<HTMLDialogElement>(null);
+  const [mostrarAnularAtencion, setMostrarAnularAtencion] = useState(false);
+  const [anularItemSel, setAnularItemSel] = useState<PedidoItemVM | null>(null);
   useFocusTrap(drawerRef, { active: true, onClose });
 
   const items = cuentaActiva?.pedidos.flatMap((p) => p.items) ?? [];
   const atencion = cuentaActiva ? atencionDeCuenta(cuentaActiva) : null;
   const badgeCls = { OCUPADA: 'badge-accent', RESERVADA: 'badge-info', LIBRE: 'badge-muted' }[m.estado] ?? 'badge-muted';
+
+  const confirmarAnularAtencion = async (motivo: string, itemsConsumidos: string[]) => {
+    if (!online) return;
+    try {
+      const resultado = await anularAtencionMesa(m.id, { motivo, itemsConsumidos });
+      toast({
+        title: 'Atención de mesa anulada',
+        msg: resultado.mesaLiberada
+          ? 'La mesa quedó libre.'
+          : `Quedan ${resultado.itemsMantenidosParaCobro} ítem(s) pendientes de cobro.`,
+        icon: 'Check',
+        kind: 'ok',
+      });
+      setMostrarAnularAtencion(false);
+      onClose();
+    } catch (err) {
+      toast({ title: 'No se pudo anular la atención', msg: err instanceof Error ? err.message : 'Inténtalo de nuevo', icon: 'Alert', kind: 'err' });
+    }
+  };
+
+  const confirmarAnularItem = async (motivo: string, cobrar: boolean, observacion?: string) => {
+    if (!anularItemSel || !online) return;
+    try {
+      if (anularItemSel.estado === 'ENTREGADO') {
+        await anularItemPreparado(anularItemSel.id, { motivo, cobrar, observacion });
+        toast({
+          title: 'Ítem anulado',
+          msg: cobrar ? 'Se mantiene en la cuenta.' : 'Se retiró de la cuenta.',
+          icon: 'Check',
+          kind: 'ok',
+        });
+      } else {
+        await avanzarItem(anularItemSel.id, 'CANCELADO', motivo, m.id);
+        toast({ title: 'Ítem anulado', icon: 'Check', kind: 'ok' });
+      }
+      setAnularItemSel(null);
+    } catch (err) {
+      toast({ title: 'No se pudo anular el ítem', msg: err instanceof Error ? err.message : 'Inténtalo de nuevo', icon: 'Alert', kind: 'err' });
+    }
+  };
 
   return (
     <div className="drawer-wrap">
@@ -574,7 +699,9 @@ function MesaDrawer({ mesa: m, hermanas, online, onClose, onSeparar, onCobrar, o
             mesa={m}
             hermanas={hermanas}
             online={online}
+            puedeGestionarPedidos={puedeGestionarPedidos}
             onSeparar={onSeparar}
+            onAnularItem={setAnularItemSel}
             ocupada={ocupada}
             loading={loading}
             cuentaActiva={cuentaActiva}
@@ -584,21 +711,42 @@ function MesaDrawer({ mesa: m, hermanas, online, onClose, onSeparar, onCobrar, o
           />
         </div>
         <div className="drawer-foot">
-          <MesaDrawerFoot
+          <MesaDrawerFoot puedeCobrar={puedeCobrar} onCobrar={onCobrar}
             ocupada={ocupada}
             estado={m.estado}
-            onCobrar={onCobrar}
+            puedeGestionarPedidos={puedeGestionarPedidos}
             onTomar={onTomar}
             onAgregar={onAgregar}
             onClose={onClose}
+            onAnularAtencion={() => setMostrarAnularAtencion(true)}
           />
         </div>
       </dialog>
+
+      {mostrarAnularAtencion && (
+        <AnularAtencionMesaModal
+          mesaNumero={m.numero}
+          items={items}
+          saving={savingAnularAtencion}
+          onClose={() => setMostrarAnularAtencion(false)}
+          onConfirm={(motivo, itemsConsumidos) => { void confirmarAnularAtencion(motivo, itemsConsumidos); }}
+        />
+      )}
+
+      {anularItemSel && (
+        <AnularItemModal
+          item={anularItemSel}
+          saving={savingAnularItem}
+          onClose={() => setAnularItemSel(null)}
+          onConfirm={(motivo, cobrar, observacion) => { void confirmarAnularItem(motivo, cobrar, observacion); }}
+        />
+      )}
     </div>
   );
 }
 
 interface MesaTileProps {
+  cuentaSolicitada?: boolean;
   mesa: MesaVM;
   hermanas: MesaVM[];
   modoUnir: boolean;
@@ -606,7 +754,7 @@ interface MesaTileProps {
   onSelect: () => void;
 }
 
-function MesaTile({ mesa: m, hermanas, modoUnir, seleccionada, onSelect }: Readonly<MesaTileProps>) {
+function MesaTile({ mesa: m, hermanas, modoUnir, seleccionada, onSelect, cuentaSolicitada }: Readonly<MesaTileProps>) {
   const ocupada = m.estado === 'OCUPADA';
   const meta = EST_META[m.estado];
   const now = useNow();
@@ -639,6 +787,7 @@ function MesaTile({ mesa: m, hermanas, modoUnir, seleccionada, onSelect }: Reado
         </div>
       ) : null}
       <div className="mt-foot">
+        {cuentaSolicitada && ocupada && <span className="badge badge-warn">Cuenta solicitada</span>}
         {ocupada
           ? <span className="mt-state" style={{ color: 'var(--accent-text)' }}>{loading ? 'Cargando cuenta...' : 'Cuenta abierta'}</span>
           : <span className="mt-state">{meta.label}</span>}

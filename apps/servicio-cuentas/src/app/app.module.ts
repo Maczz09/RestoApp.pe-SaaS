@@ -1,8 +1,13 @@
+import { CuentaFusionService, CuentaFusionController } from './cuenta-fusion.service';
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { AppController } from './app.controller';
+import { SolicitudesCuentaController } from './solicitudes-cuenta.controller';
+import { SolicitudesCuentaService } from './solicitudes-cuenta.service';
 import { EventsController } from './events.controller';
 import { AppService } from './app.service';
+import { MesasHttpClient } from './mesas-http.client';
+import { CuentaMesaReconciliacionService } from './cuenta-mesa-reconciliacion.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { OutboxAdminModule, OutboxModule } from '@org/resiliencia';
 import { PrismaService } from '../prisma/prisma.service';
@@ -23,12 +28,16 @@ import { ScheduleModule } from '@nestjs/schedule';
     RabbitMQModule.forRoot({
       uri: process.env['RABBITMQ_URI'],
       queue: 'cuentas_queue',
-      bindings: ['pedido.creado', 'pedido.actualizado', 'pago.registrado']
+      bindings: ['pedido.creado', 'pedido.actualizado', 'pago.registrado', 'mesa.actualizada']
     })
   ],
-  controllers: [AppController, EventsController],
+  controllers: [CuentaFusionController, SolicitudesCuentaController, AppController, EventsController],
   providers: [
     AppService,
+    CuentaFusionService,
+    SolicitudesCuentaService,
+    MesasHttpClient,
+    CuentaMesaReconciliacionService,
     { provide: APP_GUARD, useClass: JwtAuthGuard },
   ],
 })

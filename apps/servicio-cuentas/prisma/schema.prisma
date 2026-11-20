@@ -11,24 +11,42 @@ enum CuentaEstado {
   ABIERTA
   CERRADA
   PAGADA
+  CANCELADA
+  FUSIONADA
 }
 
 model Cuenta {
-  id        String       @id @default(uuid())
-  tenantId  String?
-  mesaId    String
-  sedeId    String
-  pedidos   Json
-  total     Decimal      @default(0) @db.Decimal(10, 2)
-  estado    CuentaEstado @default(ABIERTA)
-  ticket    String?
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
+  tenantId    String?
+  id          String       @id @default(uuid())
+  mesaId      String
+  sedeId      String
+  pedidos     Json
+  total       Decimal      @default(0) @db.Decimal(10, 2)
+  estado      CuentaEstado @default(ABIERTA)
+  ticket      String?
+  // Código legible de la atención completa ("A0000001"), asignado una sola
+  // vez al abrir la cuenta — nullable porque las cuentas creadas antes de
+  // este campo no tienen uno retroactivo. Único por sede, no global (dos
+  // sedes pueden tener ambas una A0000001).
+  correlativo String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
 
   @@index([tenantId])
   @@index([mesaId, estado])
   @@index([sedeId])
+  @@unique([sedeId, correlativo])
   @@map("cuentas")
+}
+
+// Correlativo legible por sede ("A0000001"), mismo patrón que
+// SecuenciaOrden en servicio-compras: el UPDATE/upsert toma lock de fila →
+// serializa las aperturas de cuenta concurrentes de una misma sede.
+model SecuenciaCuenta {
+  sedeId String @id
+  ultimo Int    @default(0)
+
+  @@map("secuencias_cuenta")
 }
 
 model OutboxEvent {
@@ -56,4 +74,37 @@ model IdempotencyKey {
   @@index([tenantId])
   @@index([createdAt])
   @@map("idempotency_keys")
+}
+
+// Staff requests are notifications, not payments or account closures.
+model SolicitudCuenta {
+  id String @id @default(uuid())
+  cuentaId String @unique
+  tenantId String
+  sedeId String
+  mesaId String
+  solicitadoPorId String
+  solicitadoPorNombre String
+  solicitadaAt DateTime @default(now())
+
+  @@index([tenantId, sedeId, solicitadaAt])
+  @@map("solicitudes_cuenta")
+}
+
+model CuentaFusion {
+  id String @id
+  tenantId String
+  sedeId String
+  maestraCuentaId String
+  maestraMesaId String
+  cuentaIds Json
+  createdAt DateTime @default(now())
+  @@map("cuenta_fusiones")
+}
+model CuentaFusionAlias {
+  cuentaId String @id
+  maestraCuentaId String
+  fusionId String
+  @@index([maestraCuentaId])
+  @@map("cuenta_fusion_alias")
 }

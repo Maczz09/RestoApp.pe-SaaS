@@ -1,9 +1,11 @@
+import { FusionMesasService, FusionMesasController } from './fusion-mesas.service';
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller';
 import { EventsController } from './events.controller';
 import { AppService } from './app.service';
+import { MesaTenantGuard } from './mesa-tenant.guard';
 import { PrismaModule } from '../prisma/prisma.module';
 import { OutboxAdminModule, OutboxModule, IdempotencyPurgeModule } from '@org/resiliencia';
 import { PrismaService } from '../prisma/prisma.service';
@@ -27,9 +29,11 @@ import { SharedAuthModule, JwtAuthGuard } from '@org/shared-auth';
       bindings: ['cuenta.abierta', 'cuenta.cerrada']
     }),
   ],
-  controllers: [AppController, EventsController],
+  controllers: [FusionMesasController, AppController, EventsController],
   providers: [
     AppService,
+    MesaTenantGuard,
+    FusionMesasService,
     { provide: APP_GUARD, useClass: JwtAuthGuard },
   ],
 })

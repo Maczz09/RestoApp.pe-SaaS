@@ -16,6 +16,7 @@ import { fmt } from '../../utils/format';
 import { rangoDePeriodo } from '../../utils/periodos';
 import { useFacturacionQuery } from '../../hooks/queries/useFacturacionQuery';
 import { useSedesQuery } from '../../hooks/queries/useSedesQuery';
+import { reintentarEmisionCobro } from '../../api/facturacion.api';
 import { abrirComprobanteParaImprimir } from '../../utils/comprobantePrint';
 import { ConfigurarEmpresaModal } from './ConfigurarEmpresaModal';
 import { EditarEmpresaModal } from './EditarEmpresaModal';
@@ -78,27 +79,8 @@ export function FacturacionScreen() {
   const [editarEmpresa, setEditarEmpresa] = useState<EmpresaDto | null>(null);
 
   const sedeNombrePorId = useMemo(() => new Map(sedes.map((s) => [s.id, s.nombre])), [sedes]);
-  // Cada sede puede tener hasta dos RUC emisores. Contamos las empresas
-  // enlazadas para permitir el segundo RUC e impedir un tercero.
-  const empresasPorSede = useMemo(() => {
-    const conteo = new Map<string, number>();
-    empresas.forEach((empresa) => {
-      if (empresa.sedeId) conteo.set(empresa.sedeId, (conteo.get(empresa.sedeId) ?? 0) + 1);
-    });
-    return conteo;
-  }, [empresas]);
-  const sedesLibresParaCrear = useMemo(
-    () => sedes.filter((s) => s.activa && (empresasPorSede.get(s.id) ?? 0) < 2),
-    [sedes, empresasPorSede],
-  );
-  const sedesDisponiblesParaEditar = useMemo(() => {
-    if (!editarEmpresa) return [];
-    return sedes.filter((s) => {
-      if (!s.activa) return false;
-      const otras = (empresasPorSede.get(s.id) ?? 0) - (editarEmpresa.sedeId === s.id ? 1 : 0);
-      return otras < 2;
-    });
-  }, [sedes, empresasPorSede, editarEmpresa]);
+  const sedesLibresParaCrear = useMemo(() => sedes.filter(s => s.activa), [sedes]);
+  const sedesDisponiblesParaEditar = sedesLibresParaCrear;
 
   const [desde, setDesde] = useState('');
   const [hasta, setHasta] = useState('');
@@ -281,7 +263,7 @@ export function FacturacionScreen() {
           <div className="sub">Emisión de boletas y facturas electrónicas SUNAT</div>
         </div>
         <span className="spacer" />
-        {!empresasLoading && empresas.length < 2 && (
+        {!empresasLoading && (
           <button className="btn btn-soft btn-sm" onClick={() => setConfigurarSunat(true)}>
             <Icons.Sede s={15} /> {empresas.length === 0 ? 'Configurar SUNAT' : 'Agregar otra empresa'}
           </button>
@@ -452,9 +434,14 @@ export function FacturacionScreen() {
                         <button
                           className="btn btn-sm btn-primary"
                           disabled={!online || !puedeEmitirVenta(c)}
-                          onClick={() => abrirEmision(c)}
+                          onClick={() => {
+                            if (!c.cuentaOrigenId) { abrirEmision(c); return; }
+                            void reintentarEmisionCobro(c.cuentaId).then(() => fetch()).catch(() => {
+                              toast({ title: 'No se pudo reintentar la emisión', icon: 'Alert', kind: 'err' });
+                            });
+                          }}
                         >
-                          Emitir
+                          {c.cuentaOrigenId ? 'Reintentar emisión' : 'Emitir'}
                         </button>
                       </div>
                     </td>

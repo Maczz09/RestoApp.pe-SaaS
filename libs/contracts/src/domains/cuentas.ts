@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsOptional, IsArray, IsEnum } from 'class-validator';
+import { IsString, IsBoolean, IsNumber, IsOptional, IsArray, IsEnum } from 'class-validator';
 import type { PedidoSnapshot, PedidoSnapshotItem } from './pedidos';
 
 export const CuentaEstado = {
@@ -9,11 +9,15 @@ export const CuentaEstado = {
   // diferencia de CERRADA, no genera ticket ni evento CuentaCerrada. Ver
   // AppService.cancelarCuenta.
   Cancelada: 'CANCELADA',
+  Fusionada: 'FUSIONADA',
 } as const;
 
 export type CuentaEstado = (typeof CuentaEstado)[keyof typeof CuentaEstado];
 
 export class CuentaAbiertaPayload {
+  @IsOptional()
+  @IsString()
+  tenantId?: string;
   @IsString()
   cuentaId: string;
   @IsString()
@@ -23,6 +27,9 @@ export class CuentaAbiertaPayload {
 }
 
 export class CuentaCerradaPayload {
+  @IsOptional()
+  @IsBoolean()
+  documentadaEnCaja?: boolean;
   @IsOptional()
   @IsString()
   tenantId?: string;
@@ -54,6 +61,9 @@ export class CuentaCerradaPayload {
  * evita que pwa-cliente tenga que resolverlo con una llamada cruzada.
  */
 export class CuentaAsociadaPayload {
+  @IsOptional()
+  @IsString()
+  tenantId?: string;
   @IsString()
   pedidoId: string;
   @IsString()
@@ -79,6 +89,9 @@ export class TicketGeneradoPayload {
  * CuentaCerradaPayload, que sí implica un cobro real.
  */
 export class CuentaCanceladaPayload {
+  @IsOptional()
+  @IsString()
+  tenantId?: string;
   @IsString()
   cuentaId: string;
   @IsString()
@@ -88,6 +101,9 @@ export class CuentaCanceladaPayload {
 }
 
 export class CuentaDto {
+  @IsOptional()
+  @IsString()
+  tenantId?: string;
   @IsString()
   id: string;
   @IsString()
@@ -147,6 +163,9 @@ export class AbrirCuentaCommand {
 }
 
 export class CerrarCuentaCommand {
+  @IsOptional()
+  @IsBoolean()
+  documentadaEnCaja?: boolean;
   @IsOptional()
   @IsNumber()
   descuento?: number;

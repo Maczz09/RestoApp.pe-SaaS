@@ -30,6 +30,10 @@ export async function listarEmpresas(): Promise<EmpresaDto[]> {
   return Array.isArray(response) ? response : [];
 }
 
+export function reintentarEmisionCobro(cobroId: string) {
+  return client.post<{ message: string }>(`/facturacion/comprobantes/${cobroId}/reintentar-cobro`, {});
+}
+
 export async function emitir(cuentaId: string, payload: EmitirComprobantePayload): Promise<EmitirComprobanteResultado> {
   return client.post<EmitirComprobanteResultado>(`/facturacion/comprobantes/${cuentaId}/emitir`, payload);
 }

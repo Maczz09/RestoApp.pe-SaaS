@@ -52,6 +52,9 @@ model Insumo {
   costoUnitario    Decimal    @default(0) @db.Decimal(12, 4)
   proveedorId      String?
   proveedor        Proveedor? @relation(fields: [proveedorId], references: [id], onDelete: SetNull)
+  categoriaId      String?
+  categoria        CategoriaInsumo? @relation(fields: [categoriaId], references: [id], onDelete: SetNull)
+  movimientos      MovimientoInsumo[]
   productoId       String?
   factorConversion Decimal    @default(1) @db.Decimal(12, 4)
   activo           Boolean    @default(true)
@@ -242,4 +245,65 @@ model IdempotencyKey {
 
   @@index([createdAt])
   @@map("idempotency_keys")
+}
+
+
+model CategoriaInsumo {
+  id          String   @id @default(uuid())
+  tenantId String?
+  sedeId      String
+  nombre      String
+  descripcion String?
+  activo      Boolean  @default(true)
+  insumos     Insumo[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([sedeId, nombre])
+  @@index([sedeId, activo])
+  @@index([tenantId, sedeId])
+  @@map("categorias_insumo")
+}
+
+model MovimientoInsumo {
+  id            String   @id @default(uuid())
+  tenantId String?
+  sedeId        String
+  insumoId      String
+  insumo        Insumo   @relation(fields: [insumoId], references: [id], onDelete: Cascade)
+  tipo          MovimientoInsumoTipo
+  // CON SIGNO (negativo en salidas). Un solo campo firmado, en vez de
+  // cantidad + signo derivado del tipo: hace el kardex auto-verificable.
+  delta         Decimal  @db.Decimal(12, 3)
+  stockAntes    Decimal  @db.Decimal(12, 3)
+  stockDespues  Decimal  @db.Decimal(12, 3)
+  // Snapshot del costo al momento del movimiento: valoriza la salida aunque el
+  // costo del insumo cambie después (mismo criterio que Merma.costoUnitario en
+  // servicio-inventario).
+  costoUnitario Decimal? @db.Decimal(12, 4)
+  motivo        String?
+  observacion   String?
+  // Referencia laxa (sin FK) a la recepción que originó una ENTRADA_COMPRA:
+  // solo trazabilidad, y así borrar una recepción no arrastra el kardex.
+  recepcionId   String?
+  usuarioId     String?
+  usuarioNombre String?
+  createdAt     DateTime @default(now())
+
+  @@index([sedeId, createdAt])
+  @@index([insumoId, createdAt])
+  @@index([tipo])
+  @@index([tenantId, sedeId])
+  @@map("movimientos_insumo")
+}
+
+enum MovimientoInsumoTipo {
+  ENTRADA_COMPRA
+  // Ingreso a mano, sin orden de compra detrás: la compra del día en el
+  // mercado, que es como entra la mayoría de la mercadería fresca.
+  ENTRADA_MANUAL
+  ENTRADA_DEVOLUCION
+  SALIDA_CONSUMO
+  SALIDA_MERMA
+  AJUSTE_CONTEO
 }

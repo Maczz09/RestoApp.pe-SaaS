@@ -18,6 +18,17 @@ export class EmisionService {
     private readonly certificado: CertificadoService,
   ) {}
 
+  async emitirDesdeCobro(cobroId: string, dto: EmitirComprobanteDto, sedeId: string, tenantId: string) {
+    await this.prisma.$transaction(async tx => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${cobroId}, 102))`;
+      const anterior = await tx.comprobantePago.findFirst({
+        where: { cuentaId: cobroId, tenantId, sedeId }, select: { estado: true },
+      });
+      if (anterior?.estado === 'EMITIDO') return;
+      await this.emitir(cobroId, dto, sedeId, tenantId, true);
+    });
+  }
+
   /**
    * Caja/admin elige un comprobante de pago (cuenta ya cerrada) y decide si
    * sube como BOLETA o FACTURA. Construye el UBL, lo firma (XMLDSig) y lo
@@ -29,6 +40,7 @@ export class EmisionService {
     dto: EmitirComprobanteDto,
     usuarioSedeId?: string | null,
     tenantId?: string | null,
+    desdeCaja = false,
   ): Promise<{
     id: string;
     tipo: string;
@@ -47,12 +59,15 @@ export class EmisionService {
     if (!comprobantePago || (usuarioSedeId && comprobantePago.sedeId !== usuarioSedeId)) {
       throw new NotFoundException(`No hay comprobante de pago para la cuenta ${cuentaId}`);
     }
+    if (comprobantePago.cuentaOrigenId && !desdeCaja) {
+      throw new BadRequestException('La emisión de este cobro está gestionada por Caja.');
+    }
     if (comprobantePago.estado !== 'DISPONIBLE') {
       throw new BadRequestException(`El comprobante de pago de la cuenta ${cuentaId} ya fue emitido.`);
     }
 
-    const empresa = await this.prisma.empresa.findUnique({ where: { ruc: dto.empresaRuc } });
-    if (!empresa || !empresa.activo) {
+    const empresa = await this.prisma.empresa.findFirst({ where: { ruc: dto.empresaRuc, tenantId: tenantId ?? comprobantePago.tenantId ?? null } });
+    if (!empresa || !empresa.activo || (tenantId && empresa.tenantId !== tenantId)) {
       throw new NotFoundException(`Empresa con RUC ${dto.empresaRuc} no está configurada`);
     }
     if (empresa.sedeId !== comprobantePago.sedeId) {

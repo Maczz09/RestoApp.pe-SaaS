@@ -1,3 +1,6 @@
+import { DivisionCuentaController } from './division-cuenta.controller';
+import { DivisionCuentaService } from './division-cuenta.service';
+import { CajaFusionService, CajaFusionController } from './caja-fusion.service';
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { AppController } from './app.controller';
@@ -30,9 +33,11 @@ import { RoutingKeys } from '@org/contracts';
       bindings: ['pedido.entregado', RoutingKeys.CuentaAbierta, RoutingKeys.CuentaCerrada]
     }),
   ],
-  controllers: [AppController, EventsController],
+  controllers: [CajaFusionController, AppController, EventsController, DivisionCuentaController],
   providers: [
     AppService,
+    DivisionCuentaService,
+    CajaFusionService,
     CuentasHttpClient,
     CierreReconciliacionService,
     { provide: APP_GUARD, useClass: JwtAuthGuard },

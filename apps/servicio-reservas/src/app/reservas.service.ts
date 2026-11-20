@@ -19,7 +19,7 @@ import { OperableLog } from '@org/observabilidad';
 import { resolveSedeId } from '@org/shared-auth';
 import { PrismaService } from '../prisma/prisma.service';
 import { toReservaDto } from './reservas.mapper';
-import { Reserva } from '../generated/prisma';
+import { Reserva, Prisma } from '../generated/prisma';
 
 @Injectable()
 export class ReservasService {
@@ -51,6 +51,7 @@ export class ReservasService {
       where: {
         sedeId,
         ...(tenantId ? { tenantId } : {}),
+        ...(query.search ? { correlativo: { contains: query.search, mode: 'insensitive' } } : {}),
         ...(query.estado ? { estado: query.estado } : {}),
         ...(query.fecha ? { fecha: new Date(query.fecha) } : {}),
         ...(query.updatedSince
@@ -77,6 +78,15 @@ export class ReservasService {
     return Math.min(Math.max(Math.trunc(parsed), 1), 100);
   }
 
+  private async siguienteCorrelativo(prisma: Prisma.TransactionClient, sedeId: string): Promise<string> {
+    const secuencia = await prisma.secuenciaReserva.upsert({
+      where: { sedeId },
+      create: { sedeId, ultimo: 1 },
+      update: { ultimo: { increment: 1 } },
+    });
+    return `R${String(secuencia.ultimo).padStart(7, '0')}`;
+  }
+
   async crear(
     command: CrearReservaCommand,
     usuario?: { id: string; nombre: string } | null,
@@ -101,9 +111,11 @@ export class ReservasService {
     try {
       // M2.A: crear reserva + outbox en la misma transacción
       reserva = await this.prisma.$transaction(async (prisma) => {
+        const correlativo = await this.siguienteCorrelativo(prisma, sedeId);
         const r = await prisma.reserva.create({
           data: {
             sedeId,
+            correlativo,
             ...(tenantId ? { tenantId } : {}),
             clienteId: command.clienteId ?? null,
             clienteNombre,
@@ -252,7 +264,8 @@ export class ReservasService {
   // Rechaza reservas cuyo instante (fecha + hora) ya pasó: no tiene sentido
   // reservar en el pasado y hasta ahora el backend las aceptaba en silencio.
   private assertFechaFutura(fecha: string, hora: string): void {
-    const cuando = new Date(`${fecha}T${hora}`);
+    const horaConSegundos = hora.length === 5 ? `${hora}:00` : hora;
+    const cuando = new Date(`${fecha}T${horaConSegundos}-05:00`);
     if (Number.isNaN(cuando.getTime())) {
       throw new BadRequestException('Fecha u hora de reserva inválida');
     }

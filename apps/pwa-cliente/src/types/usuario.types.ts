@@ -20,6 +20,7 @@ export type CambiarRolPayload = ContractCambiarRolCommand;
 export type CambiarEstadoPayload = ContractCambiarEstadoUsuarioCommand;
 
 export interface UsuarioVM {
+  telefono?: string | null;
   id: string;
   nombre: string;
   email: string;
